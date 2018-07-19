@@ -1,27 +1,54 @@
 from torch.nn import Module, AvgPool2d, MaxPool2d, Sequential, ReLU, Conv2d, BatchNorm2d
 from torch import cat
+from UNIQ.uniq import UNIQNet
+from UNIQ.actquant import ActQuant
+from abc import abstractmethod
 
-OPS = {
-    'none': lambda C, stride, affine: Zero(stride),
-    'avg_pool_3x3': lambda C, stride, affine: AvgPool2d(3, stride=stride, padding=1, count_include_pad=False),
-    'max_pool_3x3': lambda C, stride, affine: MaxPool2d(3, stride=stride, padding=1),
-    'skip_connect': lambda C, stride, affine: Identity() if stride == 1 else FactorizedReduce(C, C, affine=affine),
-    'sep_conv_3x3': lambda C, stride, affine: SepConv(C, C, 3, stride, 1, affine=affine),
-    'sep_conv_5x5': lambda C, stride, affine: SepConv(C, C, 5, stride, 2, affine=affine),
-    'sep_conv_7x7': lambda C, stride, affine: SepConv(C, C, 7, stride, 3, affine=affine),
-    'dil_conv_3x3': lambda C, stride, affine: DilConv(C, C, 3, stride, 2, 2, affine=affine),
-    'dil_conv_5x5': lambda C, stride, affine: DilConv(C, C, 5, stride, 4, 2, affine=affine),
-    'conv_7x1_1x7': lambda C, stride, affine: Sequential(
-        ReLU(inplace=False),
-        Conv2d(C, C, (1, 7), stride=(1, stride), padding=(0, 3), bias=False),
-        Conv2d(C, C, (7, 1), stride=(stride, 1), padding=(3, 0), bias=False),
-        BatchNorm2d(C, affine=affine)
-    ),
-}
+
+class QuantizedOp(UNIQNet):
+    # layers is an array of (layer, bitwidth) elements
+    def __init__(self, C_in, C_out, kernel_size, stride, bitwidth=[], act_bitwidth=[]):
+        super(QuantizedOp, self).__init__(quant=True, noise=True, quant_edges=True,
+                                          act_quant=True, act_noise=False,
+                                          step_setup=[1, 1],
+                                          bitwidth=bitwidth, act_bitwidth=act_bitwidth)
+
+        self.initLayers(C_in, C_out, kernel_size, stride)
+        self.prepare_uniq()
+
+    @abstractmethod
+    def initLayers(self, C_in, C_out, kernel_size, stride):
+        raise NotImplementedError('subclasses must override initLayers()!')
+
+    def forward(self, x):
+        return self.op(x)
+
+
+class QuantizedConv(QuantizedOp):
+    def __init__(self, C_in, C_out, kernel_size, stride, bitwidth, act_bitwidth=[]):
+        super(QuantizedConv, self).__init__(C_in, C_out, kernel_size, stride, bitwidth=bitwidth, act_bitwidth=act_bitwidth)
+
+    def initLayers(self, C_in, C_out, kernel_size, stride):
+        self.op = Sequential(
+            Conv2d(C_in, C_out, kernel_size=kernel_size, stride=stride, padding=1, bias=False),
+            BatchNorm2d(C_out)
+        )
+
+
+class QuantizedConvWithReLU(QuantizedOp):
+    def __init__(self, C_in, C_out, kernel_size, stride, bitwidth, act_bitwidth):
+        super(QuantizedConvWithReLU, self).__init__(C_in, C_out, kernel_size, stride,
+                                                    bitwidth=bitwidth, act_bitwidth=act_bitwidth)
+
+    def initLayers(self, C_in, C_out, kernel_size, stride):
+        self.op = Sequential(
+            Conv2d(C_in, C_out, kernel_size=kernel_size, stride=stride, padding=1, bias=False),
+            BatchNorm2d(C_out),
+            ActQuant(quant=True, noise=False, bitwidth=self.act_bitwidth[0])
+        )
 
 
 class ReLUConvBN(Module):
-
     def __init__(self, C_in, C_out, kernel_size, stride, padding, affine=True):
         super(ReLUConvBN, self).__init__()
         self.op = Sequential(
@@ -105,3 +132,42 @@ class FactorizedReduce(Module):
         out = cat([self.conv_1(x), self.conv_2(x[:, :, 1:, 1:])], dim=1)
         out = self.bn(out)
         return out
+
+
+def createOpFunction(classRef, bitwidth, act_bitwidth):
+    return lambda C, stride, affine: classRef(C, C, kernel_size, stride, bitwidth=bitwidth, act_bitwidth=act_bitwidth)
+
+
+OPS = {
+    'none': lambda C, stride, affine: Zero(stride),
+    'skip_connect': lambda C, stride, affine: Identity() if stride == 1 else FactorizedReduce(C, C,
+                                                                                              affine=affine),
+}
+
+# add quantized operations to OPS
+for kernel_size in [3]:
+    for bitwidth in range(1, 11):
+        OPS['conv_{}x{}_bitwidth_{}'.format(kernel_size, kernel_size, bitwidth)] = \
+            createOpFunction(QuantizedConv, [bitwidth], [])
+
+        for act_bitwidth in range(1, 11):
+            OPS['conv_{}x{}_bitwidth_{}_act_bitwidth_{}'.format(kernel_size, kernel_size, bitwidth, act_bitwidth)] = \
+                createOpFunction(QuantizedConvWithReLU, [bitwidth], [act_bitwidth])
+
+# OPS = {
+#     'none': lambda C, stride, affine: Zero(stride),
+#     'avg_pool_3x3': lambda C, stride, affine: AvgPool2d(3, stride=stride, padding=1, count_include_pad=False),
+#     'max_pool_3x3': lambda C, stride, affine: MaxPool2d(3, stride=stride, padding=1),
+#     'skip_connect': lambda C, stride, affine: Identity() if stride == 1 else FactorizedReduce(C, C, affine=affine),
+#     'sep_conv_3x3': lambda C, stride, affine: SepConv(C, C, 3, stride, 1, affine=affine),
+#     'sep_conv_5x5': lambda C, stride, affine: SepConv(C, C, 5, stride, 2, affine=affine),
+#     'sep_conv_7x7': lambda C, stride, affine: SepConv(C, C, 7, stride, 3, affine=affine),
+#     'dil_conv_3x3': lambda C, stride, affine: DilConv(C, C, 3, stride, 2, 2, affine=affine),
+#     'dil_conv_5x5': lambda C, stride, affine: DilConv(C, C, 5, stride, 4, 2, affine=affine),
+#     'conv_7x1_1x7': lambda C, stride, affine: Sequential(
+#         ReLU(inplace=False),
+#         Conv2d(C, C, (1, 7), stride=(1, stride), padding=(0, 3), bias=False),
+#         Conv2d(C, C, (7, 1), stride=(stride, 1), padding=(3, 0), bias=False),
+#         BatchNorm2d(C, affine=affine)
+#     ),
+# }
