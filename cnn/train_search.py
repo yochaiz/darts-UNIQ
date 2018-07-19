@@ -25,7 +25,7 @@ from cnn.architect import Architect
 
 parser = argparse.ArgumentParser("cifar")
 parser.add_argument('--data', type=str, default='/home/yochaiz/UNIQ/results', help='location of the data corpus')
-parser.add_argument('--batch_size', type=int, default=64, help='batch size')
+parser.add_argument('--batch_size', type=int, default=32, help='batch size')
 parser.add_argument('--learning_rate', type=float, default=0.025, help='init learning rate')
 parser.add_argument('--learning_rate_min', type=float, default=0.001, help='min learning rate')
 parser.add_argument('--momentum', type=float, default=0.9, help='momentum')
@@ -33,6 +33,7 @@ parser.add_argument('--weight_decay', type=float, default=3e-4, help='weight dec
 parser.add_argument('--report_freq', type=float, default=1, help='report frequency')
 parser.add_argument('--gpu', type=int, default=0, help='gpu device id')
 parser.add_argument('--epochs', type=int, default=50, help='num of training epochs')
+parser.add_argument('--workers', type=int, default=16, choices=range(1, 32), help='num of workers')
 parser.add_argument('--init_channels', type=int, default=16, help='num of init channels')
 parser.add_argument('--layers', type=int, default=8, help='total number of layers')
 parser.add_argument('--model_path', type=str, default='saved_models', help='path to save the model')
@@ -92,13 +93,13 @@ def main():
     split = int(np.floor(args.train_portion * num_train))
 
     train_queue = DataLoader(train_data, batch_size=args.batch_size,
-                             sampler=SubsetRandomSampler(indices[:split]), pin_memory=True, num_workers=2)
+                             sampler=SubsetRandomSampler(indices[:split]), pin_memory=True, num_workers=args.workers)
 
-    search_queue = DataLoader(train_data, batch_size=args.batch_size,
-                              sampler=SubsetRandomSampler(indices[split:num_train]), pin_memory=True, num_workers=2)
+    search_queue = DataLoader(train_data, batch_size=args.batch_size, sampler=SubsetRandomSampler(indices[split:num_train]),
+                              pin_memory=True, num_workers=args.workers)
 
     valid_queue = DataLoader(valid_data, batch_size=args.batch_size, shuffle=False,
-                             pin_memory=True, num_workers=2)
+                             pin_memory=True, num_workers=args.workers)
 
     scheduler = CosineAnnealingLR(optimizer, float(args.epochs), eta_min=args.learning_rate_min)
 
@@ -109,8 +110,8 @@ def main():
         lr = scheduler.get_lr()[0]
         logging.info('epoch %d lr %e', epoch, lr)
 
-        genotype = model.genotype()
-        logging.info('genotype = %s', genotype)
+        # genotype = model.genotype()
+        # logging.info('genotype = %s', genotype)
 
         # print(F.softmax(model.alphas_normal, dim=-1))
         # print(F.softmax(model.alphas_reduce, dim=-1))
@@ -132,10 +133,10 @@ def train(train_queue, search_queue, model, architect, criterion, optimizer, lr)
     top5 = AvgrageMeter()
     grad = AvgrageMeter()
 
+    model.train()
     nBatches = len(train_queue)
 
     for step, (input, target) in enumerate(train_queue):
-        model.train()
         n = input.size(0)
 
         input = Variable(input, requires_grad=False).cuda()
@@ -172,8 +173,8 @@ def infer(valid_queue, model, criterion):
     objs = AvgrageMeter()
     top1 = AvgrageMeter()
     top5 = AvgrageMeter()
-    model.eval()
 
+    model.eval()
     nBatches = len(valid_queue)
 
     for step, (input, target) in enumerate(valid_queue):
