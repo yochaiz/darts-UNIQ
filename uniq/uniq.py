@@ -1,7 +1,6 @@
 import torch.nn as nn
-import numpy as np
-import actquant
-import quantize
+from uniq.quantize import backup_weights, quantize, add_noise, restore_weights
+from uniq.actquant import ActQuant
 
 
 def save_state(self, _):
@@ -10,17 +9,17 @@ def save_state(self, _):
     layers_steps = self.get_layers_steps(layers_list)
 
     if self.quant and not self.training:
-        self.full_parameters = quantize.backup_weights(layers_list, {})
+        self.full_parameters = backup_weights(layers_list, {})
         for i in range(len(layers_steps)):
-            quantize.quantize(layers_steps[i], bitwidth=self.bitwidth[i])
+            quantize(layers_steps[i], bitwidth=self.bitwidth[i])
     elif self.noise and self.training:
-        self.full_parameters = quantize.backup_weights(layers_steps[self.training_stage], {})
-        quantize.add_noise(layers_steps[self.training_stage], bitwidth=self.bitwidth[self.training_stage],
-                           training=self.training)
+        self.full_parameters = backup_weights(layers_steps[self.training_stage], {})
+        add_noise(layers_steps[self.training_stage], bitwidth=self.bitwidth[self.training_stage],
+                  training=self.training)
 
         for i in range(self.training_stage):
-            self.full_parameters = quantize.backup_weights(layers_steps[i], self.full_parameters)
-            quantize.quantize(layers_steps[i], bitwidth=self.bitwidth[i])
+            self.full_parameters = backup_weights(layers_steps[i], self.full_parameters)
+            quantize(layers_steps[i], bitwidth=self.bitwidth[i])
 
 
 def restore_state(self, _, __):
@@ -28,12 +27,12 @@ def restore_state(self, _, __):
     layers_steps = self.get_layers_steps(layers_list)
 
     if self.quant and not self.training:
-        quantize.restore_weights(layers_list, self.full_parameters)
+        restore_weights(layers_list, self.full_parameters)
     elif self.noise and self.training:
-        quantize.restore_weights(layers_steps[self.training_stage],
-                                 self.full_parameters)  # Restore the noised layers
+        restore_weights(layers_steps[self.training_stage],
+                        self.full_parameters)  # Restore the noised layers
         for i in range(self.training_stage):
-            quantize.restore_weights(layers_steps[i], self.full_parameters)  # Restore the quantized layers
+            restore_weights(layers_steps[i], self.full_parameters)  # Restore the quantized layers
 
 
 class UNIQNet(nn.Module):
@@ -63,13 +62,13 @@ class UNIQNet(nn.Module):
     def get_layers_list(self):
         modules_list = list(self.modules())
         return [x for x in modules_list if
-                isinstance(x, nn.Conv2d) or isinstance(x, nn.Linear) or isinstance(x, actquant.ActQuant)]
+                isinstance(x, nn.Conv2d) or isinstance(x, nn.Linear) or isinstance(x, ActQuant)]
 
     def get_layers_steps(self, layers_list):
         layers_steps = []
         l = []
         for layer in layers_list:
-            if isinstance(layer, actquant.ActQuant):
+            if isinstance(layer, ActQuant):
                 l.append(layer)
                 layers_steps.append(l)
                 l = []
@@ -105,13 +104,13 @@ class UNIQNet(nn.Module):
                 if isinstance(layer, nn.Conv2d) or isinstance(layer, nn.Linear):
                     for param in layer.parameters():
                         param.requires_grad = False
-                elif isinstance(layer, actquant.ActQuant):
+                elif isinstance(layer, ActQuant):
                     layer.quatize_during_training = True
                     layer.noise_during_training = False
 
         if self.act_noise:
             for layer in self.layers_steps[self.training_stage]:  # Turn on noise only for current stage
-                if isinstance(layer, actquant.ActQuant):
+                if isinstance(layer, ActQuant):
                     layer.noise_during_training = True
 
     def prepare_uniq(self):
@@ -142,12 +141,12 @@ class UNIQNet(nn.Module):
         for step in self.layers_steps:
             if len(step) > 1:
                 for ind in range(len(step) - 1):
-                    if (not isinstance(step[ind], actquant.ActQuant)) and (isinstance(step[ind + 1], actquant.ActQuant)):
+                    if (not isinstance(step[ind], ActQuant)) and (isinstance(step[ind + 1], ActQuant)):
                         self.act_list.append(step[ind])
 
         if self.act_noise:
             for layer in self.layers_steps[0]:  # Turn on noise for first stage
-                if isinstance(layer, actquant.ActQuant):
+                if isinstance(layer, ActQuant):
                     layer.noise_during_training = True
 
         if (self.quant is False) or (len(self.bitwidth) == 0):

@@ -1,6 +1,7 @@
 import torch.nn as nn
-import quantize
+from uniq.quantize import act_quantize
 import torch.nn.functional as F
+
 
 class ActQuant(nn.Module):
 
@@ -20,11 +21,10 @@ class ActQuant(nn.Module):
     def forward(self, input):
 
         if self.quant and (not self.training or (self.training and self.quatize_during_training)):
-            x = quantize.act_quantize(input, bitwidth=self.bitwidth)
+            x = act_quantize(input, bitwidth=self.bitwidth)
         elif self.noise and self.training and self.noise_during_training:
-            x = quantize.act_noise(input, bitwidth=self.bitwidth, training=self.training)
+            x = act_noise(input, bitwidth=self.bitwidth, training=self.training)
         else:
             x = F.relu(input)
-
 
         return x
