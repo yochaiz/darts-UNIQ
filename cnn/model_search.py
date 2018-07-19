@@ -7,18 +7,26 @@ from cnn.operations import OPS, FactorizedReduce, ReLUConvBN
 
 
 class MixedOp(Module):
-
     def __init__(self, C, stride):
         super(MixedOp, self).__init__()
         self._ops = ModuleList()
-        for primitive in PRIMITIVES:
-            op = OPS[primitive](C, stride, False)
-            if 'pool' in primitive:
+        for key, opFunc in OPS.items():
+            op = opFunc(C, stride, False)
+            if 'pool' in key:
                 op = Sequential(op, BatchNorm2d(C, affine=False))
             self._ops.append(op)
 
     def forward(self, x, weights):
         return sum(w * op(x) for w, op in zip(weights, self._ops))
+
+    # def __init__(self, C, stride):
+    #     super(MixedOp, self).__init__()
+    #     self._ops = ModuleList()
+    #     for primitive in PRIMITIVES:
+    #         op = OPS[primitive](C, stride, False)
+    #         if 'pool' in primitive:
+    #             op = Sequential(op, BatchNorm2d(C, affine=False))
+    #         self._ops.append(op)
 
 
 class Cell(Module):
