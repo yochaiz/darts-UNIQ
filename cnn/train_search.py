@@ -1,3 +1,4 @@
+# import torch.nn.functional as F
 import os
 from sys import stdout, exit
 import time
@@ -10,7 +11,6 @@ from torch.nn.utils.clip_grad import clip_grad_norm
 from torch.utils.data.dataloader import DataLoader
 from torch.utils.data.sampler import SubsetRandomSampler
 from torch.optim.lr_scheduler import CosineAnnealingLR
-import torch.nn.functional as F
 from torchvision.datasets.cifar import CIFAR10
 import torch.backends.cudnn as cudnn
 from torch.cuda import is_available, set_device
@@ -30,7 +30,7 @@ parser.add_argument('--learning_rate', type=float, default=0.025, help='init lea
 parser.add_argument('--learning_rate_min', type=float, default=0.001, help='min learning rate')
 parser.add_argument('--momentum', type=float, default=0.9, help='momentum')
 parser.add_argument('--weight_decay', type=float, default=3e-4, help='weight decay')
-parser.add_argument('--report_freq', type=float, default=50, help='report frequency')
+parser.add_argument('--report_freq', type=float, default=1, help='report frequency')
 parser.add_argument('--gpu', type=int, default=0, help='gpu device id')
 parser.add_argument('--epochs', type=int, default=50, help='num of training epochs')
 parser.add_argument('--init_channels', type=int, default=16, help='num of init channels')
@@ -53,7 +53,7 @@ create_exp_dir(args.save, scripts_to_save=glob.glob('*.py'))
 
 log_format = '%(asctime)s %(message)s'
 logging.basicConfig(stream=stdout, level=logging.INFO,
-                    format=log_format, datefmt='%m/%d %I:%M:%S %p')
+                    format=log_format, datefmt='%d/%m/%Y %H:%M:%S')
 fh = logging.FileHandler(os.path.join(args.save, 'log.txt'))
 fh.setFormatter(logging.Formatter(log_format))
 logging.getLogger().addHandler(fh)
@@ -112,16 +112,16 @@ def main():
         genotype = model.genotype()
         logging.info('genotype = %s', genotype)
 
-        print(F.softmax(model.alphas_normal, dim=-1))
-        print(F.softmax(model.alphas_reduce, dim=-1))
+        # print(F.softmax(model.alphas_normal, dim=-1))
+        # print(F.softmax(model.alphas_reduce, dim=-1))
 
         # training
         train_acc, train_obj, arch_grad_norm = train(train_queue, search_queue, model, architect, criterion, optimizer, lr)
-        logging.info('train_acc %f', train_acc)
+        logging.info('training accuracy:[{:.3f}]'.format(train_acc))
 
         # validation
         valid_acc, valid_obj = infer(valid_queue, model, criterion)
-        logging.info('valid_acc %f', valid_acc)
+        logging.info('validation accuracy:[{:.3f}]'.format(valid_acc))
 
         save(model, os.path.join(args.save, 'weights.pt'))
 
@@ -131,6 +131,8 @@ def train(train_queue, search_queue, model, architect, criterion, optimizer, lr)
     top1 = AvgrageMeter()
     top5 = AvgrageMeter()
     grad = AvgrageMeter()
+
+    nBatches = len(train_queue)
 
     for step, (input, target) in enumerate(train_queue):
         model.train()
@@ -156,12 +158,12 @@ def train(train_queue, search_queue, model, architect, criterion, optimizer, lr)
         optimizer.step()
 
         prec1, prec5 = accuracy(logits, target, topk=(1, 5))
-        objs.update(loss.data[0], n)
-        top1.update(prec1.data[0], n)
-        top5.update(prec5.data[0], n)
+        objs.update(loss.item(), n)
+        top1.update(prec1.item(), n)
+        top5.update(prec5.item(), n)
 
         if step % args.report_freq == 0:
-            logging.info('train %03d %e %f %f', step, objs.avg, top1.avg, top5.avg)
+            logging.info('train [{}/{}] Loss:[{:.5f}] Accuracy:[{:.3f}]'.format(step, nBatches, objs.avg, top1.avg))
 
     return top1.avg, objs.avg, grad.avg
 
@@ -172,6 +174,8 @@ def infer(valid_queue, model, criterion):
     top5 = AvgrageMeter()
     model.eval()
 
+    nBatches = len(valid_queue)
+
     for step, (input, target) in enumerate(valid_queue):
         input = Variable(input, volatile=True).cuda()
         target = Variable(target, volatile=True).cuda(async=True)
@@ -181,12 +185,12 @@ def infer(valid_queue, model, criterion):
 
         prec1, prec5 = accuracy(logits, target, topk=(1, 5))
         n = input.size(0)
-        objs.update(loss.data[0], n)
-        top1.update(prec1.data[0], n)
-        top5.update(prec5.data[0], n)
+        objs.update(loss.item(), n)
+        top1.update(prec1.item(), n)
+        top5.update(prec5.item(), n)
 
         if step % args.report_freq == 0:
-            logging.info('valid %03d %e %f %f', step, objs.avg, top1.avg, top5.avg)
+            logging.info('validation [{}/{}] Loss:[{:.5f}] Accuracy:[{:.3f}]'.format(step, nBatches, objs.avg, top1.avg))
 
     return top1.avg, objs.avg
 
