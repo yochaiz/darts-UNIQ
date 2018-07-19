@@ -1,5 +1,5 @@
 import torch.nn as nn
-from uniq.quantize import act_quantize
+from UNIQ.quantize import act_quantize, act_noise
 import torch.nn.functional as F
 
 
