@@ -22,7 +22,7 @@ class MixedOp(Module):
 
 
 class Cell(Module):
-
+    # steps - number of nodes in the cell
     def __init__(self, steps, multiplier, C_prev_prev, C_prev, C, reduction, reduction_prev):
         super(Cell, self).__init__()
         self.reduction = reduction
@@ -63,7 +63,7 @@ class Network(Module):
         super(Network, self).__init__()
         self._C = C
         self._num_classes = num_classes
-        self._layers = layers
+        self._layers = layers  # each layer is a Cell object
         self._criterion = criterion
         self._steps = steps
         self._multiplier = multiplier
@@ -83,6 +83,7 @@ class Network(Module):
                 reduction = True
             else:
                 reduction = False
+
             cell = Cell(steps, multiplier, C_prev_prev, C_prev, C_curr, reduction, reduction_prev)
             reduction_prev = reduction
             self.cells += [cell]
