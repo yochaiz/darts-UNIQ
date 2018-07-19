@@ -2,7 +2,7 @@ from torch import cat, randn
 from torch.nn import Module, ModuleList, Sequential, BatchNorm2d, Conv2d, AdaptiveAvgPool2d, Linear
 import torch.nn.functional as F
 from torch.autograd import Variable
-from cnn.genotypes import PRIMITIVES, Genotype
+# from cnn.genotypes import PRIMITIVES, Genotype
 from cnn.operations import OPS, FactorizedReduce, ReLUConvBN
 
 
@@ -132,34 +132,33 @@ class Network(Module):
     def arch_parameters(self):
         return self._arch_parameters
 
-    def genotype(self):
-
-        def _parse(weights):
-            gene = []
-            n = 2
-            start = 0
-            for i in range(self._steps):
-                end = start + n
-                W = weights[start:end].copy()
-                edges = sorted(range(i + 2),
-                               key=lambda x: -max(W[x][k] for k in range(len(W[x])) if k != PRIMITIVES.index('none')))[:2]
-                for j in edges:
-                    k_best = None
-                    for k in range(len(W[j])):
-                        if k != PRIMITIVES.index('none'):
-                            if k_best is None or W[j][k] > W[j][k_best]:
-                                k_best = k
-                    gene.append((PRIMITIVES[k_best], j))
-                start = end
-                n += 1
-            return gene
-
-        gene_normal = _parse(F.softmax(self.alphas_normal, dim=-1).data.cpu().numpy())
-        gene_reduce = _parse(F.softmax(self.alphas_reduce, dim=-1).data.cpu().numpy())
-
-        concat = range(2 + self._steps - self._multiplier, self._steps + 2)
-        genotype = Genotype(
-            normal=gene_normal, normal_concat=concat,
-            reduce=gene_reduce, reduce_concat=concat
-        )
-        return genotype
+    # def genotype(self):
+    #     def _parse(weights):
+    #         gene = []
+    #         n = 2
+    #         start = 0
+    #         for i in range(self._steps):
+    #             end = start + n
+    #             W = weights[start:end].copy()
+    #             edges = sorted(range(i + 2),
+    #                            key=lambda x: -max(W[x][k] for k in range(len(W[x])) if k != PRIMITIVES.index('none')))[:2]
+    #             for j in edges:
+    #                 k_best = None
+    #                 for k in range(len(W[j])):
+    #                     if k != PRIMITIVES.index('none'):
+    #                         if k_best is None or W[j][k] > W[j][k_best]:
+    #                             k_best = k
+    #                 gene.append((PRIMITIVES[k_best], j))
+    #             start = end
+    #             n += 1
+    #         return gene
+    #
+    #     gene_normal = _parse(F.softmax(self.alphas_normal, dim=-1).data.cpu().numpy())
+    #     gene_reduce = _parse(F.softmax(self.alphas_reduce, dim=-1).data.cpu().numpy())
+    #
+    #     concat = range(2 + self._steps - self._multiplier, self._steps + 2)
+    #     genotype = Genotype(
+    #         normal=gene_normal, normal_concat=concat,
+    #         reduce=gene_reduce, reduce_concat=concat
+    #     )
+    #     return genotype
