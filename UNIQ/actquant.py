@@ -19,7 +19,6 @@ class ActQuant(nn.Module):
         self.noise_during_training = noise_during_training
 
     def forward(self, input):
-
         if self.quant and (not self.training or (self.training and self.quatize_during_training)):
             x = act_quantize(input, bitwidth=self.bitwidth)
         elif self.noise and self.training and self.noise_during_training:
