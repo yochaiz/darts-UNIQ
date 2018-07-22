@@ -4,6 +4,8 @@ import torch.nn.functional as F
 from torch.autograd import Variable
 # from cnn.genotypes import PRIMITIVES, Genotype
 from cnn.operations import OPS, FactorizedReduce, ReLUConvBN
+from UNIQ.uniq import UNIQNet
+from UNIQ.actquant import ActQuant
 
 
 class MixedOp(Module):
@@ -47,6 +49,7 @@ class Cell(Module):
         self._bns = ModuleList()
         for i in range(self._steps):
             for j in range(2 + i):
+                # TODO: why do they use this j index ???
                 stride = 2 if reduction and j < 2 else 1
                 op = MixedOp(C, stride)
                 self._ops.append(op)
@@ -75,6 +78,8 @@ class Network(Module):
         self._criterion = criterion
         self._steps = steps
         self._multiplier = multiplier
+        # init number of layers we have completed its quantization
+        self.nLayersQuantCompleted = 0
 
         C_curr = stem_multiplier * C
         self.stem = Sequential(
@@ -102,6 +107,11 @@ class Network(Module):
 
         self._initialize_alphas()
 
+        # set learnable parameters
+        self.learnable_params = [param for param in self.parameters() if param.requires_grad]
+        # update model parameters() function
+        self.parameters = self.getLearnableParams
+
     def forward(self, input):
         s0 = s1 = self.stem(input)
         for i, cell in enumerate(self.cells):
@@ -120,7 +130,8 @@ class Network(Module):
 
     def _initialize_alphas(self):
         k = sum(1 for i in range(self._steps) for n in range(2 + i))
-        num_ops = len(PRIMITIVES)
+        # num_ops = len(PRIMITIVES)
+        num_ops = len(OPS)
 
         self.alphas_normal = Variable(1e-3 * randn(k, num_ops).cuda(), requires_grad=True)
         self.alphas_reduce = Variable(1e-3 * randn(k, num_ops).cuda(), requires_grad=True)
@@ -132,33 +143,64 @@ class Network(Module):
     def arch_parameters(self):
         return self._arch_parameters
 
-    # def genotype(self):
-    #     def _parse(weights):
-    #         gene = []
-    #         n = 2
-    #         start = 0
-    #         for i in range(self._steps):
-    #             end = start + n
-    #             W = weights[start:end].copy()
-    #             edges = sorted(range(i + 2),
-    #                            key=lambda x: -max(W[x][k] for k in range(len(W[x])) if k != PRIMITIVES.index('none')))[:2]
-    #             for j in edges:
-    #                 k_best = None
-    #                 for k in range(len(W[j])):
-    #                     if k != PRIMITIVES.index('none'):
-    #                         if k_best is None or W[j][k] > W[j][k_best]:
-    #                             k_best = k
-    #                 gene.append((PRIMITIVES[k_best], j))
-    #             start = end
-    #             n += 1
-    #         return gene
-    #
-    #     gene_normal = _parse(F.softmax(self.alphas_normal, dim=-1).data.cpu().numpy())
-    #     gene_reduce = _parse(F.softmax(self.alphas_reduce, dim=-1).data.cpu().numpy())
-    #
-    #     concat = range(2 + self._steps - self._multiplier, self._steps + 2)
-    #     genotype = Genotype(
-    #         normal=gene_normal, normal_concat=concat,
-    #         reduce=gene_reduce, reduce_concat=concat
-    #     )
-    #     return genotype
+    def getLearnableParams(self):
+        return self.learnable_params
+
+    def switch_stage(self, logger=None):
+        switchStageLayerExists = False
+        cell = self.cells[self.nLayersQuantCompleted]
+        for mixedOp in cell._ops:
+            if not isinstance(mixedOp, MixedOp):
+                continue
+
+            for op in mixedOp._ops:
+                if isinstance(op, UNIQNet):
+                    for m in op.modules():
+                        if isinstance(m, Conv2d):
+                            switchStageLayerExists = True
+                            for param in m.parameters():
+                                param.requires_grad = False
+                        elif isinstance(m, ActQuant):
+                            switchStageLayerExists = True
+                            m.quatize_during_training = True
+                            m.noise_during_training = False
+
+        # update learnable parameters
+        self.learnable_params = [param for param in self.parameters() if param.requires_grad]
+
+        # we have completed quantization of one more layer
+        self.nLayersQuantCompleted += 1
+
+        if logger and switchStageLayerExists:
+            logger.info('Switching stage, nLayersQuantCompleted:[{}]'.format(self.nLayersQuantCompleted))
+
+# def genotype(self):
+#     def _parse(weights):
+#         gene = []
+#         n = 2
+#         start = 0
+#         for i in range(self._steps):
+#             end = start + n
+#             W = weights[start:end].copy()
+#             edges = sorted(range(i + 2),
+#                            key=lambda x: -max(W[x][k] for k in range(len(W[x])) if k != PRIMITIVES.index('none')))[:2]
+#             for j in edges:
+#                 k_best = None
+#                 for k in range(len(W[j])):
+#                     if k != PRIMITIVES.index('none'):
+#                         if k_best is None or W[j][k] > W[j][k_best]:
+#                             k_best = k
+#                 gene.append((PRIMITIVES[k_best], j))
+#             start = end
+#             n += 1
+#         return gene
+#
+#     gene_normal = _parse(F.softmax(self.alphas_normal, dim=-1).data.cpu().numpy())
+#     gene_reduce = _parse(F.softmax(self.alphas_reduce, dim=-1).data.cpu().numpy())
+#
+#     concat = range(2 + self._steps - self._multiplier, self._steps + 2)
+#     genotype = Genotype(
+#         normal=gene_normal, normal_concat=concat,
+#         reduce=gene_reduce, reduce_concat=concat
+#     )
+#     return genotype
