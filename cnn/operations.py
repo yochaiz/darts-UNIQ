@@ -1,5 +1,6 @@
 from torch.nn import Module, AvgPool2d, MaxPool2d, Sequential, ReLU, Conv2d, BatchNorm2d
 from torch import cat
+import logging
 from UNIQ.uniq import UNIQNet
 from UNIQ.actquant import ActQuant
 from abc import abstractmethod
@@ -134,40 +135,49 @@ class FactorizedReduce(Module):
         return out
 
 
-def createOpFunction(classRef, bitwidth, act_bitwidth):
+def createOpFunction(classRef, kernel_size, bitwidth, act_bitwidth):
     return lambda C, stride, affine: classRef(C, C, kernel_size, stride, bitwidth=bitwidth, act_bitwidth=act_bitwidth)
 
 
-OPS = {
-    'none': lambda C, stride, affine: Zero(stride),
-    'skip_connect': lambda C, stride, affine: Identity() if stride == 1 else FactorizedReduce(C, C,
-                                                                                              affine=affine),
-}
+def originalOPS():
+    OPS = {
+        'none': lambda C, stride, affine: Zero(stride),
+        'avg_pool_3x3': lambda C, stride, affine: AvgPool2d(3, stride=stride, padding=1, count_include_pad=False),
+        'max_pool_3x3': lambda C, stride, affine: MaxPool2d(3, stride=stride, padding=1),
+        'skip_connect': lambda C, stride, affine: Identity() if stride == 1 else FactorizedReduce(C, C, affine=affine),
+        'sep_conv_3x3': lambda C, stride, affine: SepConv(C, C, 3, stride, 1, affine=affine),
+        'sep_conv_5x5': lambda C, stride, affine: SepConv(C, C, 5, stride, 2, affine=affine),
+        'sep_conv_7x7': lambda C, stride, affine: SepConv(C, C, 7, stride, 3, affine=affine),
+        'dil_conv_3x3': lambda C, stride, affine: DilConv(C, C, 3, stride, 2, 2, affine=affine),
+        'dil_conv_5x5': lambda C, stride, affine: DilConv(C, C, 5, stride, 4, 2, affine=affine),
+        'conv_7x1_1x7': lambda C, stride, affine: Sequential(
+            ReLU(inplace=False),
+            Conv2d(C, C, (1, 7), stride=(1, stride), padding=(0, 3), bias=False),
+            Conv2d(C, C, (7, 1), stride=(stride, 1), padding=(3, 0), bias=False),
+            BatchNorm2d(C, affine=affine)
+        ),
+    }
 
-# add quantized operations to OPS
-for kernel_size in [3]:
-    for bitwidth in range(1, 11):
-        OPS['conv_{}x{}_bitwidth_{}'.format(kernel_size, kernel_size, bitwidth)] = \
-            createOpFunction(QuantizedConv, [bitwidth], [])
+    return OPS
 
-        for act_bitwidth in range(1, 11):
-            OPS['conv_{}x{}_bitwidth_{}_act_bitwidth_{}'.format(kernel_size, kernel_size, bitwidth, act_bitwidth)] = \
-                createOpFunction(QuantizedConvWithReLU, [bitwidth], [act_bitwidth])
 
-# OPS = {
-#     'none': lambda C, stride, affine: Zero(stride),
-#     'avg_pool_3x3': lambda C, stride, affine: AvgPool2d(3, stride=stride, padding=1, count_include_pad=False),
-#     'max_pool_3x3': lambda C, stride, affine: MaxPool2d(3, stride=stride, padding=1),
-#     'skip_connect': lambda C, stride, affine: Identity() if stride == 1 else FactorizedReduce(C, C, affine=affine),
-#     'sep_conv_3x3': lambda C, stride, affine: SepConv(C, C, 3, stride, 1, affine=affine),
-#     'sep_conv_5x5': lambda C, stride, affine: SepConv(C, C, 5, stride, 2, affine=affine),
-#     'sep_conv_7x7': lambda C, stride, affine: SepConv(C, C, 7, stride, 3, affine=affine),
-#     'dil_conv_3x3': lambda C, stride, affine: DilConv(C, C, 3, stride, 2, 2, affine=affine),
-#     'dil_conv_5x5': lambda C, stride, affine: DilConv(C, C, 5, stride, 4, 2, affine=affine),
-#     'conv_7x1_1x7': lambda C, stride, affine: Sequential(
-#         ReLU(inplace=False),
-#         Conv2d(C, C, (1, 7), stride=(1, stride), padding=(0, 3), bias=False),
-#         Conv2d(C, C, (7, 1), stride=(stride, 1), padding=(3, 0), bias=False),
-#         BatchNorm2d(C, affine=affine)
-#     ),
-# }
+def UNIQ_OPS(nBitsMin, nBitsMax):
+    OPS = {
+        'none': lambda C, stride, affine: Zero(stride),
+        'skip_connect': lambda C, stride, affine: Identity() if stride == 1 else FactorizedReduce(C, C, affine=affine)
+    }
+    # add quantized operations to OPS
+    for kernel_size in [3]:
+        for bitwidth in range(nBitsMin, nBitsMax + 1):
+            OPS['conv_{}x{}_bitwidth_{}'.format(kernel_size, kernel_size, bitwidth)] = \
+                createOpFunction(QuantizedConv, kernel_size, [bitwidth], [])
+
+            for act_bitwidth in range(max(nBitsMin, bitwidth - 1), min(nBitsMax, bitwidth) + 1):
+                OPS['conv_{}x{}_bitwidth_{}_act_bitwidth_{}'.format(kernel_size, kernel_size, bitwidth, act_bitwidth)] = \
+                    createOpFunction(QuantizedConvWithReLU, kernel_size, [bitwidth], [act_bitwidth])
+
+    return OPS
+
+
+# OPS = originalOPS()
+OPS = UNIQ_OPS(nBitsMin=1, nBitsMax=4)
