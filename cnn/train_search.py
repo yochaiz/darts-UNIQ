@@ -231,6 +231,9 @@ nEpochs = epochsSwitchStage[-1]
 # remove epoch 0 from list, and last switch, since after last switch there are no layers to quantize
 epochsSwitchStage = epochsSwitchStage[1:-1]
 
+logger.info('nEpochs:[{}]'.format(nEpochs))
+logger.info('epochsSwitchStage:{}'.format(epochsSwitchStage))
+
 scheduler = CosineAnnealingLR(optimizer, float(nEpochs), eta_min=args.learning_rate_min)
 
 architect = Architect(model, args)
