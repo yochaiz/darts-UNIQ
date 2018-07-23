@@ -1,7 +1,7 @@
 import numpy as np
 from torch import cat, zeros_like
 from torch.optim import Adam
-from torch.nn.utils.clip_grad import clip_grad_norm
+from torch.nn.utils.clip_grad import clip_grad_norm_
 from torch.autograd import Variable, grad
 from cnn.model_search import Network
 
@@ -38,7 +38,7 @@ class Architect(object):
         else:
             self._backward_step(input_valid, target_valid)
 
-        grad_norm = clip_grad_norm(self.model.arch_parameters(), 10.)
+        grad_norm = clip_grad_norm_(self.model.arch_parameters(), 10.)
         self.optimizer.step()
         return grad_norm
 
