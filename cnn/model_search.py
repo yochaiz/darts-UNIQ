@@ -1,8 +1,8 @@
-from torch import cat, randn
+# from cnn.genotypes import PRIMITIVES, Genotype
+from torch import cat, randn, tensor
 from torch.nn import Module, ModuleList, Sequential, BatchNorm2d, Conv2d, AdaptiveAvgPool2d, Linear
 import torch.nn.functional as F
-from torch.autograd import Variable
-# from cnn.genotypes import PRIMITIVES, Genotype
+from torch.autograd.variable import Variable
 from cnn.operations import OPS, FactorizedReduce, ReLUConvBN
 from UNIQ.uniq import UNIQNet
 from UNIQ.actquant import ActQuant
@@ -20,6 +20,9 @@ class MixedOp(Module):
 
     def forward(self, x, weights):
         return sum(w * op(x) for w, op in zip(weights, self._ops))
+        # res = 0
+        # for w, op in zip(weights, self._ops):
+        #     res += w * op(x)
 
     # def __init__(self, C, stride):
     #     super(MixedOp, self).__init__()
@@ -62,6 +65,10 @@ class Cell(Module):
         offset = 0
         for i in range(self._steps):
             s = sum(self._ops[offset + j](h, weights[offset + j]) for j, h in enumerate(states))
+            # s = 0
+            # for j, h in enumerate(states):
+            #     s += self._ops[offset + j](h, weights[offset + j])
+
             offset += len(states)
             states.append(s)
 
@@ -69,7 +76,6 @@ class Cell(Module):
 
 
 class Network(Module):
-
     def __init__(self, C, num_classes, layers, criterion, steps=4, multiplier=4, stem_multiplier=3):
         super(Network, self).__init__()
         self._C = C
@@ -135,9 +141,10 @@ class Network(Module):
 
         self.alphas_normal = Variable(1e-3 * randn(k, num_ops).cuda(), requires_grad=True)
         self.alphas_reduce = Variable(1e-3 * randn(k, num_ops).cuda(), requires_grad=True)
+
         self._arch_parameters = [
             self.alphas_normal,
-            self.alphas_reduce,
+            self.alphas_reduce
         ]
 
     def arch_parameters(self):
