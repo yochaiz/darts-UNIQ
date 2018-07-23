@@ -181,3 +181,8 @@ def UNIQ_OPS(nBitsMin, nBitsMax):
 
 # OPS = originalOPS()
 OPS = UNIQ_OPS(nBitsMin=1, nBitsMax=4)
+
+# OPS = {
+#     'none': lambda C, stride, affine: Zero(stride),
+#     'skip_connect': lambda C, stride, affine: Identity() if stride == 1 else FactorizedReduce(C, C, affine=affine)
+# }
