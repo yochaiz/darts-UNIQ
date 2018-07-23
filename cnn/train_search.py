@@ -6,9 +6,9 @@ import glob
 import numpy as np
 import logging
 import argparse
-from math import floor
+
 from torch.nn import CrossEntropyLoss
-from torch.nn.utils.clip_grad import clip_grad_norm
+from torch.nn.utils.clip_grad import clip_grad_norm_
 from torch.utils.data.dataloader import DataLoader
 from torch.utils.data.sampler import SubsetRandomSampler
 from torch.optim.lr_scheduler import CosineAnnealingLR
@@ -17,9 +17,10 @@ import torch.backends.cudnn as cudnn
 from torch.cuda import is_available, set_device
 from torch.cuda import manual_seed as cuda_manual_seed
 from torch import manual_seed as torch_manual_seed
+from torch import no_grad
 from torch.optim import SGD, Adam
+from torch.autograd.variable import Variable
 
-from torch.autograd import Variable
 from cnn.utils import create_exp_dir, count_parameters_in_MB, _data_transforms_cifar10, accuracy, AvgrageMeter, save
 from cnn.model_search import Network
 from cnn.architect import Architect
@@ -35,7 +36,7 @@ def parseArgs():
     parser.add_argument('--momentum', type=float, default=0.9, help='momentum')
     parser.add_argument('--weight_decay', type=float, default=3e-4, help='weight decay')
     parser.add_argument('--report_freq', type=float, default=1, help='report frequency')
-    parser.add_argument('--gpu', type=int, default=0, help='gpu device id')
+    parser.add_argument('--gpu', type=str, default='0', help='gpu device id, e.g. 0,1,3')
     parser.add_argument('--epochs', type=str, default='1',
                         help='num of training epochs per layer, as list, e.g. 5,4,3,8,6.'
                              'If len(epochs)<len(layers) then last value is used for rest of the layers')
@@ -54,6 +55,20 @@ def parseArgs():
     parser.add_argument('--arch_learning_rate', type=float, default=3e-4, help='learning rate for arch encoding')
     parser.add_argument('--arch_weight_decay', type=float, default=1e-3, help='weight decay for arch encoding')
     args = parser.parse_args()
+
+    # update epochs per layer list
+    args.epochs = [int(i) for i in args.epochs.split(',')]
+    while len(args.epochs) < args.layers:
+        args.epochs.append(args.epochs[-1])
+
+    # update GPUs list
+    if type(args.gpu) is str:
+        args.gpu = [int(i) for i in args.gpu.split(',')]
+
+    args.device = 'cuda:' + str(args.gpu[0])
+
+    args.save = 'search-{}-{}'.format(args.save, strftime("%Y%m%d-%H%M%S"))
+    create_exp_dir(args.save, scripts_to_save=glob.glob('*.py'))
 
     return args
 
@@ -87,7 +102,7 @@ def train(train_queue, search_queue, args, model, architect, criterion, optimize
         loss = criterion(logits, target)
 
         loss.backward()
-        clip_grad_norm(model.parameters(), args.grad_clip)
+        clip_grad_norm_(model.parameters(), args.grad_clip)
         optimizer.step()
 
         prec1, prec5 = accuracy(logits, target, topk=(1, 5))
@@ -112,39 +127,32 @@ def infer(valid_queue, args, model, criterion):
     model.eval()
     nBatches = len(valid_queue)
 
-    for step, (input, target) in enumerate(valid_queue):
-        startTime = time()
+    with no_grad():
+        for step, (input, target) in enumerate(valid_queue):
+            startTime = time()
 
-        input = Variable(input, volatile=True).cuda()
-        target = Variable(target, volatile=True).cuda(async=True)
+            input = Variable(input, volatile=True).cuda()
+            target = Variable(target, volatile=True).cuda(async=True)
 
-        logits = model(input)
-        loss = criterion(logits, target)
+            logits = model(input)
+            loss = criterion(logits, target)
 
-        prec1, prec5 = accuracy(logits, target, topk=(1, 5))
-        n = input.size(0)
-        objs.update(loss.item(), n)
-        top1.update(prec1.item(), n)
-        top5.update(prec5.item(), n)
+            prec1, prec5 = accuracy(logits, target, topk=(1, 5))
+            n = input.size(0)
+            objs.update(loss.item(), n)
+            top1.update(prec1.item(), n)
+            top5.update(prec5.item(), n)
 
-        endTime = time()
+            endTime = time()
 
-        if step % args.report_freq == 0:
-            logger.info('validation [{}/{}] Loss:[{:.5f}] Accuracy:[{:.3f}] time:[{:.5f}]'.
-                        format(step, nBatches, objs.avg, top1.avg, endTime - startTime))
+            if step % args.report_freq == 0:
+                logger.info('validation [{}/{}] Loss:[{:.5f}] Accuracy:[{:.3f}] time:[{:.5f}]'.
+                            format(step, nBatches, objs.avg, top1.avg, endTime - startTime))
 
     return top1.avg, objs.avg
 
 
 args = parseArgs()
-
-# update epochs per layer list
-args.epochs = [int(i) for i in args.epochs.split(',')]
-while len(args.epochs) < args.layers:
-    args.epochs.append(args.epochs[-1])
-
-args.save = 'search-{}-{}'.format(args.save, strftime("%Y%m%d-%H%M%S"))
-create_exp_dir(args.save, scripts_to_save=glob.glob('*.py'))
 
 log_format = '%(asctime)s %(message)s'
 logging.basicConfig(stream=stdout, level=logging.INFO,
@@ -164,21 +172,24 @@ if not is_available():
     exit(1)
 
 np.random.seed(args.seed)
-set_device(args.gpu)
+set_device(args.gpu[0])
 cudnn.benchmark = True
 torch_manual_seed(args.seed)
 cudnn.enabled = True
 cuda_manual_seed(args.seed)
-logger.info('GPU:[{}]'.format(args.gpu))
-logger.info("args = %s", args)
 
 criterion = CrossEntropyLoss()
 criterion = criterion.cuda()
+# criterion = criterion.to(args.device)
 model = Network(args.init_channels, CIFAR_CLASSES, args.layers, criterion)
+# model = DataParallel(model, args.gpu)
 model = model.cuda()
+# model = model.to(args.device)
 
 # print some attributes
 logger.info('{}'.format(model.cells[0]))
+logger.info('GPU:{}'.format(args.gpu))
+logger.info("args = %s", args)
 logger.info("param size = %fMB", count_parameters_in_MB(model))
 logger.info('Number of operations:[{}]'.format(len(OPS)))
 logger.info('OPS:{}'.format(OPS.keys()))
@@ -211,25 +222,27 @@ search_queue = DataLoader(train_data, batch_size=args.batch_size, sampler=Subset
 valid_queue = DataLoader(valid_data, batch_size=args.batch_size, shuffle=False,
                          pin_memory=True, num_workers=args.workers)
 
-scheduler = CosineAnnealingLR(optimizer, float(args.epochs), eta_min=args.learning_rate_min)
-
-architect = Architect(model, args)
-
 # init epochs number we have to switch stage in
 epochsSwitchStage = [0]
 for e in args.epochs:
     epochsSwitchStage.append(e + epochsSwitchStage[-1])
+# total number of epochs is the last value in epochsSwitchStage
+nEpochs = epochsSwitchStage[-1]
 # remove epoch 0 from list, and last switch, since after last switch there are no layers to quantize
 epochsSwitchStage = epochsSwitchStage[1:-1]
 
-for epoch in range(args.epochs):
+scheduler = CosineAnnealingLR(optimizer, float(nEpochs), eta_min=args.learning_rate_min)
+
+architect = Architect(model, args)
+
+for epoch in range(nEpochs):
     # switch stage, i.e. freeze one more layer
     if epoch in epochsSwitchStage:
-        model.switch_stage()
+        model.switch_stage(logger)
         # update optimizer & scheduler due to update in learnable params
         optimizer = SGD(model.parameters(), scheduler.get_lr()[0],
                         momentum=args.momentum, weight_decay=args.weight_decay)
-        scheduler = CosineAnnealingLR(optimizer, float(args.epochs), eta_min=args.learning_rate_min)
+        scheduler = CosineAnnealingLR(optimizer, float(nEpochs), eta_min=args.learning_rate_min)
 
     scheduler.step()
     lr = scheduler.get_lr()[0]
