@@ -50,9 +50,11 @@ class Cell(Module):
 
         self._ops = ModuleList()
         self._bns = ModuleList()
+        # count edges in cell, between the nodes
+        # 2 because the cell gets 2 input elements
+        # each edge is a mixed operation, i.e. has its own alpha values for each operation in the mixture
         for i in range(self._steps):
             for j in range(2 + i):
-                # TODO: why do they use this j index ???
                 stride = 2 if reduction and j < 2 else 1
                 op = MixedOp(C, stride)
                 self._ops.append(op)
@@ -135,6 +137,8 @@ class Network(Module):
         return self._criterion(logits, target)
 
     def _initialize_alphas(self):
+        # count all edges in cell, edges between the nodes in the cell
+        # 2 for 2 input elements to cell
         k = sum(1 for i in range(self._steps) for n in range(2 + i))
         # num_ops = len(PRIMITIVES)
         num_ops = len(OPS)
