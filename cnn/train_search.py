@@ -23,6 +23,7 @@ from torch.autograd.variable import Variable
 
 from cnn.utils import create_exp_dir, count_parameters_in_MB, _data_transforms_cifar10, accuracy, AvgrageMeter, save
 from cnn.model_search import Network
+from cnn.resnet_model_search import ResNet
 from cnn.architect import Architect
 from cnn.operations import OPS
 
@@ -54,6 +55,9 @@ def parseArgs():
     parser.add_argument('--unrolled', action='store_true', default=False, help='use one-step unrolled validation loss')
     parser.add_argument('--arch_learning_rate', type=float, default=3e-4, help='learning rate for arch encoding')
     parser.add_argument('--arch_weight_decay', type=float, default=1e-3, help='weight decay for arch encoding')
+
+    parser.add_argument('--nBitsMin', type=int, default=1, choices=range(1, 32), help='min number of bits')
+    parser.add_argument('--nBitsMax', type=int, default=3, choices=range(1, 32), help='max number of bits')
     args = parser.parse_args()
 
     # update epochs per layer list
@@ -181,18 +185,21 @@ cuda_manual_seed(args.seed)
 criterion = CrossEntropyLoss()
 criterion = criterion.cuda()
 # criterion = criterion.to(args.device)
-model = Network(args.init_channels, CIFAR_CLASSES, args.layers, criterion)
+# model = Network(args.init_channels, CIFAR_CLASSES, args.layers, criterion)
+model = ResNet(criterion, args.nBitsMin, args.nBitsMax)
 # model = DataParallel(model, args.gpu)
 model = model.cuda()
 # model = model.to(args.device)
 
 # print some attributes
-logger.info('{}'.format(model.cells[0]))
+logger.info('{}'.format(model))
 logger.info('GPU:{}'.format(args.gpu))
 logger.info("args = %s", args)
 logger.info("param size = %fMB", count_parameters_in_MB(model))
+logger.info('Learnable params:[{}]'.format(len(model.learnable_params)))
 logger.info('Number of operations:[{}]'.format(len(OPS)))
 logger.info('OPS:{}'.format(OPS.keys()))
+logger.info('alphas tensor size:[{}]'.format(model.arch_parameters()[0].size()))
 
 optimizer = SGD(model.parameters(), args.learning_rate, momentum=args.momentum, weight_decay=args.weight_decay)
 # optimizer = Adam(model.parameters(), lr=args.learning_rate,
@@ -223,12 +230,20 @@ valid_queue = DataLoader(valid_data, batch_size=args.batch_size, shuffle=False,
                          pin_memory=True, num_workers=args.workers)
 
 # init epochs number we have to switch stage in
+# epochsSwitchStage = [0]
+# for e in args.epochs:
+#     epochsSwitchStage.append(e + epochsSwitchStage[-1])
+# # total number of epochs is the last value in epochsSwitchStage
+# nEpochs = epochsSwitchStage[-1]
+# # remove epoch 0 from list, and last switch, since after last switch there are no layers to quantize
+# epochsSwitchStage = epochsSwitchStage[1:-1]
+
 epochsSwitchStage = [0]
-for e in args.epochs:
-    epochsSwitchStage.append(e + epochsSwitchStage[-1])
-# total number of epochs is the last value in epochsSwitchStage
+nLayers = model.nLayers() if hasattr(model, 'nLayers') and callable(getattr(model, 'nLayers')) else args.layers
+for _ in range(nLayers):
+    epochsSwitchStage.append(20 + epochsSwitchStage[-1])
+
 nEpochs = epochsSwitchStage[-1]
-# remove epoch 0 from list, and last switch, since after last switch there are no layers to quantize
 epochsSwitchStage = epochsSwitchStage[1:-1]
 
 logger.info('nEpochs:[{}]'.format(nEpochs))
@@ -258,8 +273,10 @@ for epoch in range(nEpochs):
     # print(F.softmax(model.alphas_reduce, dim=-1))
 
     # training
+    logger.info('BEFORE:{}'.format(model.block1.ops._modules['0'].op._modules['0']._modules['0'].weight[0, 0]))
     train_acc, train_obj, arch_grad_norm = train(train_queue, search_queue, args, model, architect, criterion, optimizer, lr)
     logger.info('training accuracy:[{:.3f}]'.format(train_acc))
+    logger.info('AFTER:{}'.format(model.block1.ops._modules['0'].op._modules['0']._modules['0'].weight[0, 0]))
 
     # validation
     valid_acc, valid_obj = infer(valid_queue, args, model, criterion)
