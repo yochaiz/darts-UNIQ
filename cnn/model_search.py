@@ -124,9 +124,9 @@ class Network(Module):
         s0 = s1 = self.stem(input)
         for i, cell in enumerate(self.cells):
             if cell.reduction:
-                weights = F.softmax(self.alphas_reduce, dim=-1)
+                weights = F.softmax(self.alphas_reduce[i], dim=-1)
             else:
-                weights = F.softmax(self.alphas_normal, dim=-1)
+                weights = F.softmax(self.alphas_normal[i], dim=-1)
             s0, s1 = s1, cell(s0, s1, weights)
         out = self.global_pooling(s1)
         logits = self.classifier(out.view(out.size(0), -1))
@@ -142,9 +142,10 @@ class Network(Module):
         k = sum(1 for i in range(self._steps) for n in range(2 + i))
         # num_ops = len(PRIMITIVES)
         num_ops = len(OPS)
+        nCells = len(self.cells)
 
-        self.alphas_normal = Variable(1e-3 * randn(k, num_ops).cuda(), requires_grad=True)
-        self.alphas_reduce = Variable(1e-3 * randn(k, num_ops).cuda(), requires_grad=True)
+        self.alphas_normal = Variable(1e-3 * randn(nCells, k, num_ops).cuda(), requires_grad=True)
+        self.alphas_reduce = Variable(1e-3 * randn(nCells, k, num_ops).cuda(), requires_grad=True)
 
         self._arch_parameters = [
             self.alphas_normal,
@@ -183,7 +184,8 @@ class Network(Module):
         self.nLayersQuantCompleted += 1
 
         if logger and switchStageLayerExists:
-            logger.info('Switching stage, nLayersQuantCompleted:[{}]'.format(self.nLayersQuantCompleted))
+            logger.info('Switching stage, nLayersQuantCompleted:[{}], learnable_params:[{}]'
+                        .format(self.nLayersQuantCompleted, len(self.learnable_params)))
 
 # def genotype(self):
 #     def _parse(weights):
