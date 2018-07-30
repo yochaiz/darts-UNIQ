@@ -203,3 +203,4 @@ class DiscreteResNet(Module):
         logits = self(input)
         return self._criterion(logits, target)
 
+
