@@ -1,175 +1,205 @@
-
-import torch
-import torch.nn as nn
-from operations import *
-from cnn.operations import OPS
+from torch.nn import Module, ModuleList, Conv2d, BatchNorm2d, Sequential, AvgPool2d, Linear
+from UNIQ.uniq import UNIQNet
+from UNIQ.actquant import ActQuant
 import torch.nn.functional as F
-from utils import drop_path
-from collections import namedtuple
+import itertools
+
+class QuantizedOp(UNIQNet):
+    def __init__(self, op, bitwidth=[], act_bitwidth=[], useResidual=False):
+        # noise=False because we want to noise only specific layer in the entire (ResNet) model
+        super(QuantizedOp, self).__init__(quant=True, noise=False, quant_edges=True,
+                                          act_quant=True, act_noise=False,
+                                          step_setup=[1, 1],
+                                          bitwidth=bitwidth, act_bitwidth=act_bitwidth)
+
+        self.forward = self.residualForward if useResidual else self.standardForward
+
+        self.op = op.cuda()
+        self.prepare_uniq()
+
+    def standardForward(self, x):
+        assert (x.is_cuda)
+        return self.op(x)
+
+    def residualForward(self, x, residual):
+        assert (x.is_cuda)
+        out = self.op[0](x)
+        assert (out.size() == residual.size())
+        out += residual
+        out = self.op[1](out)
+
+        return out
 
 
-class Build_discrete_model(nn.Module):
-    def __init__(self, model_search,auxiliary):
-        super(Build_discrete_model, self).__init__()
-        self._layers = model_search._layers
-        self._auxiliary = auxiliary
+class DiscreteLinear(Module):
+    def __init__(self, bitwidth, in_features, out_features):
+        super(DiscreteLinear, self).__init__()
 
-        stem_multiplier = 3
-        C_curr = stem_multiplier * model_search._C
-        self.stem = nn.Sequential(
-            nn.Conv2d(3, C_curr, 3, padding=1, bias=False),
-            nn.BatchNorm2d(C_curr)
-        )
-        C_prev_prev, C_prev, C_curr = C_curr, C_curr, model_search._C
-
-        self.cells = nn.ModuleList()
-        reduction_prev = False
-        for i in range(self._layers):
-            if i in [self._layers // 3, 2 * self._layers // 3]:
-                C_curr *= 2
-                reduction = True
-            else:
-                reduction = False
-            cell = DiscreteCell(model_search, C_prev_prev, C_prev, C_curr, reduction, reduction_prev)
-            reduction_prev = reduction
-            self.cells += [cell]
-            C_prev_prev, C_prev = C_prev, cell.multiplier * C_curr
-            if i == 2 * self._layers // 3:
-                C_to_auxiliary = C_prev
-
-        self.auxiliary_head = AuxiliaryHeadCIFAR(C_to_auxiliary, model_search._num_classes)
-        self.global_pooling = nn.AdaptiveAvgPool2d(1)
-        self.classifier = nn.Linear(C_prev, model_search._num_classes)
-
-
-
-    def forward(self, input):
-        logits_aux = None
-        s0 = s1 = self.stem(input)
-        for i, cell in enumerate(self.cells):
-            s0, s1 = s1, cell(s0, s1, self.drop_path_prob)
-            if i == 2 * self._layers // 3:
-                if self._auxiliary and self.training:
-                    logits_aux = self.auxiliary_head(s1)
-        out = self.global_pooling(s1)
-        logits = self.classifier(out.view(out.size(0), -1))
-        return logits, logits_aux
-
-
-
-
-
-class AuxiliaryHeadCIFAR(nn.Module):
-
-    def __init__(self, C, num_classes):
-        """assuming input size 8x8"""
-        super(AuxiliaryHeadCIFAR, self).__init__()
-        self.features = nn.Sequential(
-            nn.ReLU(inplace=True),
-            nn.AvgPool2d(5, stride=3, padding=0, count_include_pad=False),  # image size = 2 x 2
-            nn.Conv2d(C, 128, 1, bias=False),
-            nn.BatchNorm2d(128),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(128, 768, 2, bias=False),
-            nn.BatchNorm2d(768),
-            nn.ReLU(inplace=True)
-        )
-        self.classifier = nn.Linear(768, num_classes)
+        self.ops = ModuleList()
+        op = Linear(in_features, out_features)
+        self.ops.append(QuantizedOp(op, bitwidth=[bitwidth], act_bitwidth=[]))
 
     def forward(self, x):
-        x = self.features(x)
-        x = self.classifier(x.view(x.size(0), -1))
-        return x
-
-class DiscreteCell(nn.Module):
-    def __init__(self, model_search, C_prev_prev, C_prev, C, reduction, reduction_prev):
-        super(DiscreteCell, self).__init__()
-        if reduction_prev:
-            self.preprocess0 = FactorizedReduce(C_prev_prev, C)
-        else:
-            self.preprocess0 = ReLUConvBN(C_prev_prev, C, 1, 1, 0)
-        self.preprocess1 = ReLUConvBN(C_prev, C, 1, 1, 0)
-
-        genotype = self._build_discrete_genotype(model_search)
-        if reduction:
-            op_names, indices = zip(*genotype.reduce)
-            concat = genotype.reduce_concat
-        else:
-            op_names, indices = zip(*genotype.normal)
-            concat = genotype.normal_concat
-        self._compile(C, op_names, indices, concat, reduction)
-
-    def _compile(self, C, op_names, indices, concat, reduction):
-        assert len(op_names) == len(indices)
-        self._steps = len(op_names) // 2
-        self._concat = concat
-        self.multiplier = len(concat)
-
-        self._ops = nn.ModuleList()
-        for name, index in zip(op_names, indices):
-            stride = 2 if reduction and index < 2 else 1
-            op = OPS[name](C, stride, True)
-            self._ops += [op]
-        self._indices = indices
+        return self.ops(x)
 
 
-    def _build_discrete_genotype(self, model_search):
-        def _parse(steps, weights):
-            gene = []
-            n = 2
-            start = 0
-            for i in range(steps):
-                end = start + n
-                W = weights[start:end].copy()
-                edges = sorted(range(i + 2), key=lambda x: -max(W[x][k] for k in range(len(W[x])) if k != list(OPS.keys()).index('none')))[:2]
-                for j in edges:
-                    k_best = None
-                    for k in range(len(W[j])):
-                        if k != list(OPS.keys()).index('none'):
-                            if k_best is None or W[j][k] > W[j][k_best]:
-                                k_best = k
-                    gene.append((list(OPS.keys())[k_best], j))
-                start = end
-                n += 1
-            return gene
-
-        gene_normal = _parse(model_search._steps, F.softmax(model_search.alphas_normal, dim=-1).data.cpu().numpy())
-        gene_reduce = _parse(model_search._steps, F.softmax(model_search.alphas_reduce, dim=-1).data.cpu().numpy())
-
-        concat = range(2 + model_search._steps - model_search._multiplier, model_search._steps + 2)
-        Genotype = namedtuple('Genotype', 'normal normal_concat reduce reduce_concat')
-        genotype = Genotype(
-            normal=gene_normal, normal_concat=concat,
-            reduce=gene_reduce, reduce_concat=concat
+class DiscreteConv(Module):
+    def __init__(self, bitwidth,  in_planes, out_planes, kernel_size, stride):
+        super(DiscreteConv, self).__init__()
+        self.ops = ModuleList()
+        op = Sequential(
+            Conv2d(in_planes, out_planes, kernel_size=kernel_size, stride=stride, padding=1, bias=False),
+            BatchNorm2d(out_planes)
         )
-        return genotype
+        self.ops.append(QuantizedOp(op, bitwidth=[bitwidth], act_bitwidth=[]))
+
+    def forward(self, x):
+        assert (x.is_cuda)
+        return self.ops(x)
 
 
-    def forward(self, s0, s1, drop_prob):
-        s0 = self.preprocess0(s0)
-        s1 = self.preprocess1(s1)
+class DiscreteConvWithReLU(Module):
+    def __init__(self, chosen_bitwidth, in_planes, out_planes, kernel_size, stride, useResidual=False):
+        super(DiscreteConvWithReLU, self).__init__()
+        self.ops = ModuleList()
+        op = Sequential(
+            Sequential(
+                Conv2d(in_planes, out_planes, kernel_size=kernel_size, stride=stride, padding=1, bias=False),
+                BatchNorm2d(out_planes)
+            ),
+            ActQuant(quant=True, noise=False, bitwidth=chosen_bitwidth[1])
+        )
+        self.ops.append(QuantizedOp(op, bitwidth=[chosen_bitwidth[0]], act_bitwidth=[chosen_bitwidth[1]], useResidual=useResidual))
 
-        states = [s0, s1]
-        for i in range(self._steps):
-            h1 = states[self._indices[2 * i]]
-            h2 = states[self._indices[2 * i + 1]]
-            op1 = self._ops[2 * i]
-            op2 = self._ops[2 * i + 1]
-            h1 = op1(h1)
-            h2 = op2(h2)
-            if self.training and drop_prob > 0.:
-                if not isinstance(op1, Identity):
-                    h1 = drop_path(h1, drop_prob)
-                if not isinstance(op2, Identity):
-                    h2 = drop_path(h2, drop_prob)
-            s = h1 + h2
-            states += [s]
-        return torch.cat([states[i] for i in self._concat], dim=1)
+        self.forward = self.residualForward if useResidual else self.standardForward
+
+    def standardForward(self, x):
+        assert (x.is_cuda)
+        return self.ops(x)
+
+    def residualForward(self, x, residual):
+        assert (x.is_cuda)
+        return self.ops(x, residual)
+
+class DiscreteBasicBlock(Module):
+    def __init__(self, chosen_conv_bitwidth, chosen_downsample_bitwidth, in_planes, out_planes, kernel_size, stride):
+        super(DiscreteBasicBlock, self).__init__()
+
+        stride1 = stride if in_planes == out_planes else (stride + 1)
+
+        self.block1 = DiscreteConvWithReLU(chosen_conv_bitwidth[0], in_planes, out_planes, kernel_size, stride1, useResidual=False)
+        self.block2 = DiscreteConvWithReLU(chosen_conv_bitwidth[1], out_planes, out_planes, kernel_size, stride, useResidual=True)
+
+        self.downsample = DiscreteConv(chosen_downsample_bitwidth, in_planes, out_planes, kernel_size, stride1) \
+            if in_planes != out_planes else None
+
+    def forward(self, x):
+        assert (x.is_cuda)
+
+        residual = x if self.downsample is None else self.downsample(x)
+
+        out = self.block1(x)
+        out = self.block2(out, residual)
+
+        return out
+
+    def getLayers(self):
+        layers = [self.block1, self.block2]
+        if self.downsample is not None:
+            layers.append(self.downsample)
+
+        return layers
 
 
+class DiscreteResNet(Module):
+    nClasses = 10  # cifar-10
+
+    def __init__(self, criterion, nBitsMin, nBitsMax,module_search):
+        super(DiscreteResNet, self).__init__()
+
+        #all combination of possible bitwidth and act bitwidth
+        possible_bitwidth = range (nBitsMin,nBitsMax+1)
+        possible_act_conv_bitwidth= list(itertools.product(possible_bitwidth, possible_bitwidth))
+
+        #get learnable alphas from module_search
+        best_alphasConv_idx = F.softmax(module_search.alphasConv).max(1)[1]
+        best_alphasDownsample_idx = F.softmax(module_search.alphasDownsample).max(1)[1]
+        best_alphasLinear_idx = F.softmax(module_search.alphasLinear).max(1)[1]
+
+        #Chosen bitwidth
+        chosen_conv_bitwidth = [possible_act_conv_bitwidth[i] for i in best_alphasConv_idx]
+        chosen_downsample_bitwidth = [possible_bitwidth[i] for i in best_alphasDownsample_idx]
+        chosen_linear_bitwidth =  [possible_bitwidth[i] for i in best_alphasLinear_idx]
+
+        # init MixedConvWithReLU layers list
+        self.layersList = []
+
+        self.block1 = DiscreteConvWithReLU(chosen_conv_bitwidth[0] , 3, 16, 3, 1)
+        self.layersList.append(self.block1)
+
+        layers = [
+            DiscreteBasicBlock(chosen_conv_bitwidth[1:3], None, 16, 16, 3, 1),
+            DiscreteBasicBlock(chosen_conv_bitwidth[3:5], None, 16, 16, 3, 1),
+            DiscreteBasicBlock(chosen_conv_bitwidth[5:7], None, 16, 16, 3, 1),
+            DiscreteBasicBlock(chosen_conv_bitwidth[7:9], chosen_downsample_bitwidth[0], 16, 32, 3, 1),
+            DiscreteBasicBlock(chosen_conv_bitwidth[9:11], None, 32, 32, 3, 1),
+            DiscreteBasicBlock(chosen_conv_bitwidth[11:13], None, 32, 32, 3, 1),
+            DiscreteBasicBlock(chosen_conv_bitwidth[13:15], chosen_downsample_bitwidth[1], 32, 64, 3, 1),
+            DiscreteBasicBlock(chosen_conv_bitwidth[15:17], None, 64, 64, 3, 1),
+            DiscreteBasicBlock(chosen_conv_bitwidth[17:19], None, 64, 64, 3, 1)
+        ]
+
+        i = 2
+        for l in layers:
+            setattr(self, 'block{}'.format(i), l)
+            i += 1
+
+        self.avgpool = AvgPool2d(8)
+        self.fc = DiscreteLinear(chosen_linear_bitwidth[0], 64, self.nClasses)
+
+        # build mixture layers list
+        for b in layers: self.layersList.extend(b.getLayers())
+        self.layersList.append(self.fc)
+
+         # init criterion
+        self._criterion = criterion
+
+        # set learnable parameters
+        self.learnable_params = [param for param in self.parameters() if param.requires_grad]
+        # update model parameters() function
+        self.parameters = self.getLearnableParams
 
 
+    def nLayers(self):
+        return len(self.layersList)
 
+    def forward(self, x):
+        assert (x.is_cuda)
+        out = self.block1(x, self.alphasConv[0])
 
+        alphasConvIdx = 1
+        alphasDownsampleIdx = 0
+        blockNum = 2
+        b = getattr(self, 'block{}'.format(blockNum))
+        while b is not None:
+            alphasDownsample = None
+            if b.downsample is not None:
+                alphasDownsample = self.alphasDownsample[alphasDownsampleIdx]
+                alphasDownsampleIdx += 1
 
+            out = b(out, self.alphasConv[alphasConvIdx:alphasConvIdx + 2], alphasDownsample)
+
+            alphasConvIdx += 2
+            blockNum += 1
+            b = getattr(self, 'block{}'.format(blockNum), None)
+
+        out = self.avgpool(out)
+        out = out.view(out.size(0), -1)
+        out = self.fc(out, self.alphasLinear[0])
+
+        return out
+
+    def _loss(self, input, target):
+        logits = self(input)
+        return self._criterion(logits, target)
 
