@@ -1,8 +1,8 @@
 import math
-
 import torch
 import torch.nn.init as init
 from torch.autograd import Variable
+import torch.nn.functional as F
 
 sqrt_of_2 = math.sqrt(2)
 eps = 1e-5
@@ -71,7 +71,8 @@ def quantize(modules, bitwidth=32):
 
 def act_quantize(x, bitwidth=32):
     if bitwidth > 16:
-        return  # No quantization for high bitwidths
+        return F.relu(x)  # No quantization for high bitwidths
+
     mean = torch.mean(x.data)
     std = torch.std(x.data)
     cdf = norm_cdf(x.data, mean, std)

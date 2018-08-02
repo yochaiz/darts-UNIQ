@@ -1,7 +1,7 @@
 #### https://github.com/warmspringwinds/pytorch-segmentation-detection/blob/master/pytorch_segmentation_detection/utils/flops_benchmark.py
-import math
-import torch
-from torch.nn import Linear
+from math import ceil, log2
+from torch.nn.modules.conv import Conv2d
+from torch import randn
 
 # ---TBD :: Need to pass this arguments from imagenet.py
 param_bitwidth = 4
@@ -94,7 +94,7 @@ def compute_average_flops_cost(self):
 
     for module in self.modules():
 
-        if isinstance(module, torch.nn.Conv2d):
+        if isinstance(module, Conv2d):
             flops_sum += module.__flops__
 
     return flops_sum / batches_count
@@ -115,7 +115,7 @@ def compute_average_bops_cost(self):
 
     for module in self.modules():
 
-        if isinstance(module, torch.nn.Conv2d):
+        if isinstance(module, Conv2d):
             bops_sum += module.__bops__
 
     return bops_sum / batches_count
@@ -167,7 +167,7 @@ def reset_flops_count(self):
 
 def add_flops_mask(module, mask):
     def add_flops_mask_func(module):
-        if isinstance(module, torch.nn.Conv2d):
+        if isinstance(module, Conv2d):
             module.__mask__ = mask
 
     module.apply(add_flops_mask_func)
@@ -224,7 +224,7 @@ def conv_flops_counter_hook(conv_module, input, output):
     else:
         max_mac_value = (2 ** act_bitwidth - 1) * (in_channels * kernel_height * kernel_width) / (
                 groups ** 2)  # param_bitwidth-1 becuase 1 bit is sign bit and not really participate in the multiplication
-    log2_max_mac_value = math.ceil(math.log2(max_mac_value))
+    log2_max_mac_value = ceil(log2(max_mac_value))
     bit_ops += num_of_conv_mults * (param_bitwidth - 1) * act_bitwidth
     bit_ops += num_of_conv_adds * (log2_max_mac_value)
     conv_module.__bops__ += bit_ops
@@ -259,13 +259,13 @@ def remove_batch_counter_hook_function(module):
 
 
 def add_flops_counter_variable_or_reset(module):
-    if isinstance(module, torch.nn.Conv2d):
+    if isinstance(module, Conv2d):
         module.__flops__ = 0
         module.__bops__ = 0
 
 
 def add_flops_counter_hook_function(module):
-    if isinstance(module, torch.nn.Conv2d):
+    if isinstance(module, Conv2d):
 
         if hasattr(module, '__flops_handle__'):
             return
@@ -275,7 +275,7 @@ def add_flops_counter_hook_function(module):
 
 
 def remove_flops_counter_hook_function(module):
-    if isinstance(module, torch.nn.Conv2d):
+    if isinstance(module, Conv2d):
 
         if hasattr(module, '__flops_handle__'):
             module.__flops_handle__.remove()
@@ -288,40 +288,41 @@ def remove_flops_counter_hook_function(module):
 
 # Also being run in the initialization
 def add_flops_mask_variable_or_reset(module):
-    if isinstance(module, torch.nn.Conv2d):
+    if isinstance(module, Conv2d):
         module.__mask__ = None
 
 
 def add_bitwidths_attr(model, param_bitwidth, act_bitwidth):
     i = 0
     for module in model.modules():
-        if isinstance(module, torch.nn.Conv2d):
+        if isinstance(module, Conv2d):
             module.__param_bitwidth__ = param_bitwidth[i]
             module.__act_bitwidth__ = act_bitwidth
             i += 1
 
 
-# def count_flops(model, batch_size, device, dtype, input_size, in_channels, *params):
-def count_flops(model, batch_size, input_size, in_channels):
-    # net = model(*params)
+def count_flops(model, input_size, in_channels):
+    batch_size = 32
+
     net = model
-    net.prepare_uniq()
+    # net.prepare_uniq()
 
     net = add_flops_counting_methods(net)
 
-   # net.to(device=device, dtype=dtype)
     net.cuda()
     net = net.train()
 
-   # batch = torch.randn(batch_size, in_channels, input_size, input_size).to(device=device, dtype=dtype)
-    batch = torch.randn(batch_size, in_channels, input_size, input_size).cuda()
+    batch = randn(batch_size, in_channels, input_size, input_size).cuda()
     net.start_flops_count()
-    if isinstance(model.op, Linear):
-        batch = batch.view(batch.size(0), -1)
+
     if net.useResidual:
         _ = net(batch, batch)
     else:
         _ = net(batch)
+
     flops, bops = net.compute_average_flops_cost() / 2, net.compute_average_bops_cost()
     net.stop_flops_count()
-    return (flops, bops)  # Result in FLOPs
+    # TODO: bop==0 for Linear layer ???
+
+    # return (flops, bops)  # Result in FLOPs
+    return bops

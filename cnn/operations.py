@@ -163,8 +163,8 @@ def originalOPS():
 
 def UNIQ_OPS(nBitsMin, nBitsMax):
     OPS = {
- #       'none': lambda C, stride, affine: Zero(stride),
- #       'skip_connect': lambda C, stride, affine: Identity() if stride == 1 else FactorizedReduce(C, C, affine=affine)
+        'none': lambda C, stride, affine: Zero(stride),
+        'skip_connect': lambda C, stride, affine: Identity() if stride == 1 else FactorizedReduce(C, C, affine=affine)
     }
     # add quantized operations to OPS
     for kernel_size in [3]:
@@ -179,8 +179,8 @@ def UNIQ_OPS(nBitsMin, nBitsMax):
     return OPS
 
 
-#OPS = originalOPS()
-OPS = UNIQ_OPS(nBitsMin=1, nBitsMax=4)
+OPS = originalOPS()
+# OPS = UNIQ_OPS(nBitsMin=1, nBitsMax=4)
 
 # OPS = {
 #     'none': lambda C, stride, affine: Zero(stride),
