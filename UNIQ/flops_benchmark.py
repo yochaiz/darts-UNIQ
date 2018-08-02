@@ -1,6 +1,7 @@
 #### https://github.com/warmspringwinds/pytorch-segmentation-detection/blob/master/pytorch_segmentation_detection/utils/flops_benchmark.py
 import math
 import torch
+from torch.nn import Linear
 
 # ---TBD :: Need to pass this arguments from imagenet.py
 param_bitwidth = 4
@@ -301,20 +302,26 @@ def add_bitwidths_attr(model, param_bitwidth, act_bitwidth):
 
 
 # def count_flops(model, batch_size, device, dtype, input_size, in_channels, *params):
-def count_flops(model, batch_size, device, dtype, input_size, in_channels):
+def count_flops(model, batch_size, input_size, in_channels):
     # net = model(*params)
     net = model
     net.prepare_uniq()
 
     net = add_flops_counting_methods(net)
 
-    net.to(device=device, dtype=dtype)
+   # net.to(device=device, dtype=dtype)
+    net.cuda()
     net = net.train()
 
-    batch = torch.randn(batch_size, in_channels, input_size, input_size).to(device=device, dtype=dtype)
+   # batch = torch.randn(batch_size, in_channels, input_size, input_size).to(device=device, dtype=dtype)
+    batch = torch.randn(batch_size, in_channels, input_size, input_size).cuda()
     net.start_flops_count()
-
-    _ = net(batch)
+    if isinstance(model.op, Linear):
+        batch = batch.view(batch.size(0), -1)
+    if net.useResidual:
+        _ = net(batch, batch)
+    else:
+        _ = net(batch)
     flops, bops = net.compute_average_flops_cost() / 2, net.compute_average_bops_cost()
     net.stop_flops_count()
     return (flops, bops)  # Result in FLOPs
