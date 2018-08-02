@@ -5,7 +5,6 @@ from torch.nn.utils.clip_grad import clip_grad_norm_
 from torch.autograd import Variable, grad
 from cnn.model_search import Network
 
-
 def _concat(xs):
     return cat([x.view(-1) for x in xs])
 
@@ -22,7 +21,7 @@ class Architect(object):
                              weight_decay=args.arch_weight_decay)
 
     def _compute_unrolled_model(self, input, target, eta, network_optimizer):
-        loss = self.model._loss(input, target)
+        loss = self.model.loss(input, target)
         theta = _concat(self.model.parameters()).data
         try:
             moment = _concat(network_optimizer.state[v]['momentum_buffer'] for v in self.model.parameters()).mul_(
@@ -53,7 +52,7 @@ class Architect(object):
 
     def _backward_step_unrolled(self, input_train, target_train, input_valid, target_valid, eta, network_optimizer):
         model_unrolled = self._compute_unrolled_model(input_train, target_train, eta, network_optimizer)
-        loss = model_unrolled._loss(input_valid, target_valid)
+        loss = model_unrolled.loss(input_valid, target_valid)
         grads = grad(loss, model_unrolled.arch_parameters(), retain_graph=True)
 
         theta = model_unrolled.parameters()
@@ -71,7 +70,7 @@ class Architect(object):
                 v.grad.data.copy_(g.data)
 
     def _construct_model_from_theta(self, theta):
-        model_clone = Network(self.model._C, self.model._num_classes, self.model._layers, self.model._criterion).cuda()
+        model_clone = Network(self.model.C, self.model.num_classes, self.model.layers, self.model.criterion).cuda()
 
         for x, y in zip(model_clone.arch_parameters(), self.model.arch_parameters()):
             x.data.copy_(y.data)

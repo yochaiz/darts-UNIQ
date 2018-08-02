@@ -26,12 +26,13 @@ from cnn.model_search import Network
 from cnn.resnet_model_search import ResNet
 from cnn.architect import Architect
 from cnn.operations import OPS
-
+from cnn.build_discrete_model import DiscreteResNet
+from cnn.uniq_loss import UniqLoss
 
 def parseArgs():
     parser = argparse.ArgumentParser("cifar")
-    parser.add_argument('--data', type=str, default='/home/yochaiz/UNIQ/results', help='location of the data corpus')
-    parser.add_argument('--batch_size', type=int, default=32, help='batch size')
+    parser.add_argument('--data', type=str, default='../data/', help='location of the data corpus')
+    parser.add_argument('--batch_size', type=int, default=3, help='batch size')
     parser.add_argument('--learning_rate', type=float, default=0.025, help='init learning rate')
     parser.add_argument('--learning_rate_min', type=float, default=0.001, help='min learning rate')
     parser.add_argument('--momentum', type=float, default=0.9, help='momentum')
@@ -58,8 +59,9 @@ def parseArgs():
 
     parser.add_argument('--nBitsMin', type=int, default=1, choices=range(1, 32), help='min number of bits')
     parser.add_argument('--nBitsMax', type=int, default=3, choices=range(1, 32), help='max number of bits')
+    parser.add_argument('--loss', type = str , default ='UniqLoss', choices = ['CrossEntropy', 'UniqLoss'])
+    parser.add_argument('--MaxBopsBits', type=int, default=3, choices=range(1, 32), help='maximum bits for uniform division')
     args = parser.parse_args()
-
     # update epochs per layer list
     args.epochs = [int(i) for i in args.epochs.split(',')]
     while len(args.epochs) < args.layers:
@@ -103,7 +105,7 @@ def train(train_queue, search_queue, args, model, architect, criterion, optimize
 
         optimizer.zero_grad()
         logits = model(input)
-        loss = criterion(logits, target)
+        loss = cross_entropy(logits, target)
 
         loss.backward()
         clip_grad_norm_(model.parameters(), args.grad_clip)
@@ -139,7 +141,7 @@ def infer(valid_queue, args, model, criterion):
             target = Variable(target, volatile=True).cuda(async=True)
 
             logits = model(input)
-            loss = criterion(logits, target)
+            loss = cross_entropy(logits, target)
 
             prec1, prec5 = accuracy(logits, target, topk=(1, 5))
             n = input.size(0)
@@ -182,11 +184,13 @@ torch_manual_seed(args.seed)
 cudnn.enabled = True
 cuda_manual_seed(args.seed)
 
-criterion = CrossEntropyLoss()
-criterion = criterion.cuda()
+#criterion = CrossEntropyLoss()
+#criterion = criterion.cuda()
+cross_entropy = CrossEntropyLoss().cuda()
+criterion = UniqLoss(lmdba=1, MaxBopsBits = args.MaxBopsBits, batch_size = args.batch_size) if args.loss == 'UniqLoss' else cross_entropy
 # criterion = criterion.to(args.device)
 # model = Network(args.init_channels, CIFAR_CLASSES, args.layers, criterion)
-model = ResNet(criterion, args.nBitsMin, args.nBitsMax)
+model = ResNet(criterion, args.nBitsMin, args.nBitsMax,args.batch_size)
 # model = DataParallel(model, args.gpu)
 model = model.cuda()
 # model = model.to(args.device)
@@ -229,6 +233,7 @@ search_queue = DataLoader(train_data, batch_size=args.batch_size, sampler=Subset
 valid_queue = DataLoader(valid_data, batch_size=args.batch_size, shuffle=False,
                          pin_memory=True, num_workers=args.workers)
 
+
 # init epochs number we have to switch stage in
 # epochsSwitchStage = [0]
 # for e in args.epochs:
@@ -254,6 +259,7 @@ scheduler = CosineAnnealingLR(optimizer, float(nEpochs), eta_min=args.learning_r
 architect = Architect(model, args)
 
 for epoch in range(nEpochs):
+#for epoch in range(4):
     # switch stage, i.e. freeze one more layer
     if epoch in epochsSwitchStage:
         model.switch_stage(logger)
@@ -283,3 +289,5 @@ for epoch in range(nEpochs):
     logger.info('validation accuracy:[{:.3f}]'.format(valid_acc))
 
     save(model, os.path.join(args.save, 'weights.pt'))
+
+#discrete_model = DiscreteResNet(criterion, args.nBitsMin, args.nBitsMax, model)

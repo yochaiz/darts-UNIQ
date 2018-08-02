@@ -1,8 +1,9 @@
 from torch import tensor, randn
-from torch.nn import Module, ModuleList, Conv2d, BatchNorm2d, Sequential, AvgPool2d, Linear
+from torch.nn import Module, ModuleList, Conv2d, BatchNorm2d, Sequential, AvgPool2d, Linear, CrossEntropyLoss
 from UNIQ.uniq import UNIQNet
 from UNIQ.actquant import ActQuant
 from UNIQ.quantize import backup_weights, restore_weights, quantize
+from UNIQ.flops_benchmark import count_flops
 
 
 def save_quant_state(self, _):
@@ -28,6 +29,9 @@ def restore_quant_state(self, _, __):
 class QuantizedOp(UNIQNet):
     def __init__(self, op, bitwidth=[], act_bitwidth=[], useResidual=False):
         # noise=False because we want to noise only specific layer in the entire (ResNet) model
+        self.bitwidth = bitwidth
+        self.act_bitwidth = act_bitwidth
+        self.useResidual = useResidual
         super(QuantizedOp, self).__init__(quant=True, noise=False, quant_edges=True,
                                           act_quant=True, act_noise=False,
                                           step_setup=[1, 1],
@@ -55,8 +59,9 @@ class QuantizedOp(UNIQNet):
 class MixedLinear(Module):
     def __init__(self, nBitsMin, nBitsMax, in_features, out_features):
         super(MixedLinear, self).__init__()
-
+        self.in_planes = in_features
         self.ops = ModuleList()
+        self.kernel_size = 1
         for bitwidth in range(nBitsMin, nBitsMax + 1):
             op = Linear(in_features, out_features)
             self.ops.append(QuantizedOp(op, bitwidth=[bitwidth], act_bitwidth=[]))
@@ -75,7 +80,8 @@ class MixedLinear(Module):
 class MixedConv(Module):
     def __init__(self, nBitsMin, nBitsMax, in_planes, out_planes, kernel_size, stride):
         super(MixedConv, self).__init__()
-
+        self.in_planes = in_planes
+        self.kernel_size = kernel_size
         self.ops = ModuleList()
         for bitwidth in range(nBitsMin, nBitsMax + 1):
             op = Sequential(
@@ -98,8 +104,11 @@ class MixedConv(Module):
 class MixedConvWithReLU(Module):
     def __init__(self, nBitsMin, nBitsMax, in_planes, out_planes, kernel_size, stride, useResidual=False):
         super(MixedConvWithReLU, self).__init__()
-
+        self.in_planes = in_planes
+        self.out_planes = out_planes
+        self.kernel_size = kernel_size
         self.ops = ModuleList()
+        self.useResidual = useResidual
         for bitwidth in range(nBitsMin, nBitsMax + 1):
             for act_bitwidth in range(nBitsMin, nBitsMax + 1):
                 op = Sequential(
@@ -173,7 +182,7 @@ class BasicBlock(Module):
 class ResNet(Module):
     nClasses = 10  # cifar-10
 
-    def __init__(self, criterion, nBitsMin, nBitsMax):
+    def __init__(self, criterion, nBitsMin, nBitsMax,batch_size):
         super(ResNet, self).__init__()
 
         # init MixedConvWithReLU layers list
@@ -205,6 +214,17 @@ class ResNet(Module):
         # build mixture layers list
         for b in layers: self.layersList.extend(b.getLayers())
         self.layersList.append(self.fc)
+
+
+        #calculate BOPS per operation in each layer
+        self.bopsDict = {}
+        for l in self.layersList:
+            for op in l.ops:
+                bops_op = 'operation_{}_kernel_{}x{}_bit_{}_act_{}_channels_{}_residual_{}'. format(str(type(l)).split(".")[-1], l.kernel_size, l.kernel_size, op.bitwidth, op.act_bitwidth, l.in_planes,op.useResidual)
+                if bops_op not in self.bopsDict:
+                    _, curr_bops = count_flops(op, batch_size, 1, l.in_planes)
+                    self.bopsDict[bops_op] = curr_bops
+
 
         # set noise=True for 1st layer
         for op in self.layersList[0].ops:
@@ -272,7 +292,7 @@ class ResNet(Module):
 
     def _loss(self, input, target):
         logits = self(input)
-        return self._criterion(logits, target)
+        return self._criterion(logits, target) if isinstance(self._criterion, CrossEntropyLoss) else self._criterion(logits, target, model = self)
 
     @staticmethod
     def initialize_alphas(nLayers, numOfOps):
