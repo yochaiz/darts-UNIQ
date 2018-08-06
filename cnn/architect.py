@@ -49,7 +49,7 @@ class Architect(object):
         for v in self.model.arch_parameters():
             if v.grad is not None:
                 v.grad.data.zero_()
-        loss.backward()
+        loss.backward(retain_graph=True)
 
     def _backward_step_unrolled(self, input_train, target_train, input_valid, target_valid, eta, network_optimizer):
         model_unrolled = self._compute_unrolled_model(input_train, target_train, eta, network_optimizer)

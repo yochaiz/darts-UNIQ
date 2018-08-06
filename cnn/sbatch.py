@@ -20,7 +20,10 @@ outputFile = '{}.out'.format(datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
 
 commands = [
     [executable, './train_search.py', '--gpu', '0',
-     '--epochs', '20',
+     '--epochs', '5', '--batch_size', '100',
+     '--bitwidth', '1,2,3,4,5', '--MaxBopsBits', '3',
+     '--bopsCounter', 'continuous',
+     '--pre_trained', '/home/yochaiz/UNIQ/results/resnet_cifar10_trained_32_bit_deeper/model_best.pth.tar',
      '--data', '/home/yochaiz/UNIQ/results/'
      ]
 ]

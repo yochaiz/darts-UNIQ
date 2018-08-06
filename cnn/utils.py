@@ -116,12 +116,17 @@ def create_exp_dir(path, scripts_to_save=None):
             copyfile(script, dst_file)
 
 
-def save_state(state, is_best, path='.', filename='model'):
-    fileType = 'pth.tar'
-    default_filename = '{}/{}_checkpoint.{}'.format(path, filename, fileType)
+checkpointFileType = 'pth.tar'
+stateFilenameDefault = 'model'
+stateCheckpointPattern = '{}/{}_checkpoint.' + checkpointFileType
+stateOptModelPattern = '{}/{}_opt.' + checkpointFileType
+
+
+def save_state(state, is_best, path='.', filename=stateFilenameDefault):
+    default_filename = stateCheckpointPattern.format(path, filename)
     saveModel(state, default_filename)
     if is_best:
-        copyfile(default_filename, '{}/{}_opt.{}'.format(path, filename, fileType))
+        copyfile(default_filename, stateOptModelPattern.format(path, filename))
 
 
 def save_checkpoint(path, model, epoch, best_prec1, is_best=False):
@@ -163,8 +168,8 @@ def initLogger(folderName, propagate=False):
     return logger
 
 
-def initTrainLogger(logger_file_name, save_path, propagate=False):
-    folder_path = '{}/train'.format(save_path)
+def initTrainLogger(logger_file_name, folder_path, propagate=False):
+    # folder_path = '{}/train'.format(save_path)
     if not os.path.exists(folder_path):
         os.makedirs(folder_path)
 
@@ -196,8 +201,8 @@ def logDominantQuantizedOp(model, k, logger):
     logger.info('=============================================')
 
 
-def printModelToFile(model, save_path):
-    filePath = '{}/model.txt'.format(save_path)
+def printModelToFile(model, save_path, fname='model'):
+    filePath = '{}/{}.txt'.format(save_path, fname)
     logger = setup_logging(filePath, 'modelLogger')
     logger.info('{}'.format(model))
     logDominantQuantizedOp(model, k=2, logger=logger)

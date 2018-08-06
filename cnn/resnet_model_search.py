@@ -1,12 +1,11 @@
 from torch import load as loadModel
 from torch.nn import Module, Conv2d, AvgPool2d
 import torch.nn.functional as F
+from torch import tensor
 from UNIQ.actquant import ActQuant
 from UNIQ.quantize import backup_weights, restore_weights, quantize
-from UNIQ.flops_benchmark import count_flops
-from cnn.MixedOp import MixedConv, MixedConvWithReLU, MixedLinear, MixedOp, QuantizedOp
+from cnn.MixedOp import MixedConv, MixedConvWithReLU, MixedLinear, MixedOp
 from collections import OrderedDict
-from torch import float32
 
 
 def save_quant_state(self, _):
@@ -55,8 +54,38 @@ class BasicBlock(Module):
 class ResNet(Module):
     nClasses = 10  # cifar-10
 
-    def __init__(self, criterion, bitwidths, kernel_sizes):
+    # counts the entire model bops in continuous mode
+    def countBopsContinuous(self):
+        totalBops = 0
+        for layer in self.layersList:
+            weights = F.softmax(layer.alphas, dim=-1)
+            for w, b in zip(weights, layer.bops):
+                totalBops += (w * b)
+
+        return totalBops
+
+    # counts the entire model bops in discrete mode
+    def countBopsDiscrete(self):
+        totalBops = 0
+        for layer in self.layersList:
+            weights = F.softmax(layer.alphas, dim=-1)
+            # we take the layer operation with the highest weight
+            maxIdx = weights.argmax(dim=-1).item()
+            totalBops += layer.bops[maxIdx]
+
+        return totalBops
+
+    def countBops(self):
+        # wrapper is needed because countBopsFuncs is defined outside __init__()
+        return self.countBopsFunc(self)
+
+    countBopsFuncs = dict(continuous=countBopsContinuous, discrete=countBopsDiscrete)
+
+    def __init__(self, criterion, bitwidths, kernel_sizes, bopsFuncKey):
         super(ResNet, self).__init__()
+
+        # set bops counter function
+        self.countBopsFunc = self.countBopsFuncs[bopsFuncKey]
 
         # init MixedConvWithReLU layers list
         self.layersList = []
@@ -86,9 +115,6 @@ class ResNet(Module):
 
         # build mixture layers list
         self.layersList = [m for m in self.modules() if isinstance(m, MixedOp)]
-
-        # build alphas list, i.e. architecture parameters
-        self._arch_parameters = [l.alphas for l in self.layersList]
 
         # set noise=True for 1st layer
         for op in self.layersList[0].ops:
@@ -132,7 +158,8 @@ class ResNet(Module):
         return self._criterion(logits, target, self.countBops())
 
     def arch_parameters(self):
-        return self._arch_parameters
+        return [l.alphas for l in self.layersList]
+        # return self._arch_parameters
 
     def getLearnableParams(self):
         return self.learnable_params
@@ -146,15 +173,32 @@ class ResNet(Module):
 
         return res
 
-    # counts the entire model bops
-    def countBops(self):
-        totalBops = 0
-        for layer in self.layersList:
-            weights = F.softmax(layer.alphas, dim=-1)
-            for w, b in zip(weights, layer.bops):
-                totalBops += (w * b)
+    def load_alphas_state(self, state):
+        for layer, layerAlphas in zip(self.layersList, state):
+            for i, elem in enumerate(layerAlphas):
+                a, _ = elem
+                layer.alphas[i] = a
 
-        return totalBops
+    # convert current model to discrete, i.e. keep nOpsPerLayer optimal operations per layer
+    def toDiscrete(self, nOpsPerLayer=1):
+        for layer in self.layersList:
+            # calc weights from alphas and sort them
+            weights = F.softmax(layer.alphas, dim=-1)
+            _, wIndices = weights.sort(descending=True)
+            # update layer alphas
+            layer.alphas = layer.alphas[wIndices[:nOpsPerLayer]]
+            layer.alphas = tensor(tensor(layer.alphas.tolist()).cuda(), requires_grad=True)
+            # take indices of ops we want to remove from layer
+            wIndices = wIndices[nOpsPerLayer:]
+            # convert to list
+            wIndices = wIndices.tolist()
+            # sort indices ascending
+            wIndices.sort()
+            # remove ops from layer
+            for w in reversed(wIndices):
+                del layer.ops[w]
+
+        # update architecture parameters
 
     # return top k operations per layer
     def topOps(self, k):
