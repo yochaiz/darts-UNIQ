@@ -194,9 +194,10 @@ class ResNet(Module):
             wIndices = wIndices.tolist()
             # sort indices ascending
             wIndices.sort()
-            # remove ops from layer
+            # remove ops and corresponding bops  from layer
             for w in reversed(wIndices):
                 del layer.ops[w]
+                del layer.bops[w]
 
         # update architecture parameters
 

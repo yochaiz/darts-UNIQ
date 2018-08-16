@@ -9,7 +9,7 @@ from torch import load as loadModel
 import torch.backends.cudnn as cudnn
 
 from cnn.utils import initLogger, load_pre_trained, stateOptModelPattern, stateFilenameDefault
-from cnn.utils import printModelToFile
+from cnn.utils import printModelToFile, count_parameters_in_MB
 from cnn.uniq_loss import UniqLoss
 from cnn.resnet_model_search import ResNet
 from cnn.optimize import optimize
@@ -84,15 +84,39 @@ model.load_alphas_state(optModelChkpnt['alphas'])
 # convert opt model to discrete
 model.toDiscrete()
 
+#build uniform model
+uniform_model = ResNet(crit, [args.MaxBopsBits], args.kernel, args.bopsCounter).cuda()
+load_pre_trained(args.pre_trained, uniform_model, logger, args.gpu[0])
+uniform_model.toDiscrete()
+
 # print model to file
 printModelToFile(model, args.save, fname='opt_model')
+#some prints
 logger.info("args = %s", args)
 logger.info('Learnable params:[{}]'.format(len(model.learnable_params)))
 logger.info('alphas tensor size:[{}]'.format(model.arch_parameters()[0].size()))
+logger.info("discrete param size = %fMB", count_parameters_in_MB(model))
+logger.info("uniform param size = %fMB", count_parameters_in_MB(uniform_model))
+
 
 # set train_portion to 1.0, we do not optimize architecture now, only model weights
 args.train_portion = 1.0
+
+#Print Bops
+logger.info('BOPS UNIFORM: [{}]'.format(uniform_model.countBops()))
+logger.info('BOPS DISCRETE:[{}]'.format(model.countBops()))
+
 # set train folder
-args.trainFolder = 'train_opt'
+args.trainFolder = 'train_opt_discrete'
+
+logger.info('==== Train Discrete =====')
 # do the magic
 optimize(args, model, logger)
+
+args.trainFolder = 'train_opt_uniform'
+
+logger.info('==== Train Uniform =====')
+optimize(args, uniform_model, logger)
+
+
+

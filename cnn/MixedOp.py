@@ -22,6 +22,18 @@ class QuantizedOp(UNIQNet):
         self.op = op.cuda()
         self.prepare_uniq()
 
+    def reset_flops_count(self):
+        pass
+    def compute_average_flops_cost(self):
+        pass
+    def stop_flops_count(self):
+        pass
+    def start_flops_count(self):
+        pass
+    def compute_average_bops_cost(self):
+        pass
+
+
     def standardForward(self, x):
         return self.op(x)
 
