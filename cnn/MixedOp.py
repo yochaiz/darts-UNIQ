@@ -66,8 +66,7 @@ class Chooser(Function):
         results_shape, result, chosen = ctx.saved_tensors
         results_shape = tuple(results_shape.numpy().squeeze())
         grads_x = torch.zeros(results_shape, device=grad_output.device, dtype=grad_output.dtype)
-        grads_passed= grads_x.select(1,chosen)
-        grads_passed = grad_output
+        grads_x.select(1, chosen).copy_(grad_output)
         grads_alpha = torch.zeros((results_shape[1],), device=grad_output.device, dtype=grad_output.dtype)
         grads_alpha[chosen] = torch.sum(grad_output * result)
         return grads_x, grads_alpha

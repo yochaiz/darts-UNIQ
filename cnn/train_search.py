@@ -92,9 +92,9 @@ def parseArgs(lossFuncsLambda):
     args.save = 'results/search-{}-{}'.format(args.save, strftime("%Y%m%d-%H%M%S"))
     create_exp_dir(args.save, scripts_to_save=glob.glob('*.py'))
 
-    # save args to JSON
-    # with open('{}/args.json'.format(args.save), 'w') as f:
-    #     dump(vars(args), f)
+    #save args to JSON
+    with open('{}/args.json'.format(args.save), 'w') as f:
+        dump(vars(args), f)
 
     return args
 
