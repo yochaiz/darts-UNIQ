@@ -6,7 +6,9 @@ from torch.nn import Module, ModuleList, Conv2d, BatchNorm2d, Sequential, Linear
 import torch.nn.functional as F
 from math import floor
 from abc import abstractmethod
-
+import torch.distributions.categorical as C
+from torch.autograd import Function
+import torch
 
 class QuantizedOp(UNIQNet):
     def __init__(self, op, bitwidth=[], act_bitwidth=[], useResidual=False):
@@ -45,6 +47,31 @@ class QuantizedOp(UNIQNet):
         return out
 
 
+
+
+class Chooser(Function):
+    chosen = None
+
+    @staticmethod
+    def forward(ctx, results, alpha):
+        dist = torch.distributions.Categorical(logits=alpha)
+        chosen = dist.sample()
+        result = results.select(1,chosen)
+        ctx.save_for_backward(torch.LongTensor([results.shape]), result, chosen)
+        Chooser.chosen = chosen
+        return result
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        results_shape, result, chosen = ctx.saved_tensors
+        results_shape = tuple(results_shape.numpy().squeeze())
+        grads_x = torch.zeros(results_shape, device=grad_output.device, dtype=grad_output.dtype)
+        grads_passed= grads_x.select(1,chosen)
+        grads_passed = grad_output
+        grads_alpha = torch.zeros((results_shape[1],), device=grad_output.device, dtype=grad_output.dtype)
+        grads_alpha[chosen] = torch.sum(grad_output * result)
+        return grads_x, grads_alpha
+
 class MixedOp(Module):
     def __init__(self):
         super(MixedOp, self).__init__()
@@ -52,9 +79,11 @@ class MixedOp(Module):
         # init operations mixture
         self.ops = self.initOps()
         # init operations alphas (weights)
-        # self.alphas = tensor(randn(self.numOfOps()).cuda(), requires_grad=True)
         value = 1.0 / self.numOfOps()
         self.alphas = tensor((ones(self.numOfOps()) * value).cuda(), requires_grad=True)
+
+        self.curr_alpha_idx = 0 if self.numOfOps() == 1 else None
+
         # init bops for operation
         self.bops = self.countBops()
 
@@ -66,9 +95,31 @@ class MixedOp(Module):
     def countBops(self):
         raise NotImplementedError('subclasses must override countBops()!')
 
-    def forward(self, x):
-        weights = F.softmax(self.alphas, dim=-1)
-        return sum(w * op(x) for w, op in zip(weights, self.ops))
+    def trainMode(self):
+        self.forward = self.trainForward
+
+    def evalMode(self):
+        # update current alpha to max alpha value
+        dist = F.softmax(self.alphas, dim=-1)
+        self.curr_alpha_idx = dist.argmax().item()
+        # update forward function
+        self.forward = self.evalForward
+
+    def trainForward(self, x):
+        results = [op(x).unsqueeze(1) for op in self.ops]
+        result = Chooser.apply(torch.cat(results, 1), self.alphas)
+        self.curr_alpha_idx = Chooser.chosen.item()
+        return result
+
+    def evalForward(self, x):
+        return self.ops[self.curr_alpha_idx](x)
+
+
+       #  drop = C.Categorical(logits=self.alphas)
+       #  self.curr_alpha_idx = drop.sample().item()
+       # # weights = F.softmax(self.alphas, dim=-1)
+       #  return self.ops[self.curr_alpha_idx](x)
+       #  #    sum(w * op(x) for w, op in zip(weights, self.ops))
 
     def numOfOps(self):
         return len(self.ops)
@@ -96,6 +147,7 @@ class MixedLinear(MixedOp):
 
     def countBops(self):
         return [count_flops(op, self.in_features, 1) for op in self.ops]
+
 
 
 class MixedConv(MixedOp):
@@ -140,7 +192,8 @@ class MixedConvWithReLU(MixedOp):
         super(MixedConvWithReLU, self).__init__()
 
         if useResidual:
-            self.forward = self.residualForward
+            self.trainForward = self.trainResidualForward
+            self.evalForward = self.evalResidualForward
 
     def initOps(self):
         ops = ModuleList()
@@ -164,9 +217,21 @@ class MixedConvWithReLU(MixedOp):
     def countBops(self):
         return [count_flops(op, 1, self.in_planes) for op in self.ops]
 
-    def residualForward(self, x, residual):
-        weights = F.softmax(self.alphas, dim=-1)
-        return sum(w * op(x, residual) for w, op in zip(weights, self.ops))
+    def trainResidualForward(self, x, residual):
+        # drop = C.Categorical(logits=self.alphas)
+        # self.curr_alpha_idx = drop.sample().item()
+        # # weights = F.softmax(self.alphas, dim=-1)
+        # return self.ops[self.curr_alpha_idx](x,residual)
+
+        results = [op(x, residual).unsqueeze(1) for op in self.ops]
+        result = Chooser.apply(torch.cat(results, 1), self.alphas)
+        self.curr_alpha_idx = Chooser.chosen.item()
+        return result
+
+        #return sum(w * op(x, residual) for w, op in zip(weights, self.ops))
+
+    def evalResidualForward(self, x, residual):
+        return self.ops[self.curr_alpha_idx](x, residual)
 
     # # for standard op, without QuantizedOp wrapping
     # def residualForward(self, x, residual):

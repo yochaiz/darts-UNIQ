@@ -28,10 +28,15 @@ class UniqLoss(Module):
         self.bopsRatio = -1
         self.quant_loss = -1
 
+    def calcBopsRatioLoss(self, modelBops):
+        bopsRatio = modelBops / self.maxBops
+        quant_loss = self.bopsLoss(bopsRatio)
+
+        return bopsRatio, quant_loss
+
     def forward(self, input, target, modelBops):
         # big penalization if bops over MaxBops
-        self.bopsRatio = modelBops / self.maxBops
-        self.quant_loss = self.bopsLoss(self.bopsRatio)
+        self.bopsRatio, self.quant_loss = self.calcBopsRatioLoss(modelBops)
 
         return self.search_loss(input, target) + (self.lmdba * self.quant_loss)
 

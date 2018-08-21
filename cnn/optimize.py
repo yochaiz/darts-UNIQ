@@ -19,6 +19,8 @@ def train(train_queue, search_queue, args, model, architect, crit, optimizer, lr
     grad = AvgrageMeter()
 
     model.train()
+    model.trainMode()
+
     nBatches = len(train_queue)
 
     for step, (input, target) in enumerate(train_queue):
@@ -67,6 +69,9 @@ def infer(valid_queue, args, model, crit, logger):
     top5 = AvgrageMeter()
 
     model.eval()
+    model.evalMode()
+    bopsRatio, quantLoss = model._criterion.calcBopsRatioLoss(model.countBops())
+
     nBatches = len(valid_queue)
 
     with no_grad():
@@ -90,8 +95,7 @@ def infer(valid_queue, args, model, crit, logger):
             if step % args.report_freq == 0:
                 logger.info(
                     'validation [{}/{}] Loss:[{:.5f}] Accuracy:[{:.3f}] BopsRatio:[{:.3f}] BopsLoss[{:.5f}] time:[{:.5f}]'
-                        .format(step, nBatches, objs.avg, top1.avg, model._criterion.bopsRatio,
-                                model._criterion.quant_loss, endTime - startTime))
+                        .format(step, nBatches, objs.avg, top1.avg, bopsRatio, quantLoss, endTime - startTime))
 
     return top1.avg, objs.avg
 

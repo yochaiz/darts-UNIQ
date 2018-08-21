@@ -51,6 +51,9 @@ class Architect(object):
                 v.grad.data.zero_()
         loss.backward(retain_graph=True)
 
+
+
+
     def _backward_step_unrolled(self, input_train, target_train, input_valid, target_valid, eta, network_optimizer):
         model_unrolled = self._compute_unrolled_model(input_train, target_train, eta, network_optimizer)
         loss = model_unrolled._loss(input_valid, target_valid)

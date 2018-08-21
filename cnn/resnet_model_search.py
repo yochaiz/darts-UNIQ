@@ -39,7 +39,7 @@ class BasicBlock(Module):
         self.block1 = MixedConvWithReLU(bitwidths, in_planes, out_planes, kernel_size, stride1, useResidual=False)
         self.block2 = MixedConvWithReLU(bitwidths, out_planes, out_planes, kernel_size, stride, useResidual=True)
 
-        self.downsample = MixedConv(bitwidths, in_planes, out_planes, kernel_size, stride1) \
+        self.downsample = MixedConv(bitwidths, in_planes, out_planes, [1], stride1) \
             if in_planes != out_planes else None
 
     def forward(self, x):
@@ -68,10 +68,11 @@ class ResNet(Module):
     def countBopsDiscrete(self):
         totalBops = 0
         for layer in self.layersList:
-            weights = F.softmax(layer.alphas, dim=-1)
+            #weights = F.softmax(layer.alphas, dim=-1)
             # we take the layer operation with the highest weight
-            maxIdx = weights.argmax(dim=-1).item()
-            totalBops += layer.bops[maxIdx]
+            #maxIdx = weights.argmax(dim=-1).item()
+
+            totalBops += layer.bops[layer.curr_alpha_idx]
 
         return totalBops
 
@@ -155,6 +156,7 @@ class ResNet(Module):
 
     def _loss(self, input, target):
         logits = self(input)
+
         return self._criterion(logits, target, self.countBops())
 
     def arch_parameters(self):
@@ -163,6 +165,14 @@ class ResNet(Module):
 
     def getLearnableParams(self):
         return self.learnable_params
+
+    def trainMode(self):
+        for l in self.layersList:
+            l.trainMode()
+
+    def evalMode(self):
+        for l in self.layersList:
+            l.evalMode()
 
     # create list of lists of alpha with its corresponding operation
     def alphas_state(self):
@@ -187,7 +197,8 @@ class ResNet(Module):
             _, wIndices = weights.sort(descending=True)
             # update layer alphas
             layer.alphas = layer.alphas[wIndices[:nOpsPerLayer]]
-            layer.alphas = tensor(tensor(layer.alphas.tolist()).cuda(), requires_grad=True)
+    #        layer.alphas = tensor(tensor(layer.alphas.tolist()).cuda(), requires_grad=True)
+            layer.alphas = tensor(tensor(layer.alphas.tolist()).cuda())
             # take indices of ops we want to remove from layer
             wIndices = wIndices[nOpsPerLayer:]
             # convert to list

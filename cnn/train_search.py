@@ -20,7 +20,7 @@ from cnn.uniq_loss import UniqLoss
 def parseArgs(lossFuncsLambda):
     parser = argparse.ArgumentParser("cifar")
     parser.add_argument('--data', type=str, required=True, help='location of the data corpus')
-    parser.add_argument('--batch_size', type=int, default=256, help='batch size')
+    parser.add_argument('--batch_size', type=int, default=10, help='batch size')
     parser.add_argument('--learning_rate', type=float, default=0.01, help='init learning rate')
     parser.add_argument('--learning_rate_min', type=float, default=1E-8, help='min learning rate')
     parser.add_argument('--momentum', type=float, default=0.9, help='momentum')
@@ -93,8 +93,8 @@ def parseArgs(lossFuncsLambda):
     create_exp_dir(args.save, scripts_to_save=glob.glob('*.py'))
 
     # save args to JSON
-    with open('{}/args.json'.format(args.save), 'w') as f:
-        dump(vars(args), f)
+    # with open('{}/args.json'.format(args.save), 'w') as f:
+    #     dump(vars(args), f)
 
     return args
 
