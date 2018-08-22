@@ -125,6 +125,8 @@ class ResNet(Module):
         # init criterion
         self._criterion = criterion
 
+        # init learnable alphas
+        self.learnable_alphas = []
         # set learnable parameters
         self.learnable_params = [param for param in self.parameters() if param.requires_grad]
         # update model parameters() function
@@ -159,8 +161,12 @@ class ResNet(Module):
 
         return self._criterion(logits, target, self.countBops())
 
+    def update_learnable_alphas(self):
+        self.learnable_alphas = [l.alphas for l in self.layersList if l.alphas.requires_grad is True]
+
     def arch_parameters(self):
-        return [l.alphas for l in self.layersList]
+        return self.learnable_alphas
+        # return [l.alphas for l in self.layersList]
         # return self._arch_parameters
 
     def getLearnableParams(self):
@@ -230,8 +236,15 @@ class ResNet(Module):
 
     def switch_stage(self, logger=None):
         # TODO: freeze stage alphas as well ???
-        if self.nLayersQuantCompleted + 1 < len(self.layersList):
+        if self.nLayersQuantCompleted < len(self.layersList):
             layer = self.layersList[self.nLayersQuantCompleted]
+            # turn on layer alphas gradients
+            layer.alphas.requires_grad = True
+            # update learnable alphas
+            self.update_learnable_alphas()
+            # let layer toss a coin to select op
+            layer.tossCoin = True
+
             for op in layer.ops:
                 # turn off noise in op
                 assert (op.noise is True)
@@ -257,13 +270,14 @@ class ResNet(Module):
             self.nLayersQuantCompleted += 1
 
             # turn on noise in the new layer we want to quantize
-            layer = self.layersList[self.nLayersQuantCompleted]
-            for op in layer.ops:
-                op.noise = True
+            if self.nLayersQuantCompleted < len(self.layersList):
+                layer = self.layersList[self.nLayersQuantCompleted]
+                for op in layer.ops:
+                    op.noise = True
 
             if logger:
-                logger.info('Switching stage, nLayersQuantCompleted:[{}], learnable_params:[{}]'
-                            .format(self.nLayersQuantCompleted, len(self.learnable_params)))
+                logger.info('Switching stage, nLayersQuantCompleted:[{}], learnable_params:[{}], learnable_alphas size:[{}]'
+                            .format(self.nLayersQuantCompleted, len(self.learnable_params), len(self.learnable_alphas)))
 
     # load original pre_trained model of UNIQ
     def loadUNIQPre_trained(self, path, logger, gpu):
