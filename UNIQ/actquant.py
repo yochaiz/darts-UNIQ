@@ -5,7 +5,8 @@ import torch.nn.functional as F
 
 class ActQuant(nn.Module):
 
-    def __init__(self, quatize_during_training=False, noise_during_training=False, quant=False, noise=False, bitwidth=32):
+    def __init__(self, quatize_during_training=False, noise_during_training=False, quant=False, noise=False,
+                 bitwidth=32):
         super(ActQuant, self).__init__()
         self.quant = quant
         self.noise = noise
@@ -20,9 +21,9 @@ class ActQuant(nn.Module):
 
     def forward(self, input):
         if self.quant and (not self.training or (self.training and self.quatize_during_training)):
-            x = act_quantize(input, bitwidth=self.bitwidth)
+            x = act_quantize.apply(input, self.bitwidth)
         elif self.noise and self.training and self.noise_during_training:
-            x = act_noise(input, bitwidth=self.bitwidth, training=self.training)
+            x = act_noise.apply(input, bitwidth=self.bitwidth, training=self.training)
         else:
             x = F.relu(input)
 
