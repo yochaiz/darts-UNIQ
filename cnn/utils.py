@@ -9,6 +9,8 @@ from torch import save as saveModel
 from torch.utils.data.dataloader import DataLoader
 from torch.utils.data.sampler import SubsetRandomSampler
 from torchvision.datasets.cifar import CIFAR10
+from UNIQ.preprocess import get_transform
+from UNIQ.data import get_dataset
 
 
 class AvgrageMeter(object):
@@ -62,26 +64,6 @@ class Cutout(object):
         mask = mask.expand_as(img)
         img *= mask
         return img
-
-
-def _data_transforms_cifar10(args):
-    CIFAR_MEAN = [0.49139968, 0.48215827, 0.44653124]
-    CIFAR_STD = [0.24703233, 0.24348505, 0.26158768]
-
-    train_transform = transforms.Compose([
-        transforms.RandomCrop(32, padding=4),
-        transforms.RandomHorizontalFlip(),
-        transforms.ToTensor(),
-        transforms.Normalize(CIFAR_MEAN, CIFAR_STD),
-    ])
-    if args.cutout:
-        train_transform.transforms.append(Cutout(args.cutout_length))
-
-    valid_transform = transforms.Compose([
-        transforms.ToTensor(),
-        transforms.Normalize(CIFAR_MEAN, CIFAR_STD),
-    ])
-    return train_transform, valid_transform
 
 
 def count_parameters_in_MB(model):
@@ -188,7 +170,7 @@ def logDominantQuantizedOp(model, k, logger):
     for i, layerTop in enumerate(top):
         message = 'Layer:[{}]  '.format(i)
         for idx, w, alpha, layer in layerTop:
-            message += 'Idx:[{}]  w:[{:.3f}]  alpha:[{:.3f}]  '.format(idx, w, alpha)
+            message += 'Idx:[{}]  w:[{:.5f}]  alpha:[{:.5f}]  '.format(idx, w, alpha)
             for attr in attributes:
                 v = getattr(layer, attr, None)
                 if v:
@@ -207,17 +189,44 @@ def printModelToFile(model, save_path, fname='model'):
     logger.info('{}'.format(model))
     logDominantQuantizedOp(model, k=2, logger=logger)
 
+# def _data_transforms_cifar10(args):
+#     CIFAR_MEAN = [0.49139968, 0.48215827, 0.44653124]
+#     CIFAR_STD = [0.24703233, 0.24348505, 0.26158768]
+#
+#     train_transform = transforms.Compose([
+#         transforms.RandomCrop(32, padding=4),
+#         transforms.RandomHorizontalFlip(),
+#         transforms.ToTensor(),
+#         transforms.Normalize(CIFAR_MEAN, CIFAR_STD),
+#     ])
+#     if args.cutout:
+#         train_transform.transforms.append(Cutout(args.cutout_length))
+#
+#     valid_transform = transforms.Compose([
+#         transforms.ToTensor(),
+#         transforms.Normalize(CIFAR_MEAN, CIFAR_STD),
+#     ])
+#     return train_transform, valid_transform
 
 def load_data(args):
-    train_transform, valid_transform = _data_transforms_cifar10(args)
-    train_data = CIFAR10(root=args.data, train=True, download=True, transform=train_transform)
-    valid_data = CIFAR10(root=args.data, train=False, download=True, transform=valid_transform)
+    # train_transform, valid_transform = _data_transforms_cifar10(args)
+    # train_data = CIFAR10(root=args.data, train=True, download=True, transform=train_transform)
+    # valid_data = CIFAR10(root=args.data, train=False, download=True, transform=valid_transform)
 
-    #### narrow data for debug purposes
-    # train_data.train_data = train_data.train_data[0:640]
-    # train_data.train_labels = train_data.train_labels[0:640]
-    # valid_data.test_data = valid_data.test_data[0:320]
-    # valid_data.test_labels = valid_data.test_labels[0:320]
+    # init transforms
+    transform = {
+        'train': get_transform(args.dataset, augment=True),
+        'eval': get_transform(args.dataset, augment=False)
+    }
+
+    train_data = get_dataset(args.dataset, train=True, transform=transform['train'], datasets_path=args.data)
+    valid_data = get_dataset(args.dataset, train=False, transform=transform['eval'], datasets_path=args.data)
+
+    ### narrow data for debug purposes
+    train_data.train_data = train_data.train_data[0:640]
+    train_data.train_labels = train_data.train_labels[0:640]
+    valid_data.test_data = valid_data.test_data[0:320]
+    valid_data.test_labels = valid_data.test_labels[0:320]
     ####
 
     num_train = len(train_data)
