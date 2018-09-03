@@ -131,10 +131,11 @@ class ResNet(BaseNet):
         # TODO: freeze stage alphas as well ???
         if self.nLayersQuantCompleted < len(self.layersList):
             layer = self.layersList[self.nLayersQuantCompleted]
-            # turn on layer alphas gradients
-            layer.alphas.requires_grad = True
-            # update learnable alphas
-            self.update_learnable_alphas()
+            assert (layer.alphas.requires_grad is True)
+            # # turn on layer alphas gradients
+            # layer.alphas.requires_grad = True
+            # # update learnable alphas
+            # self.update_learnable_alphas()
 
             for op in layer.ops:
                 # turn off noise in op

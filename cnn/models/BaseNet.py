@@ -99,16 +99,16 @@ class BaseNet(Module):
             l.trainMode()
         # calc bops ratio
         bopsRatio = self._criterion.calcBopsRatio(self.countBops())
-        bopsLoss = self._criterion.calcBopsLoss(bopsRatio)
-        return bopsRatio, bopsLoss
+        # bopsLoss = self._criterion.calcBopsLoss(bopsRatio)
+        return bopsRatio
 
     def evalMode(self):
         for l in self.layersList:
             l.evalMode()
         # calc bops ratio
         bopsRatio = self._criterion.calcBopsRatio(self.countBops())
-        bopsLoss = self._criterion.calcBopsLoss(bopsRatio)
-        return bopsRatio, bopsLoss
+        # bopsLoss = self._criterion.calcBopsLoss(bopsRatio)
+        return bopsRatio
 
     # return top k operations per layer
     def topOps(self, k):
