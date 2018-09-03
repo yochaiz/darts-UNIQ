@@ -4,22 +4,34 @@ from json import dump
 import glob
 import numpy as np
 import argparse
+from inspect import isclass
 
 import torch.backends.cudnn as cudnn
 from torch.cuda import is_available, set_device
 from torch.cuda import manual_seed as cuda_manual_seed
 from torch import manual_seed as torch_manual_seed
+from torch.nn import CrossEntropyLoss
 
+import cnn.models as models
 from cnn.utils import create_exp_dir, count_parameters_in_MB, load_pre_trained
 from cnn.utils import initLogger, printModelToFile
-from cnn.resnet_model_search import ResNet
 from cnn.optimize import optimize
 from cnn.uniq_loss import UniqLoss
 
 
+# collect possible models names
+def loadModelNames():
+    return [name for (name, obj) in models.__dict__.items() if isclass(obj) and name.islower()]
+
+
 def parseArgs(lossFuncsLambda):
+    modelNames = loadModelNames()
+
     parser = argparse.ArgumentParser("cifar")
     parser.add_argument('--data', type=str, required=True, help='location of the data corpus')
+    parser.add_argument('--dataset', metavar='DATASET', default='cifar10', help='dataset name')
+    parser.add_argument('--model', '-a', metavar='MODEL', default='tinynet', choices=modelNames,
+                        help='model architecture: ' + ' | '.join(modelNames) + ' (default: alexnet)')
     parser.add_argument('--batch_size', type=int, default=10, help='batch size')
     parser.add_argument('--learning_rate', type=float, default=0.01, help='init learning rate')
     parser.add_argument('--learning_rate_min', type=float, default=1E-8, help='min learning rate')
@@ -56,9 +68,10 @@ def parseArgs(lossFuncsLambda):
 
     parser.add_argument('--loss', type=str, default='UniqLoss', choices=[key for key in lossFuncsLambda.keys()])
     parser.add_argument('--lmbda', type=float, default=1.0, help='Lambda value for UniqLoss')
-    parser.add_argument('--MaxBopsBits', type=int, default=3, choices=range(1, 32), help='maximum bits for uniform division')
+    parser.add_argument('--MaxBopsBits', type=int, default=3, choices=range(1, 32),
+                        help='maximum bits for uniform division')
     # select bops counter function
-    bopsCounterKeys = list(ResNet.countBopsFuncs.keys())
+    bopsCounterKeys = list(models.BaseNet.countBopsFuncs.keys())
     parser.add_argument('--bopsCounter', type=str, default=bopsCounterKeys[0], choices=bopsCounterKeys)
 
     args = parser.parse_args()
@@ -92,7 +105,7 @@ def parseArgs(lossFuncsLambda):
     args.save = 'results/search-{}-{}'.format(args.save, strftime("%Y%m%d-%H%M%S"))
     create_exp_dir(args.save, scripts_to_save=glob.glob('*.py'))
 
-    #save args to JSON
+    # save args to JSON
     with open('{}/args.json'.format(args.save), 'w') as f:
         dump(vars(args), f)
 
@@ -104,7 +117,6 @@ lossFuncsLambda = dict(UniqLoss=1.0, CrossEntropy=0.0)
 args = parseArgs(lossFuncsLambda)
 print(args)
 logger = initLogger(args.save, args.propagate)
-CIFAR_CLASSES = 10
 
 if not is_available():
     logger.info('no gpu device available')
@@ -117,14 +129,16 @@ torch_manual_seed(args.seed)
 cudnn.enabled = True
 cuda_manual_seed(args.seed)
 
-crit = UniqLoss(lmdba=args.lmbda, MaxBopsBits=args.MaxBopsBits, kernel_sizes=args.kernel,
-                bopsFuncKey=args.bopsCounter, folderName=args.save)
+# build model for uniform distribution of bits
+model = models.__dict__[args.model]
+uniform_model = model(CrossEntropyLoss().cuda(), [args.MaxBopsBits], args.kernel, args.bopsCounter)
+
+crit = UniqLoss(lmdba=args.lmbda, maxBops=uniform_model.countBops(), folderName=args.save)
 crit = crit.cuda()
-# criterion = criterion.to(args.device)
-model = ResNet(crit, args.bitwidth, args.kernel, args.bopsCounter)
+
+model = model(crit, args.bitwidth, args.kernel, args.bopsCounter)
 # model = DataParallel(model, args.gpu)
 model = model.cuda()
-# model = model.to(args.device)
 # load pre-trained full-precision model
 load_pre_trained(args.pre_trained, model, logger, args.gpu[0])
 
@@ -134,9 +148,9 @@ logger.info('GPU:{}'.format(args.gpu))
 logger.info("args = %s", args)
 logger.info("param size = %fMB", count_parameters_in_MB(model))
 logger.info('Learnable params:[{}]'.format(len(model.learnable_params)))
-logger.info('alphas tensor size:[{}]'.format(model.arch_parameters()[0].size()))
+logger.info('Ops per layer:{}'.format([len(layer.ops) for layer in model.layersList]))
+logger.info('nPerms:[{}]'.format(model.nPerms))
 
 optimize(args, model, logger)
 
-# save(model, os.path.join(args.save, 'weights.pt'))
 logger.info('Done !')
