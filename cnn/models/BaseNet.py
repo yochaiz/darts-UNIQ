@@ -56,6 +56,10 @@ class BaseNet(Module):
         raise NotImplementedError('subclasses must override forward()!')
 
     @abstractmethod
+    def _loss(self, input, target):
+        raise NotImplementedError('subclasses must override _loss()!')
+
+    @abstractmethod
     def switch_stage(self, logger=None):
         raise NotImplementedError('subclasses must override switch_stage()!')
 
