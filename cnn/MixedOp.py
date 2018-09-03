@@ -129,6 +129,7 @@ class MixedOp(Module):
         # update forward function
         self.forward = self.evalForward
 
+
     # def trainForward(self, x):
     #     if self.alphas.requires_grad:
     #         results = [op(x).unsqueeze(1) for op in self.ops]
@@ -215,11 +216,11 @@ class MixedConvWithReLU(MixedOp):
         self.stride = stride
         self.useResidual = useResidual
 
-        super(MixedConvWithReLU, self).__init__()
-
         if useResidual:
             self.trainForward = self.trainResidualForward
             self.evalForward = self.evalResidualForward
+
+        super(MixedConvWithReLU, self).__init__()
 
     def initOps(self):
         ops = ModuleList()
