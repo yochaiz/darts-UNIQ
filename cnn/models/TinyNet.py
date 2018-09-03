@@ -1,11 +1,9 @@
-from itertools import product
 from collections import OrderedDict
 
 from torch.nn import Sequential
 from torch import load as loadModel
-from torch.nn import functional as F
 
-from cnn.MixedOp import MixedOp, MixedConvWithReLU, MixedLinear
+from cnn.MixedOp import MixedConvWithReLU, MixedLinear
 from cnn.models import BaseNet
 
 
@@ -63,29 +61,6 @@ class TinyNet(BaseNet):
         x = self.features(x)
         x = x.view(x.shape[0], -1)
         return self.fc(x)
-
-    def _loss(self, input, target):
-        # sum all paths losses * the path alphas multiplication
-        totalLoss = 0.0
-        for perm in product(*self.layersPerm):
-            alphasProd = 1.0
-            # set perm index in each layer
-            for i, p in enumerate(perm):
-                layer = self.layersList[i]
-                layer.curr_alpha_idx = p
-                probs = F.softmax(layer.alphas)
-                alphasProd *= probs[p]
-
-            logits = self.forward(input)
-            # only the alphas are changing...
-            totalLoss += (alphasProd * self._criterion(logits, target, self.countBops()))
-        # TODO: do we need to average the totalLoss ???
-
-        # print('totalLoss:[{:.5f}]'.format(totalLoss))
-        return totalLoss
-
-        # logits = self.forward(input)
-        # return self._criterion(logits, target, self.countBops())
 
     def switch_stage(self, logger=None):
         pass

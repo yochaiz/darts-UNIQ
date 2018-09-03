@@ -117,9 +117,9 @@ class ResNet(BaseNet):
 
         return out
 
-    def _loss(self, input, target):
-        logits = self(input)
-        return self._criterion(logits, target, self.countBops())
+    # def _loss(self, input, target):
+    #     logits = self(input)
+    #     return self._criterion(logits, target, self.countBops())
 
     def update_learnable_alphas(self):
         self.learnable_alphas = [l.alphas for l in self.layersList if l.alphas.requires_grad is True]

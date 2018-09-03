@@ -1,5 +1,7 @@
 from abc import abstractmethod
 
+from itertools import product
+
 from torch import tensor
 from torch.nn import Module
 from torch.nn import functional as F
@@ -56,10 +58,6 @@ class BaseNet(Module):
         raise NotImplementedError('subclasses must override forward()!')
 
     @abstractmethod
-    def _loss(self, input, target):
-        raise NotImplementedError('subclasses must override _loss()!')
-
-    @abstractmethod
     def switch_stage(self, logger=None):
         raise NotImplementedError('subclasses must override switch_stage()!')
 
@@ -72,6 +70,29 @@ class BaseNet(Module):
 
     def arch_parameters(self):
         return self.learnable_alphas
+
+    def _loss(self, input, target):
+        # sum all paths losses * the path alphas multiplication
+        totalLoss = 0.0
+        for perm in product(*self.layersPerm):
+            alphasProd = 1.0
+            # set perm index in each layer
+            for i, p in enumerate(perm):
+                layer = self.layersList[i]
+                layer.curr_alpha_idx = p
+                probs = F.softmax(layer.alphas)
+                alphasProd *= probs[p]
+
+            logits = self.forward(input)
+            # only the alphas are changing...
+            totalLoss += (alphasProd * self._criterion(logits, target, self.countBops()))
+        # TODO: do we need to average the totalLoss ???
+
+        # print('totalLoss:[{:.5f}]'.format(totalLoss))
+        return totalLoss
+
+        # logits = self.forward(input)
+        # return self._criterion(logits, target, self.countBops())
 
     def trainMode(self):
         for l in self.layersList:
