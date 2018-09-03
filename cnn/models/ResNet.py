@@ -1,11 +1,15 @@
+from collections import OrderedDict
+
 from torch import load as loadModel
 from torch.nn import Module, Conv2d, AvgPool2d
 import torch.nn.functional as F
 from torch import tensor
+
 from UNIQ.actquant import ActQuant
 from UNIQ.quantize import backup_weights, restore_weights, quantize
+
 from cnn.MixedOp import MixedConv, MixedConvWithReLU, MixedLinear, MixedOp
-from collections import OrderedDict
+from cnn.models import BaseNet
 
 
 def save_quant_state(self, _):
@@ -51,48 +55,29 @@ class BasicBlock(Module):
         return out
 
 
-class ResNet(Module):
-    nClasses = 10  # cifar-10
-
-    # counts the entire model bops in continuous mode
-    def countBopsContinuous(self):
-        totalBops = 0
-        for layer in self.layersList:
-            weights = F.softmax(layer.alphas, dim=-1)
-            for w, b in zip(weights, layer.bops):
-                totalBops += (w * b)
-
-        return totalBops
-
-    # counts the entire model bops in discrete mode
-    def countBopsDiscrete(self):
-        totalBops = 0
-        for layer in self.layersList:
-            #weights = F.softmax(layer.alphas, dim=-1)
-            # we take the layer operation with the highest weight
-            #maxIdx = weights.argmax(dim=-1).item()
-
-            totalBops += layer.bops[layer.curr_alpha_idx]
-
-        return totalBops
-
-    def countBops(self):
-        # wrapper is needed because countBopsFuncs is defined outside __init__()
-        return self.countBopsFunc(self)
-
-    countBopsFuncs = dict(continuous=countBopsContinuous, discrete=countBopsDiscrete)
-
+class ResNet(BaseNet):
     def __init__(self, criterion, bitwidths, kernel_sizes, bopsFuncKey):
-        super(ResNet, self).__init__()
+        super(ResNet, self).__init__(criterion=criterion, initLayersParams=(bitwidths, kernel_sizes),
+                                     bopsFuncKey=bopsFuncKey)
 
-        # set bops counter function
-        self.countBopsFunc = self.countBopsFuncs[bopsFuncKey]
+        # set noise=True for 1st layer
+        for op in self.layersList[0].ops:
+            if op.quant:
+                op.noise = True
 
-        # init MixedConvWithReLU layers list
-        self.layersList = []
+        # turn on grads in 1st layer alphas
+        self.layersList[0].alphas.requires_grad = True
+        self.update_learnable_alphas()
+        # update model parameters() function
+        self.parameters = self.getLearnableParams
+
+        # init number of layers we have completed its quantization
+        self.nLayersQuantCompleted = 0
+
+    def initLayers(self, params):
+        bitwidths, kernel_sizes = params
 
         self.block1 = MixedConvWithReLU(bitwidths, 3, 16, kernel_sizes, 1)
-        self.layersList.append(self.block1)
 
         layers = [
             BasicBlock(bitwidths, 16, 16, kernel_sizes, 1),
@@ -112,31 +97,7 @@ class ResNet(Module):
             i += 1
 
         self.avgpool = AvgPool2d(8)
-        self.fc = MixedLinear(bitwidths, 64, self.nClasses)
-
-        # build mixture layers list
-        self.layersList = [m for m in self.modules() if isinstance(m, MixedOp)]
-
-        # set noise=True for 1st layer
-        for op in self.layersList[0].ops:
-            if op.quant:
-                op.noise = True
-
-        # init criterion
-        self._criterion = criterion
-
-        # init learnable alphas
-        self.learnable_alphas = []
-        # set learnable parameters
-        self.learnable_params = [param for param in self.parameters() if param.requires_grad]
-        # update model parameters() function
-        self.parameters = self.getLearnableParams
-
-        # init number of layers we have completed its quantization
-        self.nLayersQuantCompleted = 0
-
-    def nLayers(self):
-        return len(self.layersList)
+        self.fc = MixedLinear(bitwidths, 64, 10)
 
     def forward(self, x):
         out = self.block1(x)
@@ -158,81 +119,13 @@ class ResNet(Module):
 
     def _loss(self, input, target):
         logits = self(input)
-
         return self._criterion(logits, target, self.countBops())
 
     def update_learnable_alphas(self):
         self.learnable_alphas = [l.alphas for l in self.layersList if l.alphas.requires_grad is True]
 
-    def arch_parameters(self):
-        return self.learnable_alphas
-        # return [l.alphas for l in self.layersList]
-        # return self._arch_parameters
-
     def getLearnableParams(self):
         return self.learnable_params
-
-    def trainMode(self):
-        for l in self.layersList:
-            l.trainMode()
-
-    def evalMode(self):
-        for l in self.layersList:
-            l.evalMode()
-
-    # create list of lists of alpha with its corresponding operation
-    def alphas_state(self):
-        res = []
-        for layer in self.layersList:
-            layerAlphas = [(a, op) for a, op in zip(layer.alphas, layer.ops)]
-            res.append(layerAlphas)
-
-        return res
-
-    def load_alphas_state(self, state):
-        for layer, layerAlphas in zip(self.layersList, state):
-            for i, elem in enumerate(layerAlphas):
-                a, _ = elem
-                layer.alphas[i] = a
-
-    # convert current model to discrete, i.e. keep nOpsPerLayer optimal operations per layer
-    def toDiscrete(self, nOpsPerLayer=1):
-        for layer in self.layersList:
-            # calc weights from alphas and sort them
-            weights = F.softmax(layer.alphas, dim=-1)
-            _, wIndices = weights.sort(descending=True)
-            # update layer alphas
-            layer.alphas = layer.alphas[wIndices[:nOpsPerLayer]]
-    #        layer.alphas = tensor(tensor(layer.alphas.tolist()).cuda(), requires_grad=True)
-            layer.alphas = tensor(tensor(layer.alphas.tolist()).cuda())
-            # take indices of ops we want to remove from layer
-            wIndices = wIndices[nOpsPerLayer:]
-            # convert to list
-            wIndices = wIndices.tolist()
-            # sort indices ascending
-            wIndices.sort()
-            # remove ops and corresponding bops  from layer
-            for w in reversed(wIndices):
-                del layer.ops[w]
-                del layer.bops[w]
-
-        # update architecture parameters
-
-    # return top k operations per layer
-    def topOps(self, k):
-        top = []
-        for layer in self.layersList:
-            # calc weights from alphas and sort them
-            weights = F.softmax(layer.alphas, dim=-1)
-            # weights = layer.alphas
-            wSorted, wIndices = weights.sort(descending=True)
-            # keep only top-k
-            wSorted = wSorted[:k]
-            wIndices = wIndices[:k]
-            # add to top
-            top.append([(i, w.item(), layer.alphas[i], layer.ops[i]) for w, i in zip(wSorted, wIndices)])
-
-        return top
 
     def switch_stage(self, logger=None):
         # TODO: freeze stage alphas as well ???
@@ -242,8 +135,6 @@ class ResNet(Module):
             layer.alphas.requires_grad = True
             # update learnable alphas
             self.update_learnable_alphas()
-            # let layer toss a coin to select op
-            layer.tossCoin = True
 
             for op in layer.ops:
                 # turn off noise in op
@@ -269,15 +160,21 @@ class ResNet(Module):
             # we have completed quantization of one more layer
             self.nLayersQuantCompleted += 1
 
-            # turn on noise in the new layer we want to quantize
             if self.nLayersQuantCompleted < len(self.layersList):
                 layer = self.layersList[self.nLayersQuantCompleted]
+                # turn on noise in the new layer we want to quantize
                 for op in layer.ops:
                     op.noise = True
 
+                # turn on layer alphas gradients
+                layer.alphas.requires_grad = True
+                # update learnable alphas
+                self.update_learnable_alphas()
+
             if logger:
-                logger.info('Switching stage, nLayersQuantCompleted:[{}], learnable_params:[{}], learnable_alphas size:[{}]'
-                            .format(self.nLayersQuantCompleted, len(self.learnable_params), len(self.learnable_alphas)))
+                logger.info(
+                    'Switching stage, nLayersQuantCompleted:[{}], learnable_params:[{}], learnable_alphas size:[{}]'
+                        .format(self.nLayersQuantCompleted, len(self.learnable_params), len(self.learnable_alphas)))
 
     # load original pre_trained model of UNIQ
     def loadUNIQPre_trained(self, path, logger, gpu):
