@@ -1,6 +1,5 @@
 from torch.nn import CrossEntropyLoss, Module, Tanh
 from torch import tensor, float32
-from cnn.resnet_model_search import ResNet
 from numpy import arctanh, linspace
 
 import matplotlib
@@ -10,14 +9,12 @@ import matplotlib.pyplot as plt
 
 
 class UniqLoss(Module):
-    def __init__(self, lmdba, MaxBopsBits, kernel_sizes, bopsFuncKey, folderName):
+    def __init__(self, lmdba, maxBops, folderName):
         super(UniqLoss, self).__init__()
         self.lmdba = lmdba
         self.search_loss = CrossEntropyLoss().cuda()
 
-        # build model for uniform distribution of bits
-        uniform_model = ResNet(self.search_loss, bitwidths=[MaxBopsBits], kernel_sizes=kernel_sizes, bopsFuncKey=bopsFuncKey)
-        self.maxBops = uniform_model.countBops()
+        self.maxBops = maxBops
 
         # init bops loss function and plot it
         self.bops_base_func = Tanh()
@@ -28,15 +25,16 @@ class UniqLoss(Module):
         self.bopsRatio = -1
         self.quant_loss = -1
 
-    def calcBopsRatioLoss(self, modelBops):
-        bopsRatio = modelBops / self.maxBops
-        quant_loss = self.bopsLoss(bopsRatio)
+    def calcBopsRatio(self, modelBops):
+        return modelBops / self.maxBops
 
-        return bopsRatio, quant_loss
+    def calcBopsLoss(self, bopsRatio):
+        return self.bopsLoss(bopsRatio)
 
     def forward(self, input, target, modelBops):
         # big penalization if bops over MaxBops
-        self.bopsRatio, self.quant_loss = self.calcBopsRatioLoss(modelBops)
+        self.bopsRatio = self.calcBopsRatio(modelBops)
+        self.quant_loss = self.calcBopsLoss(self.bopsRatio)
 
         return self.search_loss(input, target) + (self.lmdba * self.quant_loss)
 
