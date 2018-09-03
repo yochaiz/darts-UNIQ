@@ -11,7 +11,7 @@ import torch.backends.cudnn as cudnn
 from cnn.utils import initLogger, load_pre_trained, stateOptModelPattern, stateFilenameDefault
 from cnn.utils import printModelToFile, count_parameters_in_MB
 from cnn.uniq_loss import UniqLoss
-from cnn.resnet_model_search import ResNet
+from cnn.models.ResNet import ResNet
 from cnn.optimize import optimize
 
 
@@ -94,7 +94,6 @@ printModelToFile(model, args.save, fname='opt_model')
 #some prints
 logger.info("args = %s", args)
 logger.info('Learnable params:[{}]'.format(len(model.learnable_params)))
-logger.info('alphas tensor size:[{}]'.format(model.arch_parameters()[0].size()))
 logger.info("discrete param size = %fMB", count_parameters_in_MB(model))
 logger.info("uniform param size = %fMB", count_parameters_in_MB(uniform_model))
 
