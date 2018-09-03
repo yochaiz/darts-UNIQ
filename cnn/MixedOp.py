@@ -1,12 +1,14 @@
 from UNIQ.uniq import UNIQNet
 from UNIQ.actquant import ActQuant
 from UNIQ.flops_benchmark import count_flops
-from torch import tensor, ones, sign
+
+from torch import tensor, ones
 from torch.nn import Module, ModuleList, Conv2d, BatchNorm2d, Sequential, Linear, ReLU
 import torch.nn.functional as F
+
 from math import floor
+from random import randint
 from abc import abstractmethod
-import torch
 
 
 class QuantizedOp(UNIQNet):
@@ -104,14 +106,20 @@ class MixedOp(Module):
     def countBops(self):
         raise NotImplementedError('subclasses must override countBops()!')
 
-    def trainMode(self):
-        self.anneal_value *= 1.0
-        # update current alpha to max alpha value
-        if self.alphas.requires_grad:
-            dist = F.softmax(self.alphas, dim=-1)
-            self.curr_alpha_idx = dist.argmax().item()
+    # # select optimal alpha
+    # def trainMode(self):
+    #     self.anneal_value *= 1.0
+    #     # update current alpha to max alpha value
+    #     if self.alphas.requires_grad:
+    #         dist = F.softmax(self.alphas, dim=-1)
+    #         self.curr_alpha_idx = dist.argmax().item()
+    #
+    #     self.forward = self.trainForward
 
-        self.forward = self.trainForward
+    # select random alpha
+    def trainMode(self):
+        self.curr_alpha_idx = randint(0, len(self.alphas) - 1)
+        self.forward = self.trainForward()
 
     def evalMode(self):
         # update current alpha to max alpha value
@@ -236,20 +244,23 @@ class MixedConvWithReLU(MixedOp):
     def countBops(self):
         return [count_flops(op, 1, self.in_planes) for op in self.ops]
 
-    def trainResidualForward(self, x, residual):
-        if self.alphas.requires_grad:
-            results = [op(x, residual).unsqueeze(1) for op in self.ops]
-            probs = F.softmax(self.alphas * self.anneal_value, 0)
-            # probs = self.alphas
-            print('alpha R: ', self.alphas)
-            result = Chooser.apply(torch.cat(results, 1), probs)
-            # print('op', self.ops[0].__str__())
-            self.curr_alpha_idx = Chooser.chosen.item()
-        else:
-            result = self.ops[self.curr_alpha_idx](x, residual)
-        return result
+    # def trainResidualForward(self, x, residual):
+    #     if self.alphas.requires_grad:
+    #         results = [op(x, residual).unsqueeze(1) for op in self.ops]
+    #         probs = F.softmax(self.alphas * self.anneal_value, 0)
+    #         # probs = self.alphas
+    #         print('alpha R: ', self.alphas)
+    #         result = Chooser.apply(torch.cat(results, 1), probs)
+    #         # print('op', self.ops[0].__str__())
+    #         self.curr_alpha_idx = Chooser.chosen.item()
+    #     else:
+    #         result = self.ops[self.curr_alpha_idx](x, residual)
+    #     return result
+    #
+    #     # return sum(w * op(x, residual) for w, op in zip(weights, self.ops))
 
-        # return sum(w * op(x, residual) for w, op in zip(weights, self.ops))
+    def trainResidualForward(self, x, residual):
+        return self.ops[self.curr_alpha_idx](x, residual)
 
     def evalResidualForward(self, x, residual):
         return self.ops[self.curr_alpha_idx](x, residual)
