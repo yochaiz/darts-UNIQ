@@ -20,7 +20,6 @@ def train(train_queue, search_queue, args, model, architect, crit, optimizer, lr
     grad = AvgrageMeter()
 
     model.train()
-    # model.trainMode()
 
     nBatches = len(train_queue)
 
@@ -42,7 +41,7 @@ def train(train_queue, search_queue, args, model, architect, crit, optimizer, lr
             grad.update(arch_grad_norm)
 
         # choose optimal alpha per layer
-        bopsRatio, bopsLoss = model.trainMode()
+        bopsRatio = model.trainMode()
         # optimize model weights
         optimizer.zero_grad()
         logits = model(input)
@@ -66,9 +65,9 @@ def train(train_queue, search_queue, args, model, architect, crit, optimizer, lr
         endTime = time()
         if step % args.report_freq == 0:
             logger.info(
-                'train [{}/{}] weight_loss:[{:.5f}] Accuracy:[{:.3f}] arch_loss:[{:.5f}] BopsRatio:[{:.3f}] BopsLoss[{:.5f}] time:[{:.5f}]'
+                'train [{}/{}] weight_loss:[{:.5f}] Accuracy:[{:.3f}] arch_loss:[{:.5f}] BopsRatio:[{:.3f}] time:[{:.5f}]'
                     .format(step, nBatches, weights_loss_container.avg, top1.avg, arch_loss_container.avg,
-                            bopsRatio, bopsLoss, endTime - startTime))
+                            bopsRatio, endTime - startTime))
 
     return top1.avg, weights_loss_container.avg, arch_loss_container.avg
 
@@ -79,12 +78,9 @@ def infer(valid_queue, args, model, crit, logger):
     top5 = AvgrageMeter()
 
     model.eval()
-    bopsRatio, bopsLoss = model.evalMode()
+    bopsRatio = model.evalMode()
     # print eval layer index selection
-    layersOptIdx = []
-    for layer in model.layersList:
-        layersOptIdx.append(layer.curr_alpha_idx)
-    logger.info('Layers optimal indices:{}'.format(layersOptIdx))
+    logger.info('Layers optimal indices:{}'.format([layer.curr_alpha_idx for layer in model.layersList]))
 
     nBatches = len(valid_queue)
 
@@ -108,8 +104,8 @@ def infer(valid_queue, args, model, crit, logger):
 
             if step % args.report_freq == 0:
                 logger.info(
-                    'validation [{}/{}] Loss:[{:.5f}] Accuracy:[{:.3f}] BopsRatio:[{:.3f}] BopsLoss[{:.5f}] time:[{:.5f}]'
-                        .format(step, nBatches, objs.avg, top1.avg, bopsRatio, bopsLoss, endTime - startTime))
+                    'validation [{}/{}] Loss:[{:.5f}] Accuracy:[{:.3f}] BopsRatio:[{:.3f}] time:[{:.5f}]'
+                        .format(step, nBatches, objs.avg, top1.avg, bopsRatio, endTime - startTime))
 
     return top1.avg, objs.avg
 
