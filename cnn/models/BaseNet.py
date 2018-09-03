@@ -48,6 +48,17 @@ class BaseNet(Module):
         self.learnable_params = [param for param in self.parameters() if param.requires_grad]
         # init learnable alphas
         self.learnable_alphas = []
+        # init number of layers we have completed its quantization
+        self.nLayersQuantCompleted = 0
+
+        # init layers permutation list
+        self.layersPerm = []
+        # init number of permutations counter
+        self.nPerms = 1
+        for layer in self.layersList:
+            # add layer numOps range to permutation list
+            self.layersPerm.append(list(range(len(layer.alphas))))
+            self.nPerms *= len(layer.alphas)
 
     @abstractmethod
     def initLayers(self, params):

@@ -12,11 +12,6 @@ class TinyNet(BaseNet):
         super(TinyNet, self).__init__(criterion=crit, initLayersParams=(bitwidths, kernel_sizes),
                                       bopsFuncKey=bopsFuncKey)
 
-        # init layers permutation list
-        self.layersPerm = []
-        # init number of permutations counter
-        self.nPerms = 1
-
         for layer in self.layersList:
             # turn on noise
             for op in layer.ops:
@@ -25,12 +20,6 @@ class TinyNet(BaseNet):
             # turn on alphas gradients
             layer.alphas.requires_grad = True
             self.learnable_alphas.append(layer.alphas)
-
-            # add layer numOps range to permutation list
-            self.layersPerm.append(list(range(len(layer.alphas))))
-            self.nPerms *= len(layer.alphas)
-
-        self.nLayersQuantCompleted = 0
 
     def initLayers(self, params):
         bitwidths, kernel_sizes = params

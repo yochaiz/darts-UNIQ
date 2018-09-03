@@ -71,9 +71,6 @@ class ResNet(BaseNet):
         # update model parameters() function
         self.parameters = self.getLearnableParams
 
-        # init number of layers we have completed its quantization
-        self.nLayersQuantCompleted = 0
-
     def initLayers(self, params):
         bitwidths, kernel_sizes = params
 
