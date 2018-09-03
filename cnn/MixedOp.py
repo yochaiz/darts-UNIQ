@@ -119,7 +119,7 @@ class MixedOp(Module):
     # select random alpha
     def trainMode(self):
         self.curr_alpha_idx = randint(0, len(self.alphas) - 1)
-        self.forward = self.trainForward()
+        self.forward = self.trainForward
 
     def evalMode(self):
         # update current alpha to max alpha value
