@@ -2,7 +2,7 @@ from time import time
 
 from torch.nn.utils.clip_grad import clip_grad_norm
 from torch.optim.lr_scheduler import CosineAnnealingLR
-from torch import no_grad
+from torch import no_grad, tensor
 from torch.optim import SGD
 from torch.autograd.variable import Variable
 from torch.nn import CrossEntropyLoss
@@ -13,13 +13,14 @@ from cnn.architect import Architect
 
 
 def train(train_queue, search_queue, args, model, architect, crit, optimizer, lr, logger):
-    objs = AvgrageMeter()
+    weights_loss_container = AvgrageMeter()
+    arch_loss_container = AvgrageMeter()
     top1 = AvgrageMeter()
     top5 = AvgrageMeter()
     grad = AvgrageMeter()
 
     model.train()
-    model.trainMode()
+    # model.trainMode()
 
     nBatches = len(train_queue)
 
@@ -31,36 +32,45 @@ def train(train_queue, search_queue, args, model, architect, crit, optimizer, lr
         target = Variable(target, requires_grad=False).cuda(async=True)
 
         # get a random minibatch from the search queue with replacement
-        if len(search_queue) > 0:
+        if (len(search_queue) > 0) and (len(model.arch_parameters()) > 0):
             input_search, target_search = next(iter(search_queue))
             input_search = Variable(input_search, requires_grad=False).cuda()
             target_search = Variable(target_search, requires_grad=False).cuda(async=True)
 
-            arch_grad_norm = architect.step(input, target, input_search, target_search, lr,
-                                            optimizer, unrolled=args.unrolled)
+            arch_grad_norm, arch_loss = architect.step(input, target, input_search, target_search, lr,
+                                                       optimizer, unrolled=args.unrolled)
             grad.update(arch_grad_norm)
 
+        # choose optimal alpha per layer
+        bopsRatio, bopsLoss = model.trainMode()
+        # optimize model weights
         optimizer.zero_grad()
         logits = model(input)
         loss = crit(logits, target)
-
         loss.backward()
         clip_grad_norm(model.parameters(), args.grad_clip)
+        # print('w grads:{}'.format(model.block1.alphas.grad))
         optimizer.step()
 
+        # normalize alphas
+        # for alphas in model.arch_parameters():
+        #     minNorm = abs(alphas).min()
+        #     alphas.data = tensor((alphas / minNorm).cuda(), requires_grad=True)
+
         prec1, prec5 = accuracy(logits, target, topk=(1, 5))
-        objs.update(loss.item(), n)
+        weights_loss_container.update(loss.item(), n)
+        arch_loss_container.update(arch_loss.item(), len(search_queue))
         top1.update(prec1.item(), n)
         top5.update(prec5.item(), n)
 
         endTime = time()
-
         if step % args.report_freq == 0:
-            logger.info('train [{}/{}] Loss:[{:.5f}] Accuracy:[{:.3f}] BopsRatio:[{:.3f}] BopsLoss[{:.5f}] time:[{:.5f}]'
-                        .format(step, nBatches, objs.avg, top1.avg, model._criterion.bopsRatio,
-                                model._criterion.quant_loss, endTime - startTime))
+            logger.info(
+                'train [{}/{}] weight_loss:[{:.5f}] Accuracy:[{:.3f}] arch_loss:[{:.5f}] BopsRatio:[{:.3f}] BopsLoss[{:.5f}] time:[{:.5f}]'
+                    .format(step, nBatches, weights_loss_container.avg, top1.avg, arch_loss_container.avg,
+                            bopsRatio, bopsLoss, endTime - startTime))
 
-    return top1.avg, objs.avg
+    return top1.avg, weights_loss_container.avg, arch_loss_container.avg
 
 
 def infer(valid_queue, args, model, crit, logger):
@@ -69,8 +79,12 @@ def infer(valid_queue, args, model, crit, logger):
     top5 = AvgrageMeter()
 
     model.eval()
-    model.evalMode()
-    bopsRatio, quantLoss = model._criterion.calcBopsRatioLoss(model.countBops())
+    bopsRatio, bopsLoss = model.evalMode()
+    # print eval layer index selection
+    layersOptIdx = []
+    for layer in model.layersList:
+        layersOptIdx.append(layer.curr_alpha_idx)
+    logger.info('Layers optimal indices:{}'.format(layersOptIdx))
 
     nBatches = len(valid_queue)
 
@@ -95,7 +109,7 @@ def infer(valid_queue, args, model, crit, logger):
             if step % args.report_freq == 0:
                 logger.info(
                     'validation [{}/{}] Loss:[{:.5f}] Accuracy:[{:.3f}] BopsRatio:[{:.3f}] BopsLoss[{:.5f}] time:[{:.5f}]'
-                        .format(step, nBatches, objs.avg, top1.avg, bopsRatio, quantLoss, endTime - startTime))
+                        .format(step, nBatches, objs.avg, top1.avg, bopsRatio, bopsLoss, endTime - startTime))
 
     return top1.avg, objs.avg
 
@@ -121,7 +135,7 @@ def optimize(args, model, logger):
     for e in args.epochs:
         epochsSwitchStage.append(e + epochsSwitchStage[-1])
     # total number of epochs is the last value in epochsSwitchStage
-    nEpochs = epochsSwitchStage[-1] + 1
+    nEpochs = epochsSwitchStage[-1] + args.epochs[-1]
     # remove epoch 0 from list, we don't want to switch stage at the beginning
     epochsSwitchStage = epochsSwitchStage[1:]
 
@@ -145,12 +159,13 @@ def optimize(args, model, logger):
         # print(F.softmax(model.alphas_reduce, dim=-1))
 
         # training
-        train_acc, train_loss = train(train_queue, search_queue, args, model, architect, cross_entropy,
-                                      optimizer, lr, trainLogger)
+        print('========== Epoch:[{}] =============='.format(epoch))
+        train_acc, train_loss, arch_loss = train(train_queue, search_queue, args, model, architect, cross_entropy,
+                                                 optimizer, lr, trainLogger)
 
         # log accuracy, loss, etc.
-        message = 'Epoch:[{}] , training accuracy:[{:.3f}] , training loss:[{:.3f}] , optimizer_lr:[{:.5f}], scheduler_lr:[{:.5f}]' \
-            .format(epoch, train_acc, train_loss, optimizer.defaults['lr'], lr)
+        message = 'Epoch:[{}] , training accuracy:[{:.3f}] , training loss:[{:.3f}] , arch loss:[{:.3f}] , optimizer_lr:[{:.5f}], scheduler_lr:[{:.5f}]' \
+            .format(epoch, train_acc, train_loss, arch_loss, optimizer.defaults['lr'], lr)
         logger.info(message)
         trainLogger.info(message)
 
