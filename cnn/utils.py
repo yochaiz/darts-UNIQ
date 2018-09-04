@@ -3,6 +3,8 @@ import numpy as np
 import torch
 from shutil import copyfile
 import logging
+from inspect import getfile, currentframe
+from os import path, listdir
 import torchvision.transforms as transforms
 from torch.autograd import Variable
 from torch import save as saveModel
@@ -87,15 +89,31 @@ def drop_path(x, drop_prob):
     return x
 
 
-def create_exp_dir(path, scripts_to_save=None):
-    if not os.path.exists(path):
-        os.makedirs(path)
+def create_exp_dir(resultFolderPath):
+    # init code folder path
+    codeFolderPath = '{}/code'.format(resultFolderPath)
+    # create folders
+    if not os.path.exists(resultFolderPath):
+        os.makedirs(resultFolderPath)
+        os.makedirs(codeFolderPath)
 
-    if scripts_to_save is not None:
-        os.makedirs(os.path.join(path, 'scripts'))
-        for script in scripts_to_save:
-            dst_file = os.path.join(path, 'scripts', os.path.basename(script))
-            copyfile(script, dst_file)
+    # init project base folder
+    baseFolder = path.dirname(path.abspath(getfile(currentframe())))  # script directory
+    baseFolder += '/../'
+    # init folders we want to save
+    foldersToSave = ['cnn', 'cnn/models', 'UNIQ']
+    # save folders files
+    for folder in foldersToSave:
+        # create folder in result folder
+        os.makedirs('{}/{}'.format(codeFolderPath, folder))
+        # init project folder full path
+        folderFullPath = baseFolder + folder
+        # copy project folder files
+        for file in listdir(folderFullPath):
+            if file.endswith('.py'):
+                srcFile = '{}/{}'.format(folderFullPath, file)
+                dstFile = '{}/code/{}/{}'.format(resultFolderPath, folder, file)
+                copyfile(srcFile, dstFile)
 
 
 checkpointFileType = 'pth.tar'
@@ -189,6 +207,7 @@ def printModelToFile(model, save_path, fname='model'):
     logger.info('{}'.format(model))
     logDominantQuantizedOp(model, k=2, logger=logger)
 
+
 # def _data_transforms_cifar10(args):
 #     CIFAR_MEAN = [0.49139968, 0.48215827, 0.44653124]
 #     CIFAR_STD = [0.24703233, 0.24348505, 0.26158768]
@@ -223,10 +242,10 @@ def load_data(args):
     valid_data = get_dataset(args.dataset, train=False, transform=transform['eval'], datasets_path=args.data)
 
     ### narrow data for debug purposes
-    train_data.train_data = train_data.train_data[0:640]
-    train_data.train_labels = train_data.train_labels[0:640]
-    valid_data.test_data = valid_data.test_data[0:320]
-    valid_data.test_labels = valid_data.test_labels[0:320]
+    # train_data.train_data = train_data.train_data[0:640]
+    # train_data.train_labels = train_data.train_labels[0:640]
+    # valid_data.test_data = valid_data.test_data[0:320]
+    # valid_data.test_labels = valid_data.test_labels[0:320]
     ####
 
     num_train = len(train_data)
@@ -236,7 +255,8 @@ def load_data(args):
     train_queue = DataLoader(train_data, batch_size=args.batch_size,
                              sampler=SubsetRandomSampler(indices[:split]), pin_memory=True, num_workers=args.workers)
 
-    search_queue = DataLoader(train_data, batch_size=args.batch_size, sampler=SubsetRandomSampler(indices[split:num_train]),
+    search_queue = DataLoader(train_data, batch_size=args.batch_size,
+                              sampler=SubsetRandomSampler(indices[split:num_train]),
                               pin_memory=True, num_workers=args.workers)
 
     valid_queue = DataLoader(valid_data, batch_size=args.batch_size, shuffle=False,
