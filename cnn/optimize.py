@@ -1,8 +1,8 @@
 from time import time
 
-from torch.nn.utils.clip_grad import clip_grad_norm
+from torch.nn.utils.clip_grad import clip_grad_norm_
 from torch.optim.lr_scheduler import CosineAnnealingLR
-from torch import no_grad, tensor
+from torch import no_grad
 from torch.optim import SGD
 from torch.autograd.variable import Variable
 from torch.nn import CrossEntropyLoss
@@ -35,7 +35,7 @@ def trainWeights(train_queue, search_queue, args, model, architect, crit, optimi
         logits = model(input)
         loss = crit(logits, target)
         loss.backward()
-        clip_grad_norm(model.parameters(), args.grad_clip)
+        clip_grad_norm_(model.parameters(), args.grad_clip)
         # print('w grads:{}'.format(model.block1.alphas.grad))
         optimizer.step()
 
@@ -151,18 +151,17 @@ def optimize(args, model, modelReplicator, logger):
     scheduler = CosineAnnealingLR(optimizer, float(nEpochs), eta_min=args.learning_rate_min)
     architect = Architect(modelReplicator, args)
 
+    # init validation best precision value
     best_prec1 = 0.0
 
     for epoch in range(1, nEpochs + 1):
         trainLogger = initTrainLogger(str(epoch), trainFolderPath, args.propagate)
+        is_best = False
 
         scheduler.step()
         lr = scheduler.get_lr()[0]
 
         trainLogger.info('optimizer_lr:[{:.5f}], scheduler_lr:[{:.5f}]'.format(optimizer.defaults['lr'], lr))
-
-        # print(F.softmax(model.alphas_normal, dim=-1))
-        # print(F.softmax(model.alphas_reduce, dim=-1))
 
         # training
         print('========== Epoch:[{}] =============='.format(epoch))
@@ -178,9 +177,6 @@ def optimize(args, model, modelReplicator, logger):
         # log dominant QuantizedOp in each layer
         logDominantQuantizedOp(model, k=3, logger=trainLogger)
 
-        # save model checkpoint
-        save_checkpoint(trainFolderPath, model, epoch, best_prec1, is_best=False)
-
         # switch stage, i.e. freeze one more layer
         if (epoch in epochsSwitchStage) or (epoch == nEpochs):
             # validation
@@ -190,10 +186,9 @@ def optimize(args, model, modelReplicator, logger):
             logger.info(message)
             trainLogger.info(message)
 
-            # save model checkpoint
-            is_best = valid_acc > best_prec1
-            best_prec1 = max(valid_acc, best_prec1)
-            save_checkpoint(trainFolderPath, model, epoch, best_prec1, is_best)
+            # # update values for opt model decision
+            # is_best = valid_acc > best_prec1
+            # best_prec1 = max(valid_acc, best_prec1)
 
             # switch stage
             model.switch_stage(trainLogger)
@@ -202,11 +197,16 @@ def optimize(args, model, modelReplicator, logger):
                             momentum=args.momentum, weight_decay=args.weight_decay)
             scheduler = CosineAnnealingLR(optimizer, float(nEpochs), eta_min=args.learning_rate_min)
 
+        # save model checkpoint
+        save_checkpoint(trainFolderPath, model, epoch, best_prec1, is_best=False)
+
     # turn on alphas
     model.turnOnAlphas()
     # init scheduler
     nEpochs = model.nLayers()
     scheduler = CosineAnnealingLR(optimizer, float(nEpochs), eta_min=args.learning_rate_min)
+    # init validation best precision value
+    best_prec1 = 0.0
     # train alphas
     for epoch in range(epoch + 1, epoch + nEpochs + 1):
         trainLogger = initTrainLogger(str(epoch), trainFolderPath, args.propagate)
@@ -272,7 +272,7 @@ def optimize(args, model, modelReplicator, logger):
 #         logits = model(input)
 #         loss = crit(logits, target)
 #         loss.backward()
-#         clip_grad_norm(model.parameters(), args.grad_clip)
+#         clip_grad_norm_(model.parameters(), args.grad_clip)
 #         # print('w grads:{}'.format(model.block1.alphas.grad))
 #         optimizer.step()
 #
