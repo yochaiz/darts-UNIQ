@@ -56,9 +56,9 @@ class BasicBlock(Module):
 
 
 class ResNet(BaseNet):
-    def __init__(self, criterion, bitwidths, kernel_sizes, bopsFuncKey):
+    def __init__(self, criterion, bitwidths, kernel_sizes, bopsFuncKey, saveFolder=None):
         super(ResNet, self).__init__(criterion=criterion, initLayersParams=(bitwidths, kernel_sizes),
-                                     bopsFuncKey=bopsFuncKey)
+                                     bopsFuncKey=bopsFuncKey, saveFolder=saveFolder)
 
         # set noise=True for 1st layer
         for op in self.layersList[0].ops:
