@@ -8,8 +8,8 @@ from cnn.models import BaseNet
 
 
 class TinyNet(BaseNet):
-    def __init__(self, crit, bitwidths, kernel_sizes, bopsFuncKey, saveFolder=None):
-        super(TinyNet, self).__init__(criterion=crit, initLayersParams=(bitwidths, kernel_sizes),
+    def __init__(self, lmbda, maxBops, bitwidths, kernel_sizes, bopsFuncKey, saveFolder=None):
+        super(TinyNet, self).__init__(lmbda=lmbda, maxBops=maxBops, initLayersParams=(bitwidths, kernel_sizes),
                                       bopsFuncKey=bopsFuncKey, saveFolder=saveFolder)
 
         for layer in self.layersList:
