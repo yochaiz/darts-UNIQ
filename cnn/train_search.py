@@ -1,7 +1,7 @@
+from torch.multiprocessing import set_start_method
 from sys import exit
 from time import strftime
 from json import dump
-import glob
 import numpy as np
 import argparse
 from inspect import isclass
@@ -13,6 +13,7 @@ from torch import manual_seed as torch_manual_seed
 from torch.nn import CrossEntropyLoss
 
 import cnn.models as models
+from cnn.model_replicator import ModelReplicator
 from cnn.utils import create_exp_dir, count_parameters_in_MB, load_pre_trained
 from cnn.utils import initLogger, printModelToFile
 from cnn.optimize import optimize
@@ -103,7 +104,7 @@ def parseArgs(lossFuncsLambda):
     args.trainFolder = 'train'
 
     args.save = 'results/search-{}-{}'.format(args.save, strftime("%Y%m%d-%H%M%S"))
-    create_exp_dir(args.save, scripts_to_save=glob.glob('*.py'))
+    create_exp_dir(args.save)
 
     # save args to JSON
     with open('{}/args.json'.format(args.save), 'w') as f:
@@ -112,45 +113,58 @@ def parseArgs(lossFuncsLambda):
     return args
 
 
-# loss functions manipulate lambda value
-lossFuncsLambda = dict(UniqLoss=1.0, CrossEntropy=0.0)
-args = parseArgs(lossFuncsLambda)
-print(args)
-logger = initLogger(args.save, args.propagate)
+# def modelConstructor(args, crit):
+#     return modelClass(crit, args.bitwidth, args.kernel, args.bopsCounter)
 
-if not is_available():
-    logger.info('no gpu device available')
-    exit(1)
 
-np.random.seed(args.seed)
-set_device(args.gpu[0])
-cudnn.benchmark = True
-torch_manual_seed(args.seed)
-cudnn.enabled = True
-cuda_manual_seed(args.seed)
+if __name__ == '__main__':
+    # loss functions manipulate lambda value
+    lossFuncsLambda = dict(UniqLoss=1.0, CrossEntropy=0.0)
+    args = parseArgs(lossFuncsLambda)
+    print(args)
+    logger = initLogger(args.save, args.propagate)
 
-# build model for uniform distribution of bits
-model = models.__dict__[args.model]
-uniform_model = model(CrossEntropyLoss().cuda(), [args.MaxBopsBits], args.kernel, args.bopsCounter)
+    if not is_available():
+        logger.info('no gpu device available')
+        exit(1)
 
-crit = UniqLoss(lmdba=args.lmbda, maxBops=uniform_model.countBops(), folderName=args.save)
-crit = crit.cuda()
+    np.random.seed(args.seed)
+    set_device(args.gpu[0])
+    cudnn.benchmark = True
+    torch_manual_seed(args.seed)
+    cudnn.enabled = True
+    cuda_manual_seed(args.seed)
 
-model = model(crit, args.bitwidth, args.kernel, args.bopsCounter)
-# model = DataParallel(model, args.gpu)
-model = model.cuda()
-# load pre-trained full-precision model
-load_pre_trained(args.pre_trained, model, logger, args.gpu[0])
+    # build model for uniform distribution of bits
+    modelClass = models.__dict__[args.model]
+    uniform_model = modelClass(CrossEntropyLoss().cuda(), [args.MaxBopsBits], args.kernel, args.bopsCounter)
 
-# print some attributes
-printModelToFile(model, args.save)
-logger.info('GPU:{}'.format(args.gpu))
-logger.info("args = %s", args)
-logger.info("param size = %fMB", count_parameters_in_MB(model))
-logger.info('Learnable params:[{}]'.format(len(model.learnable_params)))
-logger.info('Ops per layer:{}'.format([len(layer.ops) for layer in model.layersList]))
-logger.info('nPerms:[{}]'.format(model.nPerms))
+    crit = UniqLoss(lmdba=args.lmbda, maxBops=uniform_model.countBops(), folderName=args.save)
+    crit = crit.cuda()
 
-optimize(args, model, logger)
+    try:
+        set_start_method('spawn', force=True)
+    except RuntimeError:
+        raise ValueError('spawn failed')
 
-logger.info('Done !')
+    # init model replicator object
+    modelReplicator = ModelReplicator(modelClass, args, crit)
+    # init model
+    model = modelClass(crit, args.bitwidth, args.kernel, args.bopsCounter)
+    # model = DataParallel(model, args.gpu)
+    model = model.cuda()
+    # load pre-trained full-precision model
+    load_pre_trained(args.pre_trained, model, logger, args.gpu[0])
+
+    # print some attributes
+    printModelToFile(model, args.save)
+    logger.info('GPU:{}'.format(args.gpu))
+    logger.info("args = %s", args)
+    logger.info("param size = %fMB", count_parameters_in_MB(model))
+    logger.info('Learnable params:[{}]'.format(len(model.learnable_params)))
+    logger.info('Ops per layer:{}'.format([len(layer.ops) for layer in model.layersList]))
+    logger.info('nPerms:[{}]'.format(model.nPerms))
+
+    optimize(args, model, modelReplicator, logger)
+
+    logger.info('Done !')
