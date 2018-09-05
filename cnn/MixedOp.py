@@ -2,9 +2,11 @@ from UNIQ.uniq import UNIQNet
 from UNIQ.actquant import ActQuant
 from UNIQ.flops_benchmark import count_flops
 
-from torch import tensor, ones
+from torch import tensor, ones, zeros, sum, LongTensor, cat
 from torch.nn import Module, ModuleList, Conv2d, BatchNorm2d, Sequential, Linear, ReLU
+from torch.distributions.categorical import Categorical
 import torch.nn.functional as F
+from torch.autograd.function import Function
 
 from math import floor
 from random import randint
@@ -51,32 +53,34 @@ class QuantizedOp(UNIQNet):
         return out
 
 
-# class Chooser(Function):
-#     chosen = None
-#
-#     @staticmethod
-#     def forward(ctx, results, alpha):
-#         dist = torch.distributions.Categorical(probs=alpha)
-#         chosen = dist.sample()
-#
-#         result = results.select(1, chosen)
-#         ctx.save_for_backward(torch.LongTensor([results.shape]), result, chosen)
-#         Chooser.chosen = chosen
-#         return result
-#
-#     @staticmethod
-#     def backward(ctx, grad_output):
-#       #  print('inside', grad_output.shape)
-#         results_shape, result, chosen = ctx.saved_tensors
-#         results_shape = tuple(results_shape.numpy().squeeze())
-#         grads_x = torch.zeros(results_shape, device=grad_output.device, dtype=grad_output.dtype)
-#         grads_x.select(1, chosen).copy_(grad_output)
-#         grads_alpha = torch.zeros((results_shape[1],), device=grad_output.device, dtype=grad_output.dtype)
-#         grads_alpha[chosen] = torch.sum(grad_output * result)
-#         # print(chosen)
-#         print('grads_inside', grads_alpha)
-#         # print('grad x: ', grads_x)
-#         return grads_x, grads_alpha
+class Chooser(Function):
+    chosen = None
+
+    @staticmethod
+    def forward(ctx, results, alpha):
+        dist = Categorical(probs=alpha)
+        chosen = dist.sample()
+
+        result = results.select(1, chosen)
+        ctx.save_for_backward(LongTensor([results.shape]), result, chosen)
+        Chooser.chosen = chosen
+        return result
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        #  print('inside', grad_output.shape)
+        assert (False) # assure we do not use this backward
+        results_shape, result, chosen = ctx.saved_tensors
+        results_shape = tuple(results_shape.numpy().squeeze())
+        grads_x = zeros(results_shape, device=grad_output.device, dtype=grad_output.dtype)
+        grads_x.select(1, chosen).copy_(grad_output)
+        grads_alpha = zeros((results_shape[1],), device=grad_output.device, dtype=grad_output.dtype)
+        grads_alpha[chosen] = sum(grad_output * result)
+        # print(chosen)
+        # print('grads_inside', grads_alpha)
+        # print('grad x: ', grads_x)
+        return grads_x, grads_alpha
+
 
 class MixedOp(Module):
     def __init__(self):
@@ -90,13 +94,10 @@ class MixedOp(Module):
 
         # self.curr_alpha_idx = 0 if self.numOfOps() == 1 else None
         self.curr_alpha_idx = 0
-        self.anneal_value = 1.0
         self.forward = self.trainForward
 
         # init bops for operation
         self.bops = self.countBops()
-        # self.bops = [10] * self.numOfOps()
-        # TODO: return commented command
 
     @abstractmethod
     def initOps(self):
@@ -108,7 +109,6 @@ class MixedOp(Module):
 
     # # select optimal alpha
     # def trainMode(self):
-    #     self.anneal_value *= 1.0
     #     # update current alpha to max alpha value
     #     if self.alphas.requires_grad:
     #         dist = F.softmax(self.alphas, dim=-1)
@@ -129,22 +129,20 @@ class MixedOp(Module):
         # update forward function
         self.forward = self.evalForward
 
+    def trainForward(self, x):
+        if self.alphas.requires_grad:
+            results = [op(x).unsqueeze(1) for op in self.ops]
+            probs = F.softmax(self.alphas, 0)
+            # print('alpha: ', self.alphas)
+            result = Chooser.apply(cat(results, 1), probs)
+            self.curr_alpha_idx = Chooser.chosen.item()
+            # print(self.ops[self.curr_alpha_idx])
+        else:
+            result = self.ops[self.curr_alpha_idx](x)
+        return result
 
     # def trainForward(self, x):
-    #     if self.alphas.requires_grad:
-    #         results = [op(x).unsqueeze(1) for op in self.ops]
-    #         probs = F.softmax(self.alphas * self.anneal_value, 0)
-    #         # probs = self.alphas
-    #         print('alpha: ', self.alphas)
-    #         result = Chooser.apply(torch.cat(results, 1), probs)
-    #         #      print('op', self.ops[0].__str__())
-    #         self.curr_alpha_idx = Chooser.chosen.item()
-    #     else:
-    #         result = self.ops[self.curr_alpha_idx](x)
-    #     return result
-
-    def trainForward(self, x):
-        return self.ops[self.curr_alpha_idx](x)
+    #     return self.ops[self.curr_alpha_idx](x)
 
     def evalForward(self, x):
         return self.ops[self.curr_alpha_idx](x)
@@ -245,23 +243,18 @@ class MixedConvWithReLU(MixedOp):
     def countBops(self):
         return [count_flops(op, 1, self.in_planes) for op in self.ops]
 
-    # def trainResidualForward(self, x, residual):
-    #     if self.alphas.requires_grad:
-    #         results = [op(x, residual).unsqueeze(1) for op in self.ops]
-    #         probs = F.softmax(self.alphas * self.anneal_value, 0)
-    #         # probs = self.alphas
-    #         print('alpha R: ', self.alphas)
-    #         result = Chooser.apply(torch.cat(results, 1), probs)
-    #         # print('op', self.ops[0].__str__())
-    #         self.curr_alpha_idx = Chooser.chosen.item()
-    #     else:
-    #         result = self.ops[self.curr_alpha_idx](x, residual)
-    #     return result
-    #
-    #     # return sum(w * op(x, residual) for w, op in zip(weights, self.ops))
-
     def trainResidualForward(self, x, residual):
-        return self.ops[self.curr_alpha_idx](x, residual)
+        if self.alphas.requires_grad:
+            results = [op(x, residual).unsqueeze(1) for op in self.ops]
+            probs = F.softmax(self.alphas, 0)
+            result = Chooser.apply(cat(results, 1), probs)
+            self.curr_alpha_idx = Chooser.chosen.item()
+        else:
+            result = self.ops[self.curr_alpha_idx](x, residual)
+        return result
+
+    # def trainResidualForward(self, x, residual):
+    #     return self.ops[self.curr_alpha_idx](x, residual)
 
     def evalResidualForward(self, x, residual):
         return self.ops[self.curr_alpha_idx](x, residual)
