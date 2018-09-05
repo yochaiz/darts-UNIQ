@@ -9,6 +9,8 @@ from torch.nn import Module
 from torch.nn import functional as F
 
 from cnn.MixedOp import MixedOp
+from cnn.uniq_loss import UniqLoss
+
 from UNIQ.actquant import ActQuant
 from UNIQ.quantize import quantize, restore_weights, backup_weights
 
@@ -62,10 +64,11 @@ class BaseNet(Module):
 
     alphasCsvFileName = 'alphas.csv'
 
-    def __init__(self, criterion, initLayersParams, bopsFuncKey, saveFolder):
+    def __init__(self, lmbda, maxBops, initLayersParams, bopsFuncKey, saveFolder):
         super(BaseNet, self).__init__()
         # init criterion
-        self._criterion = criterion
+        self._criterion = UniqLoss(lmdba=lmbda, maxBops=maxBops, folderName=saveFolder)
+        self._criterion = self._criterion.cuda()
         # init layers
         self.initLayers(initLayersParams)
         # build mixture layers list
@@ -89,19 +92,20 @@ class BaseNet(Module):
             self.nPerms *= len(layer.alphas)
 
         # init alphas DataFrame
-        # init DataFrame cols
-        cols = ['Epoch', 'Batch']
-        cols += ['Layer_{}'.format(i) for i in range(self.nLayers())]
-        self.cols = cols
-        # add init data
-        data = ['init', 'init']
-        data += [[round(e.item(), 5) for e in layer.alphas] for layer in self.layersList]
-        self.alphas_df = DataFrame([data], columns=self.cols)
-
-        # save if saveFolder exists
+        self.alphas_df = None
         if saveFolder:
+            # update save path if saveFolder exists
             self.alphasCsvFileName = '{}/{}'.format(saveFolder, self.alphasCsvFileName)
-            self.alphas_df.to_csv(self.alphasCsvFileName)
+            # init DataFrame cols
+            cols = ['Epoch', 'Batch']
+            cols += ['Layer_{}'.format(i) for i in range(self.nLayers())]
+            self.cols = cols
+            # init DataFrame
+            self.alphas_df = DataFrame([], columns=self.cols)
+            # set init data
+            data = ['init', 'init']
+            # save alphas data
+            self.save_alphas_to_csv(data)
 
     @abstractmethod
     def initLayers(self, params):
@@ -157,13 +161,13 @@ class BaseNet(Module):
         nSamplesPerAlpha = 50
         # init total loss
         totalLoss = 0.0
-        # init number of total samples
-        nSamplesTotal = 0
         for layer in self.layersList:
             # turn off coin toss for this layer
             layer.alphas.requires_grad = False
             # init layer alphas gradient
             layerAlphasGrad = zeros(len(layer.alphas)).cuda()
+            # calc layer alphas softmax
+            probs = F.softmax(layer.alphas, dim=-1)
 
             for i, alpha in enumerate(layer.alphas):
                 # select the specific alpha in this layer
@@ -174,12 +178,11 @@ class BaseNet(Module):
                     logits = self.forward(input)
                     alphaLoss += self._criterion(logits, target, self.countBops()).detach()
 
-                # add alpha loss to total loss
-                totalLoss += alphaLoss
-                # update number of total samples
-                nSamplesTotal += nSamplesPerAlpha
                 # update alpha average loss
-                layerAlphasGrad[i] = (alphaLoss / nSamplesPerAlpha)
+                alphaLoss /= nSamplesPerAlpha
+                layerAlphasGrad[i] = alphaLoss
+                # add alpha loss to total loss
+                totalLoss += (alphaLoss * probs[i])
 
             # turn in coin toss for this layer
             layer.alphas.requires_grad = True
@@ -187,13 +190,13 @@ class BaseNet(Module):
             layer.alphas.grad = layerAlphasGrad
 
         # average total loss
-        totalLoss /= nSamplesTotal
+        totalLoss /= self.nLayers()
 
         # subtract average total loss from every alpha gradient
         for layer in self.layersList:
             layer.alphas.grad -= totalLoss
             # calc layer alphas softmax
-            probs = F.softmax(layer.alphas)
+            probs = F.softmax(layer.alphas, dim=-1)
             # multiply each grad by its probability
             layer.alphas.grad *= probs
 
@@ -228,20 +231,24 @@ class BaseNet(Module):
     #     # logits = self.forward(input)
     #     # return self._criterion(logits, target, self.countBops())
 
+    # select random alpha
+    def chooseRandomPath(self):
+        for l in self.layersList:
+            l.chooseRandomPath()
+
+        # calc bops ratio
+        bopsRatio = self._criterion.calcBopsRatio(self.countBops())
+        return bopsRatio
+
     def trainMode(self):
         for l in self.layersList:
             l.trainMode()
-        # calc bops ratio
-        bopsRatio = self._criterion.calcBopsRatio(self.countBops())
-        # bopsLoss = self._criterion.calcBopsLoss(bopsRatio)
-        return bopsRatio
 
     def evalMode(self):
         for l in self.layersList:
             l.evalMode()
         # calc bops ratio
         bopsRatio = self._criterion.calcBopsRatio(self.countBops())
-        # bopsLoss = self._criterion.calcBopsLoss(bopsRatio)
         return bopsRatio
 
     # return top k operations per layer
@@ -250,7 +257,6 @@ class BaseNet(Module):
         for layer in self.layersList:
             # calc weights from alphas and sort them
             weights = F.softmax(layer.alphas, dim=-1)
-            # weights = layer.alphas
             wSorted, wIndices = weights.sort(descending=True)
             # keep only top-k
             wSorted = wSorted[:k]
@@ -261,15 +267,15 @@ class BaseNet(Module):
         return top
 
     # save alphas values to csv
-    def save_alphas_to_csv(self, nEpoch, nBatch):
-        data = [nEpoch, nBatch]
-        data += [layer.alphas for layer in self.layersList]
-        # create new row
-        d = DataFrame([data], columns=self.cols)
-        # add row
-        self.alphas_df = self.alphas_df.append(d)
-        # save DataFrame
-        self.alphas_df.to_csv(self.alphasCsvFileName)
+    def save_alphas_to_csv(self, data):
+        if self.alphas_df is not None:
+            data += [[round(e.item(), 5) for e in layer.alphas] for layer in self.layersList]
+            # create new row
+            d = DataFrame([data], columns=self.cols)
+            # add row
+            self.alphas_df = self.alphas_df.append(d)
+            # save DataFrame
+            self.alphas_df.to_csv(self.alphasCsvFileName)
 
     # create list of lists of alpha with its corresponding operation
     def alphas_state(self):
