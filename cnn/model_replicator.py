@@ -6,76 +6,98 @@ from torch.nn import functional as F
 
 
 class ModelReplicator:
-    def __init__(self, modelClass, args, crit):
-        self.modelClass = modelClass
-        self.args = args
-        self.crit = crit
+    def __init__(self, model, modelClass, args):
+        self.gpuIDs = args.gpu
+        # init replications list
+        self.replications = []
+        # count number of replications and assign each of them to a GPU
+        gpus = [gpu for gpu in args.gpu for _ in range(args.nCopies)]
+        # load model state dict
+        modelStateDict = model.state_dict()
+        # create replications
+        for gpu in gpus:
+            # create model new instance
+            cModel = modelClass(args.lmbda, args.maxBops, args.bitwidth, args.kernel, args.bopsCounter)
+            # set model to cuda on specific GPU
+            cModel = cModel.cuda(gpu)
+            # set model criterion to its GPU
+            cModel._criterion.cuda(gpu)
+            cModel._criterion.search_loss.cuda(gpu)
+            # load model weights
+            cModel.load_state_dict(modelStateDict)
+            # add model to replications
+            self.replications.append((cModel, gpu))
 
-    def copyModel(self, model):
-        # create new model instance
-        cModel = self.modelClass(self.crit, self.args.bitwidth, self.args.kernel, self.args.bopsCounter)
-        cModel = cModel.cuda()
-        # copy src model weights
-        cModel.load_state_dict(model.state_dict())
-        # copy src model alphas
-        for cLayer, mLayer in zip(cModel.layersList, model.layersList):
-            cLayer.alphas.data.copy_(mLayer.alphas.data)
-
-        return cModel
-
-    def loss(self, model, input, target, nCopies):
+    def loss(self, model, input, target):
+        nCopies = len(self.replications)
         if nCopies > 0:
+            # clone input & target to all GPUs
+            inputPerGPU = {}
+            targetPerGPU = {}
+            for id in self.gpuIDs:
+                inputPerGPU[id] = input if (id == input.device.index) else input.clone().cuda(id)
+                targetPerGPU[id] = target if (id == target.device.index) else target.clone().cuda(id)
             # init total loss
             totalLoss = 0.0
-            # init number of total samples
-            nSamplesTotal = 0
             # split layers indices between models
             layersIndicesPerModel = array_split(range(model.nLayers()), nCopies)
+
+            args = ((model, cModel, inputPerGPU[gpu], targetPerGPU[gpu], layersIndices, gpu)
+                    for layersIndices, (cModel, gpu) in zip(layersIndicesPerModel, self.replications))
+
             with Pool(processes=nCopies, maxtasksperchild=1) as pool:
-                # run pool
-                results = [pool.apply(self.lossPerReplication, args=(model, input, target, layersIndices,))
-                           for layersIndices in layersIndicesPerModel]
-                # process returned results
-                for alphasGrad, layersIndices, partialLoss, nSamplesPartial in results:
-                    # calc total loss & total number of samples
-                    totalLoss += partialLoss
-                    nSamplesTotal += nSamplesPartial
-                    # update layers alphas gradients
-                    for layerAlphasGrads, layerIdx in zip(alphasGrad, layersIndices):
-                        alphas = model.layersList[layerIdx].alphas
-                        alphas.grad = layerAlphasGrads
+                results = pool.map(self.lossPerReplication, args)
 
-                # average total loss
-                totalLoss /= nSamplesTotal
+            # process returned results
+            for alphasGrad, layersIndices, partialLoss in results:
+                # calc total loss & total number of samples
+                totalLoss += partialLoss
+                # update layers alphas gradients
+                for layerAlphasGrads, layerIdx in zip(alphasGrad, layersIndices):
+                    alphas = model.layersList[layerIdx].alphas
+                    alphas.grad = layerAlphasGrads
 
-                # subtract average total loss from every alpha gradient
-                for layer in model.layersList:
-                    layer.alphas.grad -= totalLoss
-                    # calc layer alphas softmax
-                    probs = F.softmax(layer.alphas)
-                    # multiply each grad by its probability
-                    layer.alphas.grad *= probs
+            # average total loss
+            totalLoss /= self.nLayers()
 
-                return totalLoss
+            # subtract average total loss from every alpha gradient
+            for layer in model.layersList:
+                layer.alphas.grad -= totalLoss
+                # calc layer alphas softmax
+                probs = F.softmax(layer.alphas, dim=-1)
+                # multiply each grad by its probability
+                layer.alphas.grad *= probs
 
-    def lossPerReplication(self, model, input, target, layersIndices):
-        # create model replication (copy)
+            return totalLoss
+
+    # def lossPerReplication(self, model, cModel, input, target, layersIndices, gpu):
+    def lossPerReplication(self, args):
+        model, cModel, input, target, layersIndices, gpu = args
+
         print('www:{}'.format(layersIndices))
-        cModel = self.copyModel(model)
+        # # create model replication (copy)
+        # cModel = self.copyModel(model, gpu)
+
+        # copy model alphas
+        for cLayer, mLayer in zip(cModel.layersList, model.layersList):
+            cLayer.alphas.data.copy_(mLayer.alphas.data)
+        # move tensors to gpu
+        # input = input.cuda(gpu)
+        # target = target.cuda(gpu)
         # init total loss
         totalLoss = 0.0
-        # init number of total samples
-        nSamplesTotal = 0
         # init how many samples per alpha
+        nSamplesPerAlpha = 50
         # init layers alphas grad
         alphasGrad = []
-        nSamplesPerAlpha = 50
         for i in layersIndices:
             layer = cModel.layersList[i]
             # turn off coin toss for this layer
             layer.alphas.requires_grad = False
             # init layer alphas gradient
             layerAlphasGrad = zeros(len(layer.alphas)).cuda()
+            # calc layer alphas softmax
+            probs = F.softmax(layer.alphas, dim=-1)
 
             for i, alpha in enumerate(layer.alphas):
                 # select the specific alpha in this layer
@@ -86,21 +108,32 @@ class ModelReplicator:
                     logits = cModel.forward(input)
                     alphaLoss += cModel._criterion(logits, target, cModel.countBops()).detach()
 
+                # update alpha average loss
+                alphaLoss /= nSamplesPerAlpha
+                layerAlphasGrad[i] = alphaLoss
                 # add alpha loss to total loss
-                totalLoss += alphaLoss
-                # update number of total samples
-                nSamplesTotal += nSamplesPerAlpha
-                # update alpha average loss (S_l,i)
-                layerAlphasGrad[i] = (alphaLoss / nSamplesPerAlpha)
+                totalLoss += (alphaLoss * probs[i])
 
             # turn in coin toss for this layer
             layer.alphas.requires_grad = True
             # add layer alphas grad to container
             alphasGrad.append(layerAlphasGrad)
 
-        return alphasGrad, layersIndices, totalLoss, nSamplesTotal
+        return alphasGrad, layersIndices, totalLoss.cuda()
 
-        # def copyModel(self, model, nCopies):
+    # def copyModel(self, model, gpu):
+    #     # create new model instance
+    #     cModel = self.modelClass(self.crit, self.args.bitwidth, self.args.kernel, self.args.bopsCounter)
+    #     cModel = cModel.cuda(gpu)
+    #     # copy src model weights
+    #     cModel.load_state_dict(model.state_dict())
+    #     # copy src model alphas
+    #     for cLayer, mLayer in zip(cModel.layersList, model.layersList):
+    #         cLayer.alphas.data.copy_(mLayer.alphas.data)
+    #
+    #     return cModel
+
+    # def copyModel(self, model, nCopies):
     #     if nCopies > 0:
     #         # init list of relications
     #         replications = []
