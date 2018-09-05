@@ -10,14 +10,16 @@ from torch.nn import CrossEntropyLoss
 from cnn.utils import accuracy, AvgrageMeter, load_data
 from cnn.utils import initTrainLogger, logDominantQuantizedOp, save_checkpoint
 from cnn.architect import Architect
+from cnn.model_replicator import ModelReplicator
 
 
-def trainWeights(train_queue, search_queue, args, model, architect, crit, optimizer, lr, logger):
+def trainWeights(train_queue, search_queue, args, model, crit, optimizer, lr, logger):
     loss_container = AvgrageMeter()
     top1 = AvgrageMeter()
     top5 = AvgrageMeter()
 
     model.train()
+    model.trainMode()
 
     nBatches = len(train_queue)
 
@@ -29,7 +31,7 @@ def trainWeights(train_queue, search_queue, args, model, architect, crit, optimi
         target = Variable(target, requires_grad=False).cuda(async=True)
 
         # choose optimal alpha per layer
-        bopsRatio = model.trainMode()
+        bopsRatio = model.chooseRandomPath()
         # optimize model weights
         optimizer.zero_grad()
         logits = model(input)
@@ -57,7 +59,6 @@ def trainAlphas(search_queue, model, architect, nEpoch, logger):
     loss_container = AvgrageMeter()
 
     model.train()
-    model.trainMode()
 
     nBatches = len(search_queue)
 
@@ -68,18 +69,21 @@ def trainAlphas(search_queue, model, architect, nEpoch, logger):
         input = Variable(input, requires_grad=False).cuda()
         target = Variable(target, requires_grad=False).cuda(async=True)
 
+        model.trainMode()
         loss = architect.step(model, input, target)
 
         # log dominant QuantizedOp in each layer
         logDominantQuantizedOp(model, k=3, logger=logger)
         # save alphas to csv
-        model.save_alphas_to_csv(nEpoch, step)
+        model.save_alphas_to_csv(data=[nEpoch, step])
         # save loss to container
         loss_container.update(loss, n)
+        # count current optimal model bops
+        bopsRatio = model.evalMode()
 
         endTime = time()
-        logger.info('train [{}/{}] arch_loss:[{:.5f}] time:[{:.5f}]'
-                    .format(step, nBatches, loss_container.avg, endTime - startTime))
+        logger.info('train [{}/{}] arch_loss:[{:.5f}] BopsRatio:[{:.3f}] time:[{:.5f}]'
+                    .format(step, nBatches, loss_container.avg, bopsRatio, endTime - startTime))
 
     return loss_container.avg
 
@@ -120,7 +124,7 @@ def infer(valid_queue, model, crit, logger):
     return top1.avg, objs.avg
 
 
-def optimize(args, model, modelReplicator, logger):
+def optimize(args, model, modelClass, logger):
     trainFolderPath = '{}/{}'.format(args.save, args.trainFolder)
 
     optimizer = SGD(model.parameters(), args.learning_rate, momentum=args.momentum, weight_decay=args.weight_decay)
@@ -149,7 +153,6 @@ def optimize(args, model, modelReplicator, logger):
     logger.info('epochsSwitchStage:{}'.format(epochsSwitchStage))
 
     scheduler = CosineAnnealingLR(optimizer, float(nEpochs), eta_min=args.learning_rate_min)
-    architect = Architect(modelReplicator, args)
 
     # init validation best precision value
     best_prec1 = 0.0
@@ -165,7 +168,7 @@ def optimize(args, model, modelReplicator, logger):
 
         # training
         print('========== Epoch:[{}] =============='.format(epoch))
-        train_acc, train_loss = trainWeights(train_queue, search_queue, args, model, architect, cross_entropy,
+        train_acc, train_loss = trainWeights(train_queue, search_queue, args, model, cross_entropy,
                                              optimizer, lr, trainLogger)
 
         # log accuracy, loss, etc.
@@ -200,6 +203,10 @@ def optimize(args, model, modelReplicator, logger):
         # save model checkpoint
         save_checkpoint(trainFolderPath, model, epoch, best_prec1, is_best=False)
 
+    # init model replicator object
+    modelReplicator = ModelReplicator(model, modelClass, args)
+    # init architect
+    architect = Architect(modelReplicator, args)
     # turn on alphas
     model.turnOnAlphas()
     # init scheduler
@@ -225,7 +232,7 @@ def optimize(args, model, modelReplicator, logger):
         trainLogger.info(message)
 
         # validation
-        valid_acc, valid_loss = infer(valid_queue, args, model, cross_entropy, trainLogger)
+        valid_acc, valid_loss = infer(valid_queue, model, cross_entropy, trainLogger)
         message = 'Epoch:[{}] , validation accuracy:[{:.3f}] , validation loss:[{:.3f}]' \
             .format(epoch, valid_acc, valid_loss)
 
