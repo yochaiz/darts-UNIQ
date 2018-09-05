@@ -17,9 +17,9 @@ class TinyNet(BaseNet):
             for op in layer.ops:
                 op.noise = op.quant
 
-            # turn on alphas gradients
-            layer.alphas.requires_grad = True
-            self.learnable_alphas.append(layer.alphas)
+            # # turn on alphas gradients
+            # layer.alphas.requires_grad = True
+            # self.learnable_alphas.append(layer.alphas)
 
     def initLayers(self, params):
         bitwidths, kernel_sizes = params
