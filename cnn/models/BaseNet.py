@@ -2,6 +2,7 @@ from abc import abstractmethod
 
 from itertools import product
 from random import randint
+from pandas import DataFrame
 
 from torch import tensor, zeros
 from torch.nn import Module
@@ -59,7 +60,9 @@ class BaseNet(Module):
 
     countBopsFuncs = dict(continuous=countBopsContinuous, discrete=countBopsDiscrete)
 
-    def __init__(self, criterion, initLayersParams, bopsFuncKey):
+    alphasCsvFileName = 'alphas.csv'
+
+    def __init__(self, criterion, initLayersParams, bopsFuncKey, saveFolder):
         super(BaseNet, self).__init__()
         # init criterion
         self._criterion = criterion
@@ -84,6 +87,21 @@ class BaseNet(Module):
             # add layer numOps range to permutation list
             self.layersPerm.append(list(range(len(layer.alphas))))
             self.nPerms *= len(layer.alphas)
+
+        # init alphas DataFrame
+        # init DataFrame cols
+        cols = ['Epoch', 'Batch']
+        cols += ['Layer_{}'.format(i) for i in range(self.nLayers())]
+        self.cols = cols
+        # add init data
+        data = ['init', 'init']
+        data += [[round(e.item(), 5) for e in layer.alphas] for layer in self.layersList]
+        self.alphas_df = DataFrame([data], columns=self.cols)
+
+        # save if saveFolder exists
+        if saveFolder:
+            self.alphasCsvFileName = '{}/{}'.format(saveFolder, self.alphasCsvFileName)
+            self.alphas_df.to_csv(self.alphasCsvFileName)
 
     @abstractmethod
     def initLayers(self, params):
@@ -241,6 +259,17 @@ class BaseNet(Module):
             top.append([(i, w.item(), layer.alphas[i], layer.ops[i]) for w, i in zip(wSorted, wIndices)])
 
         return top
+
+    # save alphas values to csv
+    def save_alphas_to_csv(self, nEpoch, nBatch):
+        data = [nEpoch, nBatch]
+        data += [layer.alphas for layer in self.layersList]
+        # create new row
+        d = DataFrame([data], columns=self.cols)
+        # add row
+        self.alphas_df = self.alphas_df.append(d)
+        # save DataFrame
+        self.alphas_df.to_csv(self.alphasCsvFileName)
 
     # create list of lists of alpha with its corresponding operation
     def alphas_state(self):
