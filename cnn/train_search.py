@@ -150,7 +150,7 @@ if __name__ == '__main__':
     # init model replicator object
     modelReplicator = ModelReplicator(modelClass, args, crit)
     # init model
-    model = modelClass(crit, args.bitwidth, args.kernel, args.bopsCounter)
+    model = modelClass(crit, args.bitwidth, args.kernel, args.bopsCounter, args.save)
     # model = DataParallel(model, args.gpu)
     model = model.cuda()
     # load pre-trained full-precision model
