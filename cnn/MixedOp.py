@@ -69,7 +69,7 @@ class Chooser(Function):
     @staticmethod
     def backward(ctx, grad_output):
         #  print('inside', grad_output.shape)
-        assert (False) # assure we do not use this backward
+        assert (False)  # assure we do not use this backward
         results_shape, result, chosen = ctx.saved_tensors
         results_shape = tuple(results_shape.numpy().squeeze())
         grads_x = zeros(results_shape, device=grad_output.device, dtype=grad_output.dtype)
@@ -117,8 +117,10 @@ class MixedOp(Module):
     #     self.forward = self.trainForward
 
     # select random alpha
-    def trainMode(self):
+    def chooseRandomPath(self):
         self.curr_alpha_idx = randint(0, len(self.alphas) - 1)
+
+    def trainMode(self):
         self.forward = self.trainForward
 
     def evalMode(self):
