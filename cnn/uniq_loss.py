@@ -8,6 +8,18 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
 
+class BopsLoss:
+    def __init__(self, bopsFunc, v, factor, yDelta, scale):
+        self.bopsFunc = bopsFunc
+        self.v = v
+        self.factor = factor
+        self.yDelta = yDelta
+        self.scale = scale
+
+    def calcLoss(self, x):
+        return (self.bopsFunc((x - self.v) * self.factor) + self.yDelta) * self.scale
+
+
 class UniqLoss(Module):
     def __init__(self, lmdba, maxBops, folderName):
         super(UniqLoss, self).__init__()
@@ -56,13 +68,18 @@ class UniqLoss(Module):
         v = tensor(v, dtype=float32).cuda()
         factor = tensor(factor, dtype=float32).cuda()
 
-        def t(x):
-            # out = (x - v) * factor
-            # out = tanh(out)
-            # out = (out + yDelta) * scale
-            return (self.bops_base_func((x - v) * factor) + yDelta) * scale
+        bopsFunc = self.bops_base_func
 
-        return t
+        bopsLoss = BopsLoss(bopsFunc, v, factor, yDelta, scale)
+        return bopsLoss.calcLoss
+
+        # def t(x):
+        #     # out = (x - v) * factor
+        #     # out = tanh(out)
+        #     # out = (out + yDelta) * scale
+        #     return (bopsFunc((x - v) * factor) + yDelta) * scale
+        #
+        # return t
 
     def plotFunction(self, func, folderName):
         # build data for function
