@@ -48,7 +48,8 @@ class UniqLoss(Module):
         self.bopsRatio = self.calcBopsRatio(modelBops)
         self.quant_loss = self.calcBopsLoss(self.bopsRatio)
 
-        return self.search_loss(input, target) + (self.lmdba * self.quant_loss)
+        return self.search_loss(input, target) + (self.lmdba * self.quant_loss.cuda(input.device.index))
+        # TODO: sort all the GPU stuff in this class
 
     # given the 4 values, generate the appropriate tanh() function, s.t. t(xDst)=yDst & max{t}=yMax & min{t}=yMin
     def _bops_loss(self, xDst, yDst, yMin, yMax):
@@ -68,9 +69,7 @@ class UniqLoss(Module):
         v = tensor(v, dtype=float32).cuda()
         factor = tensor(factor, dtype=float32).cuda()
 
-        bopsFunc = self.bops_base_func
-
-        bopsLoss = BopsLoss(bopsFunc, v, factor, yDelta, scale)
+        bopsLoss = BopsLoss(self.bops_base_func, v, factor, yDelta, scale)
         return bopsLoss.calcLoss
 
         # def t(x):
@@ -105,7 +104,8 @@ class UniqLoss(Module):
         ax.set_title('Bops ratio loss function')
         fig.set_size_inches(25, 10)
 
-        fig.savefig('{}/bops_loss_func.png'.format(folderName))
+        if folderName:
+            fig.savefig('{}/bops_loss_func.png'.format(folderName))
 
     # def _bops_loss(self, bops):
     #     # Parameters that were found emphirical
