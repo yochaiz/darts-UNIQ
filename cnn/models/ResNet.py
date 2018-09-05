@@ -66,8 +66,8 @@ class ResNet(BaseNet):
                 op.noise = True
 
         # turn on grads in 1st layer alphas
-        self.layersList[0].alphas.requires_grad = True
-        self.update_learnable_alphas()
+        # self.layersList[0].alphas.requires_grad = True
+        # self.update_learnable_alphas()
         # update model parameters() function
         self.parameters = self.getLearnableParams
 
@@ -128,7 +128,7 @@ class ResNet(BaseNet):
         # TODO: freeze stage alphas as well ???
         if self.nLayersQuantCompleted < len(self.layersList):
             layer = self.layersList[self.nLayersQuantCompleted]
-            assert (layer.alphas.requires_grad is True)
+            # assert (layer.alphas.requires_grad is True)
             # # turn on layer alphas gradients
             # layer.alphas.requires_grad = True
             # # update learnable alphas
@@ -164,10 +164,11 @@ class ResNet(BaseNet):
                 for op in layer.ops:
                     op.noise = True
 
-                # turn on layer alphas gradients
-                layer.alphas.requires_grad = True
-                # update learnable alphas
-                self.update_learnable_alphas()
+                # # turn on layer alphas gradients
+                # layer.alphas.requires_grad = True
+                # # update learnable alphas
+                # self.update_learnable_alphas()
+                # self.update_learnable_alphas()
 
             if logger:
                 logger.info(
