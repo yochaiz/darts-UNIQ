@@ -53,7 +53,7 @@ def trainWeights(train_queue, search_queue, args, model, architect, crit, optimi
     return top1.avg, loss_container.avg
 
 
-def trainAlphas(search_queue, model, architect, logger):
+def trainAlphas(search_queue, model, architect, nEpoch, logger):
     loss_container = AvgrageMeter()
 
     model.train()
@@ -72,6 +72,9 @@ def trainAlphas(search_queue, model, architect, logger):
 
         # log dominant QuantizedOp in each layer
         logDominantQuantizedOp(model, k=3, logger=logger)
+        # save alphas to csv
+        model.save_alphas_to_csv(nEpoch, step)
+        # save loss to container
         loss_container.update(loss, n)
 
         endTime = time()
@@ -213,7 +216,7 @@ def optimize(args, model, modelReplicator, logger):
 
         trainLogger.info('optimizer_lr:[{:.5f}], scheduler_lr:[{:.5f}]'.format(optimizer.defaults['lr'], lr))
         print('========== Epoch:[{}] =============='.format(epoch))
-        arch_loss = trainAlphas(search_queue, model, architect, trainLogger)
+        arch_loss = trainAlphas(search_queue, model, architect, epoch, trainLogger)
 
         # log accuracy, loss, etc.
         message = 'Epoch:[{}] , arch loss:[{:.3f}] , optimizer_lr:[{:.5f}], scheduler_lr:[{:.5f}]' \
