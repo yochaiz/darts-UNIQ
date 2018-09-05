@@ -1,12 +1,37 @@
 from abc import abstractmethod
 
 from itertools import product
+from random import randint
 
-from torch import tensor
+from torch import tensor, zeros
 from torch.nn import Module
 from torch.nn import functional as F
 
 from cnn.MixedOp import MixedOp
+from UNIQ.actquant import ActQuant
+from UNIQ.quantize import quantize, restore_weights, backup_weights
+
+
+def save_quant_state(self, _):
+    assert (self.noise is False)
+    if self.quant and not self.noise and self.training:
+        self.full_parameters = {}
+        layers_list = self.get_layers_list()
+        layers_steps = self.get_layers_steps(layers_list)
+        assert (len(layers_steps) == 1)
+
+        self.full_parameters = backup_weights(layers_steps[0], self.full_parameters)
+        quantize(layers_steps[0], bitwidth=self.bitwidth[0])
+
+
+def restore_quant_state(self, _, __):
+    assert (self.noise is False)
+    if self.quant and not self.noise and self.training:
+        layers_list = self.get_layers_list()
+        layers_steps = self.get_layers_steps(layers_list)
+        assert (len(layers_steps) == 1)
+
+        restore_weights(layers_steps[0], self.full_parameters)  # Restore the quantized layers
 
 
 class BaseNet(Module):
@@ -82,28 +107,108 @@ class BaseNet(Module):
     def arch_parameters(self):
         return self.learnable_alphas
 
+    def turnOnAlphas(self):
+        self.learnable_alphas = []
+        for layer in self.layersList:
+            # turn on alphas gradients
+            layer.alphas.requires_grad = True
+            self.learnable_alphas.append(layer.alphas)
+
+    # def _loss(self, input, target):
+    #     totalLoss = 0.0
+    #     nIter = min(self.nPerms, 1000)
+    #     for _ in range(nIter):
+    #         logits = self.forward(input)
+    #
+    #         # calc alphas product
+    #         alphasProduct = 1.0
+    #         for layer in self.layersList:
+    #             probs = F.softmax(layer.alphas)
+    #             alphasProduct *= probs[layer.curr_alpha_idx]
+    #
+    #         permLoss = alphasProduct * self._criterion(logits, target, self.countBops())
+    #         # permLoss = self._criterion(logits, target, self.countBops()) / nIter
+    #         permLoss.backward(retain_graph=True)
+    #
+    #         totalLoss += permLoss.item()
+    #
+    #     return totalLoss
+
     def _loss(self, input, target):
-        # sum all paths losses * the path alphas multiplication
+        # init how many samples per alpha
+        nSamplesPerAlpha = 50
+        # init total loss
         totalLoss = 0.0
-        for perm in product(*self.layersPerm):
-            alphasProd = 1.0
-            # set perm index in each layer
-            for i, p in enumerate(perm):
-                layer = self.layersList[i]
-                layer.curr_alpha_idx = p
-                probs = F.softmax(layer.alphas)
-                alphasProd *= probs[p]
+        # init number of total samples
+        nSamplesTotal = 0
+        for layer in self.layersList:
+            # turn off coin toss for this layer
+            layer.alphas.requires_grad = False
+            # init layer alphas gradient
+            layerAlphasGrad = zeros(len(layer.alphas)).cuda()
 
-            logits = self.forward(input)
-            # only the alphas are changing...
-            totalLoss += (alphasProd * self._criterion(logits, target, self.countBops()))
-        # TODO: do we need to average the totalLoss ???
+            for i, alpha in enumerate(layer.alphas):
+                # select the specific alpha in this layer
+                layer.curr_alpha_idx = i
+                # init alpha loss
+                alphaLoss = 0.0
+                for _ in range(nSamplesPerAlpha):
+                    logits = self.forward(input)
+                    alphaLoss += self._criterion(logits, target, self.countBops()).detach()
 
-        # print('totalLoss:[{:.5f}]'.format(totalLoss))
+                # add alpha loss to total loss
+                totalLoss += alphaLoss
+                # update number of total samples
+                nSamplesTotal += nSamplesPerAlpha
+                # update alpha average loss
+                layerAlphasGrad[i] = (alphaLoss / nSamplesPerAlpha)
+
+            # turn in coin toss for this layer
+            layer.alphas.requires_grad = True
+            # set layer alphas gradient
+            layer.alphas.grad = layerAlphasGrad
+
+        # average total loss
+        totalLoss /= nSamplesTotal
+
+        # subtract average total loss from every alpha gradient
+        for layer in self.layersList:
+            layer.alphas.grad -= totalLoss
+            # calc layer alphas softmax
+            probs = F.softmax(layer.alphas)
+            # multiply each grad by its probability
+            layer.alphas.grad *= probs
+
         return totalLoss
 
-        # logits = self.forward(input)
-        # return self._criterion(logits, target, self.countBops())
+    # def _loss(self, input, target):
+    #     # sum all paths losses * the path alphas multiplication
+    #     totalLoss = 0.0
+    #     nIter = min(self.nPerms, 1000)
+    #     for _ in range(nIter):
+    #         # for perm in product(*self.layersPerm):
+    #         perm = [randint(0, len(layer.alphas) - 1) for layer in self.layersList]
+    #         alphasProduct = 1.0
+    #         # set perm index in each layer
+    #         for i, p in enumerate(perm):
+    #             layer = self.layersList[i]
+    #             layer.curr_alpha_idx = p
+    #             probs = F.softmax(layer.alphas)
+    #             alphasProduct *= probs[p]
+    #
+    #         logits = self.forward(input)
+    #         # only the alphas are changing...
+    #         permLoss = (alphasProduct * self._criterion(logits, target, self.countBops()))
+    #         permLoss.backward(retain_graph=True)
+    #         totalLoss += permLoss.item()
+    #     # TODO: do we need to average the totalLoss ???
+    #
+    #     # print('totalLoss:[{:.5f}]'.format(totalLoss))
+    #     return totalLoss
+
+    #
+    #     # logits = self.forward(input)
+    #     # return self._criterion(logits, target, self.countBops())
 
     def trainMode(self):
         for l in self.layersList:
