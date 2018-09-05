@@ -13,7 +13,6 @@ from torch import manual_seed as torch_manual_seed
 from torch.nn import CrossEntropyLoss
 
 import cnn.models as models
-from cnn.model_replicator import ModelReplicator
 from cnn.utils import create_exp_dir, count_parameters_in_MB, load_pre_trained
 from cnn.utils import initLogger, printModelToFile
 from cnn.optimize import optimize
@@ -40,6 +39,7 @@ def parseArgs(lossFuncsLambda):
     parser.add_argument('--weight_decay', type=float, default=1e-4, help='weight decay')
     parser.add_argument('--report_freq', type=float, default=1, help='report frequency')
     parser.add_argument('--gpu', type=str, default='0', help='gpu device id, e.g. 0,1,3')
+    parser.add_argument('--nCopies', type=int, default=1, help='number of model copies per GPU')
     parser.add_argument('--epochs', type=str, default='5',
                         help='num of training epochs per layer, as list, e.g. 5,4,3,8,6.'
                              'If len(epochs)<len(layers) then last value is used for rest of the layers')
@@ -113,10 +113,6 @@ def parseArgs(lossFuncsLambda):
     return args
 
 
-# def modelConstructor(args, crit):
-#     return modelClass(crit, args.bitwidth, args.kernel, args.bopsCounter)
-
-
 if __name__ == '__main__':
     # loss functions manipulate lambda value
     lossFuncsLambda = dict(UniqLoss=1.0, CrossEntropy=0.0)
@@ -137,20 +133,17 @@ if __name__ == '__main__':
 
     # build model for uniform distribution of bits
     modelClass = models.__dict__[args.model]
-    uniform_model = modelClass(CrossEntropyLoss().cuda(), [args.MaxBopsBits], args.kernel, args.bopsCounter)
-
-    crit = UniqLoss(lmdba=args.lmbda, maxBops=uniform_model.countBops(), folderName=args.save)
-    crit = crit.cuda()
+    uniform_model = modelClass(0, 0, [args.MaxBopsBits], args.kernel, args.bopsCounter)
+    # init maxBops
+    args.maxBops = uniform_model.countBops()
 
     try:
         set_start_method('spawn', force=True)
     except RuntimeError:
         raise ValueError('spawn failed')
 
-    # init model replicator object
-    modelReplicator = ModelReplicator(modelClass, args, crit)
     # init model
-    model = modelClass(crit, args.bitwidth, args.kernel, args.bopsCounter, args.save)
+    model = modelClass(args.lmbda, args.maxBops, args.bitwidth, args.kernel, args.bopsCounter, args.save)
     # model = DataParallel(model, args.gpu)
     model = model.cuda()
     # load pre-trained full-precision model
@@ -165,6 +158,6 @@ if __name__ == '__main__':
     logger.info('Ops per layer:{}'.format([len(layer.ops) for layer in model.layersList]))
     logger.info('nPerms:[{}]'.format(model.nPerms))
 
-    optimize(args, model, modelReplicator, logger)
+    optimize(args, model, modelClass, logger)
 
     logger.info('Done !')
