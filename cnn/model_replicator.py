@@ -39,6 +39,8 @@ class ModelReplicator:
                 targetPerGPU[id] = target if (id == target.device.index) else target.clone().cuda(id)
             # init total loss
             totalLoss = 0.0
+            # init loss samples list for ALL alphas
+            allLossSamples = []
             # split layers indices between models
             layersIndicesPerModel = array_split(range(model.nLayers()), nCopies)
 
@@ -49,7 +51,9 @@ class ModelReplicator:
                 results = pool.map(self.lossPerReplication, args)
 
             # process returned results
-            for alphasGrad, layersIndices, partialLoss in results:
+            for alphasGrad, partialLossSamples, layersIndices, partialLoss in results:
+                # add alphas loss samples to all loss samples list
+                allLossSamples.extend(partialLossSamples)
                 # calc total loss & total number of samples
                 totalLoss += partialLoss
                 # update layers alphas gradients
@@ -59,6 +63,12 @@ class ModelReplicator:
 
             # average total loss
             totalLoss /= model.nLayers()
+            # calc all loss samples average
+            nTotalSamples = len(allLossSamples)
+            allLossSamplesAvg = sum(allLossSamples) / nTotalSamples
+            # calc all loss samples variance
+            allLossSamples = [((x - allLossSamplesAvg) ** 2) for x in allLossSamples]
+            model.allLossSamplesVariance = (sum(allLossSamples) / (nTotalSamples - 1)).item()
 
             # subtract average total loss from every alpha gradient
             for layer in model.layersList:
@@ -79,6 +89,8 @@ class ModelReplicator:
 
         # init total loss
         totalLoss = 0.0
+        # init loss samples list for ALL alphas
+        allLossSamples = []
         # init how many samples per alpha
         nSamplesPerAlpha = 50
         # init layers alphas grad
@@ -99,22 +111,24 @@ class ModelReplicator:
                 # init alpha loss
                 alphaLoss = 0.0
                 # init loss samples list
-                lossSamples = []
+                alphaLossSamples = []
                 for _ in range(nSamplesPerAlpha):
                     logits = cModel.forward(input)
                     # alphaLoss += cModel._criterion(logits, target, cModel.countBops()).detach()
-                    lossSamples.append(cModel._criterion(logits, target, cModel.countBops()).detach())
+                    alphaLossSamples.append(cModel._criterion(logits, target, cModel.countBops()).detach())
 
+                # add current alpha loss samples to all loss samples list
+                allLossSamples.extend(alphaLossSamples)
                 # update alpha average loss
                 # alphaLoss /= nSamplesPerAlpha
                 # calc alpha average loss
-                alphaAvgLoss = sum(lossSamples) / nSamplesPerAlpha
+                alphaAvgLoss = sum(alphaLossSamples) / nSamplesPerAlpha
                 layerAlphasGrad[i] = alphaAvgLoss
                 # add alpha loss to total loss
                 totalLoss += (alphaAvgLoss * probs[i])
 
                 # calc loss samples variance
-                lossVariance = [((x - alphaAvgLoss) ** 2) for x in lossSamples]
+                lossVariance = [((x - alphaAvgLoss) ** 2) for x in alphaLossSamples]
                 orgLayer.alphasLossVariance.data[i] = sum(lossVariance) / (nSamplesPerAlpha - 1)
 
             # turn in coin toss for this layer
@@ -122,7 +136,7 @@ class ModelReplicator:
             # add layer alphas grad to container
             alphasGrad.append(layerAlphasGrad)
 
-        return alphasGrad, layersIndices, totalLoss.cuda()
+        return alphasGrad, allLossSamples, layersIndices, totalLoss.cuda()
 
     # def copyModel(self, model, gpu):
     #     # create new model instance

@@ -23,12 +23,14 @@ class Statistics:
         self.entropyPerLayer = [[] for _ in range(nLayers)]
         self.weightedAveragePerLayer = [[] for _ in range(nLayers)]
         self.lossVariancePerLayer = [[[] for _ in range(layer.numOfOps())] for layer in layersList]
+        self.allLossSamplesVariance = [[]]
         # init list of batch labels for y axis
         self.batchLabels = []
         # map each list we plot for all layers on single plot to filename
         self.plotAllLayersMap = {
             'alphas_entropy': self.entropyPerLayer,
-            'alphas_weighted_average': self.weightedAveragePerLayer
+            'alphas_weighted_average': self.weightedAveragePerLayer,
+            'all_samples_loss_variance': self.allLossSamplesVariance
         }
         # map each list we plot each layer on different plot to filename
         self.plotLayersSeparateMap = {
@@ -42,6 +44,8 @@ class Statistics:
         assert (self.nLayers == model.nLayers())
         # add batch label
         self.batchLabels.append('[{}]_[{}]'.format(nEpoch, nBatch))
+        # add all samples loss variance
+        self.allLossSamplesVariance[0].append(model.allLossSamplesVariance)
         # add data per layer
         for i, layer in enumerate(model.layersList):
             # calc layer alphas probabilities

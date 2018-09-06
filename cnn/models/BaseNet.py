@@ -81,6 +81,8 @@ class BaseNet(Module):
         self.learnable_alphas = []
         # init number of layers we have completed its quantization
         self.nLayersQuantCompleted = 0
+        # init all batch samples loss variance holder
+        self.allLossSamplesVariance = 0
 
         # init layers permutation list
         self.layersPerm = []
@@ -169,6 +171,8 @@ class BaseNet(Module):
         nSamplesPerAlpha = 50
         # init total loss
         totalLoss = 0.0
+        # init loss samples list for ALL alphas
+        allLossSamples = []
         for layer in self.layersList:
             # turn off coin toss for this layer
             layer.alphas.requires_grad = False
@@ -183,22 +187,24 @@ class BaseNet(Module):
                 # init alpha loss
                 alphaLoss = 0.0
                 # init loss samples list
-                lossSamples = []
+                alphaLossSamples = []
                 for _ in range(nSamplesPerAlpha):
                     logits = self.forward(input)
                     # alphaLoss += self._criterion(logits, target, self.countBops()).detach()
-                    lossSamples.append(self._criterion(logits, target, self.countBops()).detach())
+                    alphaLossSamples.append(self._criterion(logits, target, self.countBops()).detach())
 
+                # add current alpha loss samples to all loss samples list
+                allLossSamples.extend(alphaLossSamples)
                 # update alpha average loss
                 # alphaLoss /= nSamplesPerAlpha
                 # calc alpha average loss
-                alphaAvgLoss = sum(lossSamples) / nSamplesPerAlpha
+                alphaAvgLoss = sum(alphaLossSamples) / nSamplesPerAlpha
                 layerAlphasGrad[i] = alphaAvgLoss
                 # add alpha loss to total loss
                 totalLoss += (alphaAvgLoss * probs[i])
 
                 # calc loss samples variance
-                lossVariance = [((x - alphaAvgLoss) ** 2) for x in lossSamples]
+                lossVariance = [((x - alphaAvgLoss) ** 2) for x in alphaLossSamples]
                 layer.alphasLossVariance.data[i] = sum(lossVariance) / (nSamplesPerAlpha - 1)
 
             # turn in coin toss for this layer
@@ -208,6 +214,12 @@ class BaseNet(Module):
 
         # average total loss
         totalLoss /= self.nLayers()
+        # calc all loss samples average
+        nTotalSamples = len(allLossSamples)
+        allLossSamplesAvg = sum(allLossSamples) / nTotalSamples
+        # calc all loss samples variance
+        allLossSamples = [((x - allLossSamplesAvg) ** 2) for x in allLossSamples]
+        self.allLossSamplesVariance = (sum(allLossSamples) / (nTotalSamples - 1)).item()
 
         # subtract average total loss from every alpha gradient
         for layer in self.layersList:
