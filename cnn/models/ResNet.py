@@ -10,28 +10,29 @@ from UNIQ.quantize import backup_weights, restore_weights, quantize
 
 from cnn.MixedOp import MixedConv, MixedConvWithReLU, MixedLinear, MixedOp
 from cnn.models import BaseNet
+from cnn.models.BaseNet import save_quant_state, restore_quant_state
 
 
-def save_quant_state(self, _):
-    assert (self.noise is False)
-    if self.quant and not self.noise and self.training:
-        self.full_parameters = {}
-        layers_list = self.get_layers_list()
-        layers_steps = self.get_layers_steps(layers_list)
-        assert (len(layers_steps) == 1)
-
-        self.full_parameters = backup_weights(layers_steps[0], self.full_parameters)
-        quantize(layers_steps[0], bitwidth=self.bitwidth[0])
-
-
-def restore_quant_state(self, _, __):
-    assert (self.noise is False)
-    if self.quant and not self.noise and self.training:
-        layers_list = self.get_layers_list()
-        layers_steps = self.get_layers_steps(layers_list)
-        assert (len(layers_steps) == 1)
-
-        restore_weights(layers_steps[0], self.full_parameters)  # Restore the quantized layers
+# def save_quant_state(self, _):
+#     assert (self.noise is False)
+#     if self.quant and not self.noise and self.training:
+#         self.full_parameters = {}
+#         layers_list = self.get_layers_list()
+#         layers_steps = self.get_layers_steps(layers_list)
+#         assert (len(layers_steps) == 1)
+#
+#         self.full_parameters = backup_weights(layers_steps[0], self.full_parameters)
+#         quantize(layers_steps[0], bitwidth=self.bitwidth[0])
+#
+#
+# def restore_quant_state(self, _, __):
+#     assert (self.noise is False)
+#     if self.quant and not self.noise and self.training:
+#         layers_list = self.get_layers_list()
+#         layers_steps = self.get_layers_steps(layers_list)
+#         assert (len(layers_steps) == 1)
+#
+#         restore_weights(layers_steps[0], self.full_parameters)  # Restore the quantized layers
 
 
 class BasicBlock(Module):
@@ -125,14 +126,9 @@ class ResNet(BaseNet):
         return self.learnable_params
 
     def switch_stage(self, logger=None):
-        # TODO: freeze stage alphas as well ???
         if self.nLayersQuantCompleted < len(self.layersList):
             layer = self.layersList[self.nLayersQuantCompleted]
-            # assert (layer.alphas.requires_grad is True)
-            # # turn on layer alphas gradients
-            # layer.alphas.requires_grad = True
-            # # update learnable alphas
-            # self.update_learnable_alphas()
+            assert (layer.alphas.requires_grad is False)
 
             for op in layer.ops:
                 # turn off noise in op
