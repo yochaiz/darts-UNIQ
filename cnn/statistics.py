@@ -62,6 +62,19 @@ class Statistics:
         # plot data
         self.plotData()
 
+    def __setPlotProperties(self, fig, ax, xLabel, yLabel, title, fileName):
+        # ax.set_xticks(xValues)
+        # ax.set_xticklabels(self.batchLabels)
+        ax.set_xlabel(xLabel)
+        ax.set_ylabel(yLabel)
+        ax.set_title(title)
+        ax.legend(loc='upper center', bbox_to_anchor=(0.5, 1.02), ncol=5, fancybox=True, shadow=True)
+
+        # save to file
+        fig.savefig('{}/{}.png'.format(self.saveFolder, fileName))
+        # close plot
+        plt.close()
+
     def plotData(self):
         # set x axis values
         xValues = list(range(len(self.batchLabels)))
@@ -73,18 +86,8 @@ class Statistics:
             for i, layerData in enumerate(data):
                 ax.plot(xValues, layerData, 'o-', label=i)
 
-            # set graph style
-            # ax.set_xticks(xValues)
-            # ax.set_xticklabels(self.batchLabels)
-            ax.set_xlabel('Batch #')
-            ax.set_ylabel(fileName)
-            ax.set_title('{} over epochs'.format(fileName))
-            ax.legend(loc='upper center', bbox_to_anchor=(0.5, 1.02), ncol=5, fancybox=True, shadow=True)
-
-            # save to file
-            fig.savefig('{}/{}.png'.format(self.saveFolder, fileName))
-            # close plot
-            plt.close()
+            self.__setPlotProperties(fig, ax, xLabel='Batch #', yLabel=fileName,
+                                     title='{} over epochs'.format(fileName), fileName=fileName)
 
         for fileName, data in self.plotLayersSeparateMap.items():
             # add each layer alphas data to plot
@@ -94,15 +97,6 @@ class Statistics:
                 for j, alphaVariance in enumerate(layerVariance):
                     ax.plot(xValues, alphaVariance, 'o-', label=int(self.layersBitwidths[i][j].item()))
 
-                # set graph style
-                # ax.set_xticks(xValues)
-                # ax.set_xticklabels(self.batchLabels)
-                ax.set_xlabel('Batch #')
-                ax.set_ylabel(fileName)
-                ax.set_title('{} --layer:[{}]-- over epochs'.format(fileName, i))
-                ax.legend(loc='upper center', bbox_to_anchor=(0.5, 1.02), ncol=5, fancybox=True, shadow=True)
-
-                # save to file
-                fig.savefig('{}/{}_{}.png'.format(self.saveFolder, fileName, i))
-                # close plot
-                plt.close()
+                self.__setPlotProperties(fig, ax, xLabel='Batch #', yLabel=fileName,
+                                         title='{} --layer:[{}]-- over epochs'.format(fileName, i),
+                                         fileName='{}_{}.png'.format(fileName, i))
