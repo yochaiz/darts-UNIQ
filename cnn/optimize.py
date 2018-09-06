@@ -121,7 +121,7 @@ def infer(valid_queue, model, crit, logger):
             logger.info('validation [{}/{}] Loss:[{:.5f}] Accuracy:[{:.3f}] BopsRatio:[{:.3f}] time:[{:.5f}]'
                         .format(step, nBatches, objs.avg, top1.avg, bopsRatio, endTime - startTime))
 
-    return top1.avg, objs.avg
+    return top1.avg, objs.avg, bopsRatio
 
 
 def optimize(args, model, modelClass, logger):
@@ -156,6 +156,8 @@ def optimize(args, model, modelClass, logger):
 
     # init validation best precision value
     best_prec1 = 0.0
+    # init epoch
+    epoch = 0
 
     for epoch in range(1, nEpochs + 1):
         trainLogger = initTrainLogger(str(epoch), trainFolderPath, args.propagate)
@@ -183,9 +185,9 @@ def optimize(args, model, modelClass, logger):
         # switch stage, i.e. freeze one more layer
         if (epoch in epochsSwitchStage) or (epoch == nEpochs):
             # validation
-            valid_acc, valid_loss = infer(valid_queue, model, cross_entropy, trainLogger)
-            message = 'Epoch:[{}] , validation accuracy:[{:.3f}] , validation loss:[{:.3f}]'.format(epoch, valid_acc,
-                                                                                                    valid_loss)
+            valid_acc, valid_loss, bopsRatio = infer(valid_queue, model, cross_entropy, trainLogger)
+            message = 'Epoch:[{}] , validation accuracy:[{:.3f}] , validation loss:[{:.3f}] , BopsRatio:[{:.3f}]' \
+                .format(epoch, valid_acc, valid_loss, bopsRatio)
             logger.info(message)
             trainLogger.info(message)
 
@@ -232,9 +234,9 @@ def optimize(args, model, modelClass, logger):
         trainLogger.info(message)
 
         # validation
-        valid_acc, valid_loss = infer(valid_queue, model, cross_entropy, trainLogger)
-        message = 'Epoch:[{}] , validation accuracy:[{:.3f}] , validation loss:[{:.3f}]' \
-            .format(epoch, valid_acc, valid_loss)
+        valid_acc, valid_loss, bopsRatio = infer(valid_queue, model, cross_entropy, trainLogger)
+        message = 'Epoch:[{}] , validation accuracy:[{:.3f}] , validation loss:[{:.3f}] , BopsRatio:[{:.3f}]' \
+            .format(epoch, valid_acc, valid_loss, bopsRatio)
 
         logger.info(message)
         trainLogger.info(message)
