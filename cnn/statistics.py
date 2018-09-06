@@ -73,6 +73,7 @@ class Statistics:
         ax.set_ylabel(yLabel)
         ax.set_title(title)
         ax.legend(loc='upper center', bbox_to_anchor=(0.5, 1.02), ncol=5, fancybox=True, shadow=True)
+        fig.set_size_inches((12, 8))
 
         # save to file
         fig.savefig('{}/{}.png'.format(self.saveFolder, fileName))
