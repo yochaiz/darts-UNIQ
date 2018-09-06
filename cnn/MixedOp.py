@@ -91,6 +91,8 @@ class MixedOp(Module):
         # init operations alphas (weights)
         value = 1.0 / self.numOfOps()
         self.alphas = tensor((ones(self.numOfOps()) * value).cuda(), requires_grad=False)
+        # init alphas loss variance container
+        self.alphasLossVariance = zeros(self.numOfOps(), requires_grad=False).cuda()
 
         # self.curr_alpha_idx = 0 if self.numOfOps() == 1 else None
         self.curr_alpha_idx = 0
