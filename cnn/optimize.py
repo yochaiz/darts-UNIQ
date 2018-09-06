@@ -1,24 +1,17 @@
 from time import time
-from os import makedirs, path
 
-from torch import tensor, float32
 from torch.nn.utils.clip_grad import clip_grad_norm_
 from torch.optim.lr_scheduler import CosineAnnealingLR
 from torch import no_grad
 from torch.optim import SGD
 from torch.autograd.variable import Variable
 from torch.nn import CrossEntropyLoss
-import torch.nn.functional as F
 
 from cnn.utils import accuracy, AvgrageMeter, load_data
 from cnn.utils import initTrainLogger, logDominantQuantizedOp, save_checkpoint
 from cnn.architect import Architect
 from cnn.model_replicator import ModelReplicator
-
-import matplotlib
-
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
+from cnn.statistics import Statistics
 
 
 def trainWeights(train_queue, search_queue, args, model, crit, optimizer, lr, logger):
@@ -63,19 +56,12 @@ def trainWeights(train_queue, search_queue, args, model, crit, optimizer, lr, lo
     return top1.avg, loss_container.avg
 
 
-def trainAlphas(search_queue, model, architect, nEpoch, logger, folderName):
+def trainAlphas(search_queue, model, architect, stats, nEpoch, logger):
     loss_container = AvgrageMeter()
 
     model.train()
 
     nBatches = len(search_queue)
-
-    # create batch alphas weighted average plots folder
-    folderName += '/batch_alphas_weighted_average'
-    if not path.exists(folderName):
-        makedirs(folderName)
-    # init plot x axis values
-    xValues = list(range(model.nLayers()))
 
     for step, (input, target) in enumerate(search_queue):
         startTime = time()
@@ -87,30 +73,8 @@ def trainAlphas(search_queue, model, architect, nEpoch, logger, folderName):
         model.trainMode()
         loss = architect.step(model, input, target)
 
-        # plot alphas
-        y = []
-        for i, layer in enumerate(model.layersList):
-            # calc layer alphas probabilities
-            probs = F.softmax(layer.alphas, dim=-1)
-            # collect weight bitwidth of each op in layer
-            weightBitwidth = tensor([op.bitwidth[0] for op in layer.ops], dtype=float32).cuda()
-            # calc weighted average of weights bitwidth
-            res = probs * weightBitwidth
-            res = res.sum().item()
-            # add weighted average to y axis
-            y.append(res)
-        # plot
-        fig, ax = plt.subplots(nrows=1, ncols=1)
-        ax.plot(xValues, y, 'o')
-        ax.set_xticks(xValues)
-        ax.set_yticks(y)
-        ax.set_xlabel('Layer #')
-        ax.set_ylabel('Bitwidth weighted average')
-        ax.set_title('Epoch:[{}] - Batch:[{}/{}]'.format(nEpoch, step, nBatches))
-        # save to file
-        fig.savefig('{}/{}_{}.png'.format(folderName, nEpoch, step))
-        plt.close()
-
+        # add alphas data to statistics
+        stats.addBatchData(model, nEpoch, step)
         # log dominant QuantizedOp in each layer
         logDominantQuantizedOp(model, k=3, logger=logger)
         # save alphas to csv
@@ -124,7 +88,7 @@ def trainAlphas(search_queue, model, architect, nEpoch, logger, folderName):
         logger.info('train [{}/{}] arch_loss:[{:.5f}] BopsRatio:[{:.3f}] time:[{:.5f}]'
                     .format(step, nBatches, loss_container.avg, bopsRatio, endTime - startTime))
 
-    return loss_container.avg, y
+    return loss_container.avg
 
 
 def infer(valid_queue, model, crit, logger):
@@ -198,58 +162,56 @@ def optimize(args, model, modelClass, logger):
     # init epoch
     epoch = 0
 
-    for epoch in range(1, nEpochs + 1):
-        trainLogger = initTrainLogger(str(epoch), trainFolderPath, args.propagate)
-        is_best = False
+    # for epoch in range(1, nEpochs + 1):
+    #     trainLogger = initTrainLogger(str(epoch), trainFolderPath, args.propagate)
+    #     is_best = False
+    #
+    #     scheduler.step()
+    #     lr = scheduler.get_lr()[0]
+    #
+    #     trainLogger.info('optimizer_lr:[{:.5f}], scheduler_lr:[{:.5f}]'.format(optimizer.defaults['lr'], lr))
+    #
+    #     # training
+    #     print('========== Epoch:[{}] =============='.format(epoch))
+    #     train_acc, train_loss = trainWeights(train_queue, search_queue, args, model, cross_entropy,
+    #                                          optimizer, lr, trainLogger)
+    #
+    #     # log accuracy, loss, etc.
+    #     message = 'Epoch:[{}] , training accuracy:[{:.3f}] , training loss:[{:.3f}] , optimizer_lr:[{:.5f}], scheduler_lr:[{:.5f}]' \
+    #         .format(epoch, train_acc, train_loss, optimizer.defaults['lr'], lr)
+    #     logger.info(message)
+    #     trainLogger.info(message)
+    #
+    #     # log dominant QuantizedOp in each layer
+    #     logDominantQuantizedOp(model, k=3, logger=trainLogger)
+    #
+    #     # switch stage, i.e. freeze one more layer
+    #     if (epoch in epochsSwitchStage) or (epoch == nEpochs):
+    #         # validation
+    #         valid_acc, valid_loss, bopsRatio = infer(valid_queue, model, cross_entropy, trainLogger)
+    #         message = 'Epoch:[{}] , validation accuracy:[{:.3f}] , validation loss:[{:.3f}] , BopsRatio:[{:.3f}]' \
+    #             .format(epoch, valid_acc, valid_loss, bopsRatio)
+    #         logger.info(message)
+    #         trainLogger.info(message)
+    #
+    #         # # update values for opt model decision
+    #         # is_best = valid_acc > best_prec1
+    #         # best_prec1 = max(valid_acc, best_prec1)
+    #
+    #         # switch stage
+    #         model.switch_stage(trainLogger)
+    #         # update optimizer & scheduler due to update in learnable params
+    #         optimizer = SGD(model.parameters(), scheduler.get_lr()[0],
+    #                         momentum=args.momentum, weight_decay=args.weight_decay)
+    #         scheduler = CosineAnnealingLR(optimizer, float(nEpochs), eta_min=args.learning_rate_min)
+    #
+    #     # save model checkpoint
+    #     save_checkpoint(trainFolderPath, model, epoch, best_prec1, is_best=False)
 
-        scheduler.step()
-        lr = scheduler.get_lr()[0]
-
-        trainLogger.info('optimizer_lr:[{:.5f}], scheduler_lr:[{:.5f}]'.format(optimizer.defaults['lr'], lr))
-
-        # training
-        print('========== Epoch:[{}] =============='.format(epoch))
-        train_acc, train_loss = trainWeights(train_queue, search_queue, args, model, cross_entropy,
-                                             optimizer, lr, trainLogger)
-
-        # log accuracy, loss, etc.
-        message = 'Epoch:[{}] , training accuracy:[{:.3f}] , training loss:[{:.3f}] , optimizer_lr:[{:.5f}], scheduler_lr:[{:.5f}]' \
-            .format(epoch, train_acc, train_loss, optimizer.defaults['lr'], lr)
-        logger.info(message)
-        trainLogger.info(message)
-
-        # log dominant QuantizedOp in each layer
-        logDominantQuantizedOp(model, k=3, logger=trainLogger)
-
-        # switch stage, i.e. freeze one more layer
-        if (epoch in epochsSwitchStage) or (epoch == nEpochs):
-            # validation
-            valid_acc, valid_loss, bopsRatio = infer(valid_queue, model, cross_entropy, trainLogger)
-            message = 'Epoch:[{}] , validation accuracy:[{:.3f}] , validation loss:[{:.3f}] , BopsRatio:[{:.3f}]' \
-                .format(epoch, valid_acc, valid_loss, bopsRatio)
-            logger.info(message)
-            trainLogger.info(message)
-
-            # # update values for opt model decision
-            # is_best = valid_acc > best_prec1
-            # best_prec1 = max(valid_acc, best_prec1)
-
-            # switch stage
-            model.switch_stage(trainLogger)
-            # update optimizer & scheduler due to update in learnable params
-            optimizer = SGD(model.parameters(), scheduler.get_lr()[0],
-                            momentum=args.momentum, weight_decay=args.weight_decay)
-            scheduler = CosineAnnealingLR(optimizer, float(nEpochs), eta_min=args.learning_rate_min)
-
-        # save model checkpoint
-        save_checkpoint(trainFolderPath, model, epoch, best_prec1, is_best=False)
-
-    # create plot folder
-    plotFolderPath = '{}/plots'.format(args.save)
-    if not path.exists(plotFolderPath):
-        makedirs(plotFolderPath)
     # init model replicator object
     modelReplicator = ModelReplicator(model, modelClass, args)
+    # init statistics instance
+    stats = Statistics(model.layersList, model.nLayers(), args.save)
     # init architect
     architect = Architect(modelReplicator, args)
     # turn on alphas
@@ -259,8 +221,6 @@ def optimize(args, model, modelClass, logger):
     scheduler = CosineAnnealingLR(optimizer, float(nEpochs), eta_min=args.learning_rate_min)
     # init validation best precision value
     best_prec1 = 0.0
-    # init alphas weighted average for each epoch
-    alphasWeightedAvg = []
     # train alphas
     for epoch in range(epoch + 1, epoch + nEpochs + 1):
         trainLogger = initTrainLogger(str(epoch), trainFolderPath, args.propagate)
@@ -270,26 +230,7 @@ def optimize(args, model, modelClass, logger):
 
         trainLogger.info('optimizer_lr:[{:.5f}], scheduler_lr:[{:.5f}]'.format(optimizer.defaults['lr'], lr))
         print('========== Epoch:[{}] =============='.format(epoch))
-        arch_loss, epochAlphasWeightedAvg = trainAlphas(search_queue, model, architect, epoch, trainLogger,
-                                                        plotFolderPath)
-        # add last epoch alphas weighted average to list
-        alphasWeightedAvg.append((epochAlphasWeightedAvg, epoch))
-        # plot
-        fig, ax = plt.subplots(nrows=1, ncols=1)
-        # init plot x axis values
-        xValues = list(range(model.nLayers()))
-        # iterate over epochs alphas
-        for epochAlphas, ep in alphasWeightedAvg:
-            ax.plot(xValues, epochAlphas, 'o', label='[{}]'.format(ep))
-
-        ax.set_xticks(xValues)
-        ax.set_xlabel('Layer #')
-        ax.set_ylabel('Bitwidth weighted average')
-        ax.set_title('Alphas weighted average over epochs')
-        ax.legend()
-        # save to file
-        fig.savefig('{}/alphas_weighted_average_over_epochs.png'.format(plotFolderPath))
-        plt.close()
+        arch_loss = trainAlphas(search_queue, model, architect, stats, epoch, trainLogger)
 
         # log accuracy, loss, etc.
         message = 'Epoch:[{}] , arch loss:[{:.3f}] , optimizer_lr:[{:.5f}], scheduler_lr:[{:.5f}]' \
