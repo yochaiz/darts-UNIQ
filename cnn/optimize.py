@@ -162,51 +162,51 @@ def optimize(args, model, modelClass, logger):
     # init epoch
     epoch = 0
 
-    # for epoch in range(1, nEpochs + 1):
-    #     trainLogger = initTrainLogger(str(epoch), trainFolderPath, args.propagate)
-    #     is_best = False
-    #
-    #     scheduler.step()
-    #     lr = scheduler.get_lr()[0]
-    #
-    #     trainLogger.info('optimizer_lr:[{:.5f}], scheduler_lr:[{:.5f}]'.format(optimizer.defaults['lr'], lr))
-    #
-    #     # training
-    #     print('========== Epoch:[{}] =============='.format(epoch))
-    #     train_acc, train_loss = trainWeights(train_queue, search_queue, args, model, cross_entropy,
-    #                                          optimizer, lr, trainLogger)
-    #
-    #     # log accuracy, loss, etc.
-    #     message = 'Epoch:[{}] , training accuracy:[{:.3f}] , training loss:[{:.3f}] , optimizer_lr:[{:.5f}], scheduler_lr:[{:.5f}]' \
-    #         .format(epoch, train_acc, train_loss, optimizer.defaults['lr'], lr)
-    #     logger.info(message)
-    #     trainLogger.info(message)
-    #
-    #     # log dominant QuantizedOp in each layer
-    #     logDominantQuantizedOp(model, k=3, logger=trainLogger)
-    #
-    #     # switch stage, i.e. freeze one more layer
-    #     if (epoch in epochsSwitchStage) or (epoch == nEpochs):
-    #         # validation
-    #         valid_acc, valid_loss, bopsRatio = infer(valid_queue, model, cross_entropy, trainLogger)
-    #         message = 'Epoch:[{}] , validation accuracy:[{:.3f}] , validation loss:[{:.3f}] , BopsRatio:[{:.3f}]' \
-    #             .format(epoch, valid_acc, valid_loss, bopsRatio)
-    #         logger.info(message)
-    #         trainLogger.info(message)
-    #
-    #         # # update values for opt model decision
-    #         # is_best = valid_acc > best_prec1
-    #         # best_prec1 = max(valid_acc, best_prec1)
-    #
-    #         # switch stage
-    #         model.switch_stage(trainLogger)
-    #         # update optimizer & scheduler due to update in learnable params
-    #         optimizer = SGD(model.parameters(), scheduler.get_lr()[0],
-    #                         momentum=args.momentum, weight_decay=args.weight_decay)
-    #         scheduler = CosineAnnealingLR(optimizer, float(nEpochs), eta_min=args.learning_rate_min)
-    #
-    #     # save model checkpoint
-    #     save_checkpoint(trainFolderPath, model, epoch, best_prec1, is_best=False)
+    for epoch in range(1, nEpochs + 1):
+        trainLogger = initTrainLogger(str(epoch), trainFolderPath, args.propagate)
+        is_best = False
+
+        scheduler.step()
+        lr = scheduler.get_lr()[0]
+
+        trainLogger.info('optimizer_lr:[{:.5f}], scheduler_lr:[{:.5f}]'.format(optimizer.defaults['lr'], lr))
+
+        # training
+        print('========== Epoch:[{}] =============='.format(epoch))
+        train_acc, train_loss = trainWeights(train_queue, search_queue, args, model, cross_entropy,
+                                             optimizer, lr, trainLogger)
+
+        # log accuracy, loss, etc.
+        message = 'Epoch:[{}] , training accuracy:[{:.3f}] , training loss:[{:.3f}] , optimizer_lr:[{:.5f}], scheduler_lr:[{:.5f}]' \
+            .format(epoch, train_acc, train_loss, optimizer.defaults['lr'], lr)
+        logger.info(message)
+        trainLogger.info(message)
+
+        # log dominant QuantizedOp in each layer
+        logDominantQuantizedOp(model, k=3, logger=trainLogger)
+
+        # switch stage, i.e. freeze one more layer
+        if (epoch in epochsSwitchStage) or (epoch == nEpochs):
+            # validation
+            valid_acc, valid_loss, bopsRatio = infer(valid_queue, model, cross_entropy, trainLogger)
+            message = 'Epoch:[{}] , validation accuracy:[{:.3f}] , validation loss:[{:.3f}] , BopsRatio:[{:.3f}]' \
+                .format(epoch, valid_acc, valid_loss, bopsRatio)
+            logger.info(message)
+            trainLogger.info(message)
+
+            # # update values for opt model decision
+            # is_best = valid_acc > best_prec1
+            # best_prec1 = max(valid_acc, best_prec1)
+
+            # switch stage
+            model.switch_stage(trainLogger)
+            # update optimizer & scheduler due to update in learnable params
+            optimizer = SGD(model.parameters(), scheduler.get_lr()[0],
+                            momentum=args.momentum, weight_decay=args.weight_decay)
+            scheduler = CosineAnnealingLR(optimizer, float(nEpochs), eta_min=args.learning_rate_min)
+
+        # save model checkpoint
+        save_checkpoint(trainFolderPath, model, epoch, best_prec1, is_best=False)
 
     # init model replicator object
     modelReplicator = ModelReplicator(model, modelClass, args)
