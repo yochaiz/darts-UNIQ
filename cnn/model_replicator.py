@@ -58,7 +58,7 @@ class ModelReplicator:
                     alphas.grad = layerAlphasGrads
 
             # average total loss
-            totalLoss /= self.nLayers()
+            totalLoss /= model.nLayers()
 
             # subtract average total loss from every alpha gradient
             for layer in model.layersList:
@@ -73,24 +73,18 @@ class ModelReplicator:
     # def lossPerReplication(self, model, cModel, input, target, layersIndices, gpu):
     def lossPerReplication(self, args):
         model, cModel, input, target, layersIndices, gpu = args
-
-        print('www:{}'.format(layersIndices))
-        # # create model replication (copy)
-        # cModel = self.copyModel(model, gpu)
-
         # copy model alphas
         for cLayer, mLayer in zip(cModel.layersList, model.layersList):
             cLayer.alphas.data.copy_(mLayer.alphas.data)
-        # move tensors to gpu
-        # input = input.cuda(gpu)
-        # target = target.cuda(gpu)
+
         # init total loss
         totalLoss = 0.0
         # init how many samples per alpha
         nSamplesPerAlpha = 50
         # init layers alphas grad
         alphasGrad = []
-        for i in layersIndices:
+        for _ in layersIndices:
+            orgLayer = model.layersList[i]
             layer = cModel.layersList[i]
             # turn off coin toss for this layer
             layer.alphas.requires_grad = False
@@ -104,15 +98,24 @@ class ModelReplicator:
                 layer.curr_alpha_idx = i
                 # init alpha loss
                 alphaLoss = 0.0
+                # init loss samples list
+                lossSamples = []
                 for _ in range(nSamplesPerAlpha):
                     logits = cModel.forward(input)
-                    alphaLoss += cModel._criterion(logits, target, cModel.countBops()).detach()
+                    # alphaLoss += cModel._criterion(logits, target, cModel.countBops()).detach()
+                    lossSamples.append(cModel._criterion(logits, target, cModel.countBops()).detach())
 
                 # update alpha average loss
-                alphaLoss /= nSamplesPerAlpha
-                layerAlphasGrad[i] = alphaLoss
+                # alphaLoss /= nSamplesPerAlpha
+                # calc alpha average loss
+                alphaAvgLoss = sum(lossSamples) / nSamplesPerAlpha
+                layerAlphasGrad[i] = alphaAvgLoss
                 # add alpha loss to total loss
-                totalLoss += (alphaLoss * probs[i])
+                totalLoss += (alphaAvgLoss * probs[i])
+
+                # calc loss samples variance
+                lossVariance = [((x - alphaAvgLoss) ** 2) for x in lossSamples]
+                orgLayer.alphasLossVariance.data[i] = sum(lossVariance) / (nSamplesPerAlpha - 1)
 
             # turn in coin toss for this layer
             layer.alphas.requires_grad = True

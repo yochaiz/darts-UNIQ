@@ -182,15 +182,24 @@ class BaseNet(Module):
                 layer.curr_alpha_idx = i
                 # init alpha loss
                 alphaLoss = 0.0
+                # init loss samples list
+                lossSamples = []
                 for _ in range(nSamplesPerAlpha):
                     logits = self.forward(input)
-                    alphaLoss += self._criterion(logits, target, self.countBops()).detach()
+                    # alphaLoss += self._criterion(logits, target, self.countBops()).detach()
+                    lossSamples.append(self._criterion(logits, target, self.countBops()).detach())
 
                 # update alpha average loss
-                alphaLoss /= nSamplesPerAlpha
-                layerAlphasGrad[i] = alphaLoss
+                # alphaLoss /= nSamplesPerAlpha
+                # calc alpha average loss
+                alphaAvgLoss = sum(lossSamples) / nSamplesPerAlpha
+                layerAlphasGrad[i] = alphaAvgLoss
                 # add alpha loss to total loss
-                totalLoss += (alphaLoss * probs[i])
+                totalLoss += (alphaAvgLoss * probs[i])
+
+                # calc loss samples variance
+                lossVariance = [((x - alphaAvgLoss) ** 2) for x in lossSamples]
+                layer.alphasLossVariance.data[i] = sum(lossVariance) / (nSamplesPerAlpha - 1)
 
             # turn in coin toss for this layer
             layer.alphas.requires_grad = True
