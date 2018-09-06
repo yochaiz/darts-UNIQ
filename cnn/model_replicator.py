@@ -95,9 +95,9 @@ class ModelReplicator:
         nSamplesPerAlpha = 50
         # init layers alphas grad
         alphasGrad = []
-        for _ in layersIndices:
-            orgLayer = model.layersList[i]
-            layer = cModel.layersList[i]
+        for layerIdx in layersIndices:
+            orgLayer = model.layersList[layerIdx]
+            layer = cModel.layersList[layerIdx]
             # turn off coin toss for this layer
             layer.alphas.requires_grad = False
             # init layer alphas gradient
