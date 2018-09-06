@@ -136,6 +136,14 @@ class BaseNet(Module):
             layer.alphas.requires_grad = True
             self.learnable_alphas.append(layer.alphas)
 
+            for op in layer.ops:
+                # turn off noise in op
+                op.noise = False
+
+                # set pre & post quantization hooks, from now on we want to quantize these ops
+                op.register_forward_pre_hook(save_quant_state)
+                op.register_forward_hook(restore_quant_state)
+
     # def _loss(self, input, target):
     #     totalLoss = 0.0
     #     nIter = min(self.nPerms, 1000)
