@@ -60,7 +60,7 @@ def trainWeights(train_queue, model, crit, optimizer, lr, grad_clip, nEpoch, log
     message = 'Epoch:[{}] , training accuracy:[{:.3f}] , training loss:[{:.3f}] , optimizer_lr:[{:.5f}], scheduler_lr:[{:.5f}]' \
         .format(nEpoch, top1.avg, loss_container.avg, optimizer.defaults['lr'], lr)
 
-    for logger in loggers:
+    for _, logger in loggers.items():
         logger.info(message)
 
     # log dominant QuantizedOp in each layer
@@ -107,7 +107,7 @@ def trainAlphas(search_queue, model, architect, stats, nEpoch, loggers):
     message = 'Epoch:[{}] , arch loss:[{:.3f}] , lr:[{:.5f}]' \
         .format(nEpoch, loss_container.avg, architect.lr)
 
-    for logger in loggers:
+    for _, logger in loggers.items():
         logger.info(message)
 
 
@@ -151,7 +151,7 @@ def infer(valid_queue, model, crit, nEpoch, loggers):
     message = 'Epoch:[{}] , validation accuracy:[{:.3f}] , validation loss:[{:.3f}] , BopsRatio:[{:.3f}]' \
         .format(nEpoch, top1.avg, objs.avg, bopsRatio)
 
-    for logger in loggers:
+    for _, logger in loggers.items():
         logger.info(message)
 
     return top1.avg
@@ -164,7 +164,7 @@ def inferUniformModel(model, uniform_model, valid_queue, cross_entropy, MaxBopsB
     if trainLogger:
         trainLogger.info('== Validation uniform model ==')
 
-    infer(valid_queue, model, cross_entropy, 'Uniform', dict(train=trainLogger, main=logger))
+    infer(valid_queue, model, cross_entropy, 'Uniform', loggers)
 
 
 def optimize(args, model, uniform_model, modelClass, logger):
@@ -231,7 +231,8 @@ def optimize(args, model, uniform_model, modelClass, logger):
         save_checkpoint(trainFolderPath, model, epoch, best_prec1, is_best=False)
 
     # calc validation accuracy & loss on uniform model
-    inferUniformModel(model, uniform_model, valid_queue, cross_entropy, args.MaxBopsBits, args.bitwidth)
+    inferUniformModel(model, uniform_model, valid_queue, cross_entropy, args.MaxBopsBits, args.bitwidth,
+                      dict(train=trainLogger, main=logger))
     # init model replicator object
     modelReplicator = ModelReplicator(model, modelClass, args)
     # init statistics instance
