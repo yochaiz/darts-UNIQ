@@ -49,6 +49,7 @@ class UniqLoss(Module):
         self.quant_loss = self.calcBopsLoss(self.bopsRatio)
 
         return self.search_loss(input, target) + (self.lmdba * self.quant_loss.cuda(input.device.index))
+        # return self.search_loss(input, target)
         # TODO: sort all the GPU stuff in this class
 
     # given the 4 values, generate the appropriate tanh() function, s.t. t(xDst)=yDst & max{t}=yMax & min{t}=yMin

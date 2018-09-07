@@ -127,7 +127,7 @@ def infer(valid_queue, model, crit, logger):
     return top1.avg, objs.avg, bopsRatio
 
 
-def optimize(args, model, modelClass, logger):
+def optimize(args, model, uniform_model, modelClass, logger):
     trainFolderPath = '{}/{}'.format(args.save, args.trainFolder)
 
     optimizer = SGD(model.parameters(), args.learning_rate, momentum=args.momentum, weight_decay=args.weight_decay)
@@ -216,6 +216,9 @@ def optimize(args, model, modelClass, logger):
     architect = Architect(modelReplicator, args)
     # turn on alphas
     model.turnOnAlphas()
+    #copy weights to uniform model
+    modelStateDict = model.state_dict()
+    uniform_model.loadBitsWeigths(modelStateDict,args.MaxBopsBits,args.bitwidth)
     # init scheduler
     nEpochs = model.nLayers()
     scheduler = CosineAnnealingLR(optimizer, float(nEpochs), eta_min=args.learning_rate_min)
@@ -238,10 +241,20 @@ def optimize(args, model, modelClass, logger):
         logger.info(message)
         trainLogger.info(message)
 
-        # validation
+        # validation model
         valid_acc, valid_loss, bopsRatio = infer(valid_queue, model, cross_entropy, trainLogger)
         message = 'Epoch:[{}] , validation accuracy:[{:.3f}] , validation loss:[{:.3f}] , BopsRatio:[{:.3f}]' \
             .format(epoch, valid_acc, valid_loss, bopsRatio)
+
+        logger.info(message)
+        trainLogger.info(message)
+
+
+        # validation uniform model
+        trainLogger.info('== Validation uniform model ==')
+        valid_uni_acc, valid_uni_loss, _ = infer(valid_queue, uniform_model, cross_entropy, trainLogger)
+        message = 'Epoch:[{}] , uniform validation accuracy:[{:.3f}] , uniform validation loss:[{:.3f}]]' \
+            .format(epoch, valid_uni_acc, valid_uni_loss)
 
         logger.info(message)
         trainLogger.info(message)

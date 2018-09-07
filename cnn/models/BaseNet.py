@@ -13,7 +13,7 @@ from cnn.uniq_loss import UniqLoss
 
 from UNIQ.actquant import ActQuant
 from UNIQ.quantize import quantize, restore_weights, backup_weights
-
+from collections import OrderedDict
 
 def save_quant_state(self, _):
     assert (self.noise is False)
@@ -145,6 +145,20 @@ class BaseNet(Module):
                 # set pre & post quantization hooks, from now on we want to quantize these ops
                 op.register_forward_pre_hook(save_quant_state)
                 op.register_forward_hook(restore_quant_state)
+
+
+    def loadBitsWeigths(self,stateDict,MaxBopsBits,bitwidth):
+        #check idx of MaxBopsBits inside bitwidths
+        maxBopsBitsIdx = bitwidth.index(MaxBopsBits)
+        maxBopsStateDict = OrderedDict()
+        for key in stateDict.keys():
+            #if operation is for max bops bits idx
+            keyOp_num = key.split('ops.')[1][0]
+            if int(keyOp_num) == maxBopsBitsIdx:
+                maxBopsKey = key.replace('ops.'+keyOp_num ,'ops.0')
+                maxBopsStateDict[maxBopsKey] = stateDict[key]
+        self.load_state_dict(maxBopsStateDict)
+
 
     # def _loss(self, input, target):
     #     totalLoss = 0.0

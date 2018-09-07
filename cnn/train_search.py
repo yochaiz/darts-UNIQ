@@ -133,7 +133,7 @@ if __name__ == '__main__':
 
     # build model for uniform distribution of bits
     modelClass = models.__dict__[args.model]
-    uniform_model = modelClass(0, 0, [args.MaxBopsBits], args.kernel, args.bopsCounter)
+    uniform_model = modelClass(0, 1, [args.MaxBopsBits], args.kernel, args.bopsCounter)
     # init maxBops
     args.maxBops = uniform_model.countBops()
 
@@ -158,6 +158,6 @@ if __name__ == '__main__':
     logger.info('Ops per layer:{}'.format([len(layer.ops) for layer in model.layersList]))
     logger.info('nPerms:[{}]'.format(model.nPerms))
 
-    optimize(args, model, modelClass, logger)
+    optimize(args, model, uniform_model, modelClass, logger)
 
     logger.info('Done !')

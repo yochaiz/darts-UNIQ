@@ -35,8 +35,8 @@ class Architect(object):
         # reset optimizer gradients
         optimizer.zero_grad()
         # calc loss
-        # loss = self.modelReplicator.loss(model, input_valid, target_valid)
-        loss = model._loss(input_valid, target_valid)
+        loss = self.modelReplicator.loss(model, input_valid, target_valid)
+        # loss = model._loss(input_valid, target_valid)
         # clip grad norm
         clip_grad_norm_(arch_parameters, 10.0)
         # perform optimizer step
