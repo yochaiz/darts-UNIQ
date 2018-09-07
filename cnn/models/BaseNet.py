@@ -67,15 +67,15 @@ class BaseNet(Module):
 
     def __init__(self, lmbda, maxBops, initLayersParams, bopsFuncKey, saveFolder):
         super(BaseNet, self).__init__()
-        # init criterion
-        self._criterion = UniqLoss(lmdba=lmbda, maxBops=maxBops, folderName=saveFolder)
-        self._criterion = self._criterion.cuda()
         # init layers
         self.initLayers(initLayersParams)
         # build mixture layers list
         self.layersList = [m for m in self.modules() if isinstance(m, MixedOp)]
         # set bops counter function
         self.countBopsFunc = self.countBopsFuncs[bopsFuncKey]
+        # init criterion
+        self._criterion = UniqLoss(lmdba=lmbda, maxBops=maxBops or self.countBops(), folderName=saveFolder)
+        self._criterion = self._criterion.cuda()
         # collect learnable params (weights)
         self.learnable_params = [param for param in self.parameters() if param.requires_grad]
         # init learnable alphas
@@ -157,6 +157,7 @@ class BaseNet(Module):
             if int(keyOp_num) == maxBopsBitsIdx:
                 maxBopsKey = key.replace('ops.' + keyOp_num, 'ops.0')
                 maxBopsStateDict[maxBopsKey] = stateDict[key]
+
         self.load_state_dict(maxBopsStateDict)
 
     # def _loss(self, input, target):

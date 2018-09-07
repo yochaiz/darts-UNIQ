@@ -133,7 +133,7 @@ if __name__ == '__main__':
 
     # build model for uniform distribution of bits
     modelClass = models.__dict__[args.model]
-    uniform_model = modelClass(0, 1, [args.MaxBopsBits], args.kernel, args.bopsCounter)
+    uniform_model = modelClass(0, None, [args.MaxBopsBits], args.kernel, args.bopsCounter)
     # init maxBops
     args.maxBops = uniform_model.countBops()
 
