@@ -164,7 +164,7 @@ def inferUniformModel(model, uniform_model, valid_queue, cross_entropy, MaxBopsB
     if trainLogger:
         trainLogger.info('== Validation uniform model ==')
 
-    infer(valid_queue, model, cross_entropy, 'Uniform', loggers)
+    infer(valid_queue, uniform_model, cross_entropy, trainLogger.name, loggers)
 
 
 def optimize(args, model, uniform_model, modelClass, logger):
@@ -231,6 +231,7 @@ def optimize(args, model, uniform_model, modelClass, logger):
         save_checkpoint(trainFolderPath, model, epoch, best_prec1, is_best=False)
 
     # calc validation accuracy & loss on uniform model
+    trainLogger = initTrainLogger('Uniform', trainFolderPath, args.propagate)
     inferUniformModel(model, uniform_model, valid_queue, cross_entropy, args.MaxBopsBits, args.bitwidth,
                       dict(train=trainLogger, main=logger))
 
