@@ -14,10 +14,12 @@ from cnn.model_replicator import ModelReplicator
 from cnn.statistics import Statistics
 
 
-def trainWeights(train_queue, search_queue, args, model, crit, optimizer, lr, logger):
+def trainWeights(train_queue, model, crit, optimizer, lr, grad_clip, nEpoch, loggers):
     loss_container = AvgrageMeter()
     top1 = AvgrageMeter()
     top5 = AvgrageMeter()
+
+    trainLogger = loggers.get('train')
 
     model.train()
     model.trainMode()
@@ -38,7 +40,7 @@ def trainWeights(train_queue, search_queue, args, model, crit, optimizer, lr, lo
         logits = model(input)
         loss = crit(logits, target)
         loss.backward()
-        clip_grad_norm_(model.parameters(), args.grad_clip)
+        clip_grad_norm_(model.parameters(), grad_clip)
         # print('w grads:{}'.format(model.block1.alphas.grad))
         optimizer.step()
 
@@ -48,16 +50,27 @@ def trainWeights(train_queue, search_queue, args, model, crit, optimizer, lr, lo
         top5.update(prec5.item(), n)
 
         endTime = time()
-        if step % args.report_freq == 0:
-            logger.info(
+
+        if trainLogger:
+            trainLogger.info(
                 'train [{}/{}] weight_loss:[{:.5f}] Accuracy:[{:.3f}] BopsRatio:[{:.3f}] time:[{:.5f}]'
                     .format(step, nBatches, loss_container.avg, top1.avg, bopsRatio, endTime - startTime))
 
-    return top1.avg, loss_container.avg
+    # log accuracy, loss, etc.
+    message = 'Epoch:[{}] , training accuracy:[{:.3f}] , training loss:[{:.3f}] , optimizer_lr:[{:.5f}], scheduler_lr:[{:.5f}]' \
+        .format(nEpoch, top1.avg, loss_container.avg, optimizer.defaults['lr'], lr)
+
+    for logger in loggers:
+        logger.info(message)
+
+    # log dominant QuantizedOp in each layer
+    logDominantQuantizedOp(model, k=3, logger=trainLogger)
 
 
-def trainAlphas(search_queue, model, architect, stats, nEpoch, logger):
+def trainAlphas(search_queue, model, architect, stats, nEpoch, loggers):
     loss_container = AvgrageMeter()
+
+    trainLogger = loggers.get('train')
 
     model.train()
 
@@ -85,21 +98,31 @@ def trainAlphas(search_queue, model, architect, stats, nEpoch, logger):
         bopsRatio = model.evalMode()
 
         endTime = time()
-        logger.info('train [{}/{}] arch_loss:[{:.5f}] BopsRatio:[{:.3f}] time:[{:.5f}]'
-                    .format(step, nBatches, loss_container.avg, bopsRatio, endTime - startTime))
 
-    return loss_container.avg
+        if trainLogger:
+            trainLogger.info('train [{}/{}] arch_loss:[{:.5f}] BopsRatio:[{:.3f}] time:[{:.5f}]'
+                             .format(step, nBatches, loss_container.avg, bopsRatio, endTime - startTime))
+
+    # log accuracy, loss, etc.
+    message = 'Epoch:[{}] , arch loss:[{:.3f}] , lr:[{:.5f}]' \
+        .format(nEpoch, loss_container.avg, architect.lr)
+
+    for logger in loggers:
+        logger.info(message)
 
 
-def infer(valid_queue, model, crit, logger):
+def infer(valid_queue, model, crit, nEpoch, loggers):
     objs = AvgrageMeter()
     top1 = AvgrageMeter()
     top5 = AvgrageMeter()
 
+    trainLogger = loggers.get('train')
+
     model.eval()
     bopsRatio = model.evalMode()
     # print eval layer index selection
-    logger.info('Layers optimal indices:{}'.format([layer.curr_alpha_idx for layer in model.layersList]))
+    if trainLogger:
+        trainLogger.info('Layers optimal indices:{}'.format([layer.curr_alpha_idx for layer in model.layersList]))
 
     nBatches = len(valid_queue)
 
@@ -121,10 +144,27 @@ def infer(valid_queue, model, crit, logger):
 
             endTime = time()
 
-            logger.info('validation [{}/{}] Loss:[{:.5f}] Accuracy:[{:.3f}] BopsRatio:[{:.3f}] time:[{:.5f}]'
-                        .format(step, nBatches, objs.avg, top1.avg, bopsRatio, endTime - startTime))
+            if trainLogger:
+                trainLogger.info('validation [{}/{}] Loss:[{:.5f}] Accuracy:[{:.3f}] BopsRatio:[{:.3f}] time:[{:.5f}]'
+                                 .format(step, nBatches, objs.avg, top1.avg, bopsRatio, endTime - startTime))
 
-    return top1.avg, objs.avg, bopsRatio
+    message = 'Epoch:[{}] , validation accuracy:[{:.3f}] , validation loss:[{:.3f}] , BopsRatio:[{:.3f}]' \
+        .format(nEpoch, top1.avg, objs.avg, bopsRatio)
+
+    for logger in loggers:
+        logger.info(message)
+
+    return top1.avg
+
+
+def inferUniformModel(model, uniform_model, valid_queue, cross_entropy, MaxBopsBits, bitwidth, loggers):
+    uniform_model.loadBitwidthWeigths(model.state_dict(), MaxBopsBits, bitwidth)
+    # calc validation on uniform model
+    trainLogger = loggers.get('train')
+    if trainLogger:
+        trainLogger.info('== Validation uniform model ==')
+
+    infer(valid_queue, model, cross_entropy, 'Uniform', dict(train=trainLogger, main=logger))
 
 
 def optimize(args, model, uniform_model, modelClass, logger):
@@ -164,7 +204,6 @@ def optimize(args, model, uniform_model, modelClass, logger):
 
     for epoch in range(1, nEpochs + 1):
         trainLogger = initTrainLogger(str(epoch), trainFolderPath, args.propagate)
-        is_best = False
 
         scheduler.step()
         lr = scheduler.get_lr()[0]
@@ -173,30 +212,13 @@ def optimize(args, model, uniform_model, modelClass, logger):
 
         # training
         print('========== Epoch:[{}] =============='.format(epoch))
-        train_acc, train_loss = trainWeights(train_queue, search_queue, args, model, cross_entropy,
-                                             optimizer, lr, trainLogger)
-
-        # log accuracy, loss, etc.
-        message = 'Epoch:[{}] , training accuracy:[{:.3f}] , training loss:[{:.3f}] , optimizer_lr:[{:.5f}], scheduler_lr:[{:.5f}]' \
-            .format(epoch, train_acc, train_loss, optimizer.defaults['lr'], lr)
-        logger.info(message)
-        trainLogger.info(message)
-
-        # log dominant QuantizedOp in each layer
-        logDominantQuantizedOp(model, k=3, logger=trainLogger)
+        trainWeights(train_queue, model, cross_entropy, optimizer, lr, args.grad_clip, epoch,
+                     dict(train=trainLogger, main=logger))
 
         # switch stage, i.e. freeze one more layer
         if (epoch in epochsSwitchStage) or (epoch == nEpochs):
             # validation
-            valid_acc, valid_loss, bopsRatio = infer(valid_queue, model, cross_entropy, trainLogger)
-            message = 'Epoch:[{}] , validation accuracy:[{:.3f}] , validation loss:[{:.3f}] , BopsRatio:[{:.3f}]' \
-                .format(epoch, valid_acc, valid_loss, bopsRatio)
-            logger.info(message)
-            trainLogger.info(message)
-
-            # # update values for opt model decision
-            # is_best = valid_acc > best_prec1
-            # best_prec1 = max(valid_acc, best_prec1)
+            infer(valid_queue, model, cross_entropy, epoch, dict(train=trainLogger, main=logger))
 
             # switch stage
             model.switch_stage(trainLogger)
@@ -208,6 +230,8 @@ def optimize(args, model, uniform_model, modelClass, logger):
         # save model checkpoint
         save_checkpoint(trainFolderPath, model, epoch, best_prec1, is_best=False)
 
+    # calc validation accuracy & loss on uniform model
+    inferUniformModel(model, uniform_model, valid_queue, cross_entropy, args.MaxBopsBits, args.bitwidth)
     # init model replicator object
     modelReplicator = ModelReplicator(model, modelClass, args)
     # init statistics instance
@@ -216,49 +240,20 @@ def optimize(args, model, uniform_model, modelClass, logger):
     architect = Architect(modelReplicator, args)
     # turn on alphas
     model.turnOnAlphas()
-    #copy weights to uniform model
-    modelStateDict = model.state_dict()
-    uniform_model.loadBitsWeigths(modelStateDict,args.MaxBopsBits,args.bitwidth)
-    # validation uniform model
-    trainLogger.info('== Validation uniform model ==')
-    valid_uni_acc, valid_uni_loss, _ = infer(valid_queue, uniform_model, cross_entropy, trainLogger)
-    message = 'Uniform validation accuracy:[{:.3f}] , uniform validation loss:[{:.3f}]]' \
-        .format(valid_uni_acc, valid_uni_loss)
 
-    logger.info(message)
-    trainLogger.info(message)
-
-    # init scheduler
+    # init number of epochs
     nEpochs = model.nLayers()
-    scheduler = CosineAnnealingLR(optimizer, float(nEpochs), eta_min=args.learning_rate_min)
     # init validation best precision value
     best_prec1 = 0.0
     # train alphas
     for epoch in range(epoch + 1, epoch + nEpochs + 1):
-        trainLogger = initTrainLogger(str(epoch), trainFolderPath, args.propagate)
-
-        scheduler.step()
-        lr = scheduler.get_lr()[0]
-
-        trainLogger.info('optimizer_lr:[{:.5f}], scheduler_lr:[{:.5f}]'.format(optimizer.defaults['lr'], lr))
         print('========== Epoch:[{}] =============='.format(epoch))
-        arch_loss = trainAlphas(search_queue, model, architect, stats, epoch, trainLogger)
-
-        # log accuracy, loss, etc.
-        message = 'Epoch:[{}] , arch loss:[{:.3f}] , optimizer_lr:[{:.5f}], scheduler_lr:[{:.5f}]' \
-            .format(epoch, arch_loss, optimizer.defaults['lr'], lr)
-        logger.info(message)
-        trainLogger.info(message)
-
-        # validation model
-        valid_acc, valid_loss, bopsRatio = infer(valid_queue, model, cross_entropy, trainLogger)
-        message = 'Epoch:[{}] , validation accuracy:[{:.3f}] , validation loss:[{:.3f}] , BopsRatio:[{:.3f}]' \
-            .format(epoch, valid_acc, valid_loss, bopsRatio)
-
-        logger.info(message)
-        trainLogger.info(message)
-
-
+        # init epoch train logger
+        trainLogger = initTrainLogger(str(epoch), trainFolderPath, args.propagate)
+        # train alphas
+        trainAlphas(search_queue, model, architect, stats, epoch, dict(train=trainLogger, main=logger))
+        # validation on current optimal model
+        valid_acc = infer(valid_queue, model, cross_entropy, epoch, dict(train=trainLogger, main=logger))
 
         # save model checkpoint
         is_best = valid_acc > best_prec1
