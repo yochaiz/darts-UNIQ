@@ -22,6 +22,7 @@ class Statistics:
         # init list of entropy, weighted average per layer
         self.entropyPerLayer = [[] for _ in range(nLayers)]
         self.weightedAveragePerLayer = [[] for _ in range(nLayers)]
+        self.gradientNormPerLayer = [[] for _ in range(nLayers)]
         self.lossVariancePerLayer = [[[] for _ in range(layer.numOfOps())] for layer in layersList]
         self.allLossSamplesVariance = [[]]
         # init list of batch labels for y axis
@@ -30,7 +31,8 @@ class Statistics:
         self.plotAllLayersMap = {
             'alphas_entropy': self.entropyPerLayer,
             'alphas_weighted_average': self.weightedAveragePerLayer,
-            'all_samples_loss_variance': self.allLossSamplesVariance
+            'all_samples_loss_variance': self.allLossSamplesVariance,
+            'alphas_gradient_norm': self.gradientNormPerLayer
         }
         # map each list we plot each layer on different plot to filename
         self.plotLayersSeparateMap = {
@@ -48,6 +50,8 @@ class Statistics:
         self.allLossSamplesVariance[0].append(model.allLossSamplesVariance)
         # add data per layer
         for i, layer in enumerate(model.layersList):
+            # add layer gradient norm
+            self.gradientNormPerLayer[i].append(layer.alphas.grad.norm().item())
             # calc layer alphas probabilities
             probs = F.softmax(layer.alphas, dim=-1).detach()
             # calc entropy
