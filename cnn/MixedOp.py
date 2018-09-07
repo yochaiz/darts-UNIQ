@@ -58,8 +58,12 @@ class Chooser(Function):
 
     @staticmethod
     def forward(ctx, results, alpha):
+        # choose alphas based on alphas distribution
         dist = Categorical(probs=alpha)
         chosen = dist.sample()
+
+        # # choose alphas randomly, i.e. uniform distribution
+        # chosen = tensor(randint(0, len(alpha) - 1))
 
         result = results.select(1, chosen)
         ctx.save_for_backward(LongTensor([results.shape]), result, chosen)
