@@ -89,7 +89,7 @@ def trainAlphas(search_queue, model, architect, stats, nEpoch, loggers):
         # add alphas data to statistics
         stats.addBatchData(model, nEpoch, step)
         # log dominant QuantizedOp in each layer
-        logDominantQuantizedOp(model, k=3, logger=logger)
+        logDominantQuantizedOp(model, k=3, logger=trainLogger)
         # save alphas to csv
         model.save_alphas_to_csv(data=[nEpoch, step])
         # save loss to container
@@ -233,6 +233,7 @@ def optimize(args, model, uniform_model, modelClass, logger):
     # calc validation accuracy & loss on uniform model
     inferUniformModel(model, uniform_model, valid_queue, cross_entropy, args.MaxBopsBits, args.bitwidth,
                       dict(train=trainLogger, main=logger))
+
     # init model replicator object
     modelReplicator = ModelReplicator(model, modelClass, args)
     # init statistics instance
