@@ -180,6 +180,9 @@ def initTrainLogger(logger_file_name, folder_path, propagate=False):
 
 
 def logDominantQuantizedOp(model, k, logger):
+    if not logger:
+        return
+
     top = model.topOps(k=k)
     logger.info('=============================================')
     logger.info('Top [{}] quantizations per layer:'.format(k))
