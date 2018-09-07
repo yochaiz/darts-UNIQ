@@ -219,6 +219,15 @@ def optimize(args, model, uniform_model, modelClass, logger):
     #copy weights to uniform model
     modelStateDict = model.state_dict()
     uniform_model.loadBitsWeigths(modelStateDict,args.MaxBopsBits,args.bitwidth)
+    # validation uniform model
+    trainLogger.info('== Validation uniform model ==')
+    valid_uni_acc, valid_uni_loss, _ = infer(valid_queue, uniform_model, cross_entropy, trainLogger)
+    message = 'Uniform validation accuracy:[{:.3f}] , uniform validation loss:[{:.3f}]]' \
+        .format(valid_uni_acc, valid_uni_loss)
+
+    logger.info(message)
+    trainLogger.info(message)
+
     # init scheduler
     nEpochs = model.nLayers()
     scheduler = CosineAnnealingLR(optimizer, float(nEpochs), eta_min=args.learning_rate_min)
@@ -250,14 +259,6 @@ def optimize(args, model, uniform_model, modelClass, logger):
         trainLogger.info(message)
 
 
-        # validation uniform model
-        trainLogger.info('== Validation uniform model ==')
-        valid_uni_acc, valid_uni_loss, _ = infer(valid_queue, uniform_model, cross_entropy, trainLogger)
-        message = 'Epoch:[{}] , uniform validation accuracy:[{:.3f}] , uniform validation loss:[{:.3f}]]' \
-            .format(epoch, valid_uni_acc, valid_uni_loss)
-
-        logger.info(message)
-        trainLogger.info(message)
 
         # save model checkpoint
         is_best = valid_acc > best_prec1
