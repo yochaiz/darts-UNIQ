@@ -15,7 +15,6 @@ class Architect(object):
 
     def __init__(self, modelReplicator, args):
         self.network_momentum = args.momentum
-        self.network_weight_decay = args.weight_decay
         self.lr = args.arch_learning_rate
         self.weight_decay = args.arch_weight_decay
 
