@@ -204,6 +204,8 @@ def optimize(args, model, uniform_model, modelClass, logger):
 
     for epoch in range(1, nEpochs + 1):
         trainLogger = initTrainLogger(str(epoch), trainFolderPath, args.propagate)
+        # set loggers dictionary
+        loggersDict = dict(train=trainLogger, main=logger)
 
         scheduler.step()
         lr = scheduler.get_lr()[0]
@@ -212,13 +214,12 @@ def optimize(args, model, uniform_model, modelClass, logger):
 
         # training
         print('========== Epoch:[{}] =============='.format(epoch))
-        trainWeights(train_queue, model, cross_entropy, optimizer, lr, args.grad_clip, epoch,
-                     dict(train=trainLogger, main=logger))
+        trainWeights(train_queue, model, cross_entropy, optimizer, lr, args.grad_clip, epoch, loggersDict)
 
         # switch stage, i.e. freeze one more layer
         if (epoch in epochsSwitchStage) or (epoch == nEpochs):
             # validation
-            infer(valid_queue, model, cross_entropy, epoch, dict(train=trainLogger, main=logger))
+            infer(valid_queue, model, cross_entropy, epoch, loggersDict)
 
             # switch stage
             model.switch_stage(trainLogger)
@@ -253,10 +254,12 @@ def optimize(args, model, uniform_model, modelClass, logger):
         print('========== Epoch:[{}] =============='.format(epoch))
         # init epoch train logger
         trainLogger = initTrainLogger(str(epoch), trainFolderPath, args.propagate)
+        # set loggers dictionary
+        loggersDict = dict(train=trainLogger, main=logger)
         # train alphas
-        trainAlphas(search_queue, model, architect, stats, epoch, dict(train=trainLogger, main=logger))
+        trainAlphas(search_queue, model, architect, stats, epoch, loggersDict)
         # validation on current optimal model
-        valid_acc = infer(valid_queue, model, cross_entropy, epoch, dict(train=trainLogger, main=logger))
+        valid_acc = infer(valid_queue, model, cross_entropy, epoch, loggersDict)
 
         # save model checkpoint
         is_best = valid_acc > best_prec1
