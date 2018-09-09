@@ -37,9 +37,10 @@ class ResNet(BaseNet):
                                      bopsFuncKey=bopsFuncKey, saveFolder=saveFolder)
 
         # set noise=True for 1st layer
-        for op in self.layersList[0].ops:
-            if op.quant:
-                op.noise = True
+        if len(self.layersList) > 0:
+            for op in self.layersList[0].ops:
+                if op.quant:
+                    op.noise = True
 
         # turn on grads in 1st layer alphas
         # self.layersList[0].alphas.requires_grad = True
