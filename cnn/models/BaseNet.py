@@ -148,15 +148,20 @@ class BaseNet(Module):
                 op.register_forward_hook(restore_quant_state)
 
     def loadBitwidthWeigths(self, stateDict, MaxBopsBits, bitwidth):
+        # TODO: get model and assure the selected index bitwidth
         # check idx of MaxBopsBits inside bitwidths
         maxBopsBitsIdx = bitwidth.index(MaxBopsBits)
         maxBopsStateDict = OrderedDict()
+        opsKey = 'ops.'
         for key in stateDict.keys():
             # if operation is for max bops bits idx
-            keyOp_num = key.split('ops.')[1][0]
-            if int(keyOp_num) == maxBopsBitsIdx:
-                maxBopsKey = key.replace('ops.' + keyOp_num, 'ops.0')
-                maxBopsStateDict[maxBopsKey] = stateDict[key]
+            if opsKey in key:
+                keyOp_num = key.split(opsKey)[1][0]
+                if int(keyOp_num) == maxBopsBitsIdx:
+                    maxBopsKey = key.replace(opsKey + keyOp_num, opsKey + '0')
+                    maxBopsStateDict[maxBopsKey] = stateDict[key]
+            else:
+                maxBopsStateDict[key] = stateDict[key]
 
         self.load_state_dict(maxBopsStateDict)
 
