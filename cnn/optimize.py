@@ -225,7 +225,7 @@ def optimize(args, model, uniform_model, modelClass, logger):
             # update optimizer & scheduler due to update in learnable params
             optimizer = SGD(model.parameters(), scheduler.get_lr()[0],
                             momentum=args.momentum, weight_decay=args.weight_decay)
-            scheduler = CosineAnnealingLR(optimizer, float(nEpochs), eta_min=args.learning_rate_min, last_epoch=epoch)
+            scheduler = CosineAnnealingLR(optimizer, float(nEpochs), eta_min=args.learning_rate_min)
 
         # save model checkpoint
         save_checkpoint(trainFolderPath, model, epoch, best_prec1, is_best=False)
