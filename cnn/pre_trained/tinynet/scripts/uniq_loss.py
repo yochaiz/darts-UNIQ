@@ -1,6 +1,6 @@
 from torch.nn import CrossEntropyLoss, Module, Tanh
 from torch import tensor, float32
-from cnn.resnet_model_search import ResNet
+from cnn.models.ResNet import ResNet
 from numpy import arctanh, linspace
 
 import matplotlib

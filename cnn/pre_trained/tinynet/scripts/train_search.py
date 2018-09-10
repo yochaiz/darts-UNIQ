@@ -12,7 +12,7 @@ from torch import manual_seed as torch_manual_seed
 
 from cnn.utils import create_exp_dir, count_parameters_in_MB, load_pre_trained
 from cnn.utils import initLogger, printModelToFile
-from cnn.resnet_model_search import ResNet, TinyNet
+from cnn.models.ResNet import ResNet, TinyNet
 from cnn.optimize import optimize
 from cnn.uniq_loss import UniqLoss
 
