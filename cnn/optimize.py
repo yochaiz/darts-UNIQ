@@ -14,7 +14,7 @@ from cnn.model_replicator import ModelReplicator
 from cnn.statistics import Statistics
 
 
-def trainWeights(train_queue, model, crit, optimizer, lr, grad_clip, nEpoch, loggers):
+def trainWeights(train_queue, model, modelChoosePathFunc, crit, optimizer, grad_clip, nEpoch, loggers):
     loss_container = AvgrageMeter()
     top1 = AvgrageMeter()
     top5 = AvgrageMeter()
@@ -33,15 +33,17 @@ def trainWeights(train_queue, model, crit, optimizer, lr, grad_clip, nEpoch, log
         input = Variable(input, requires_grad=False).cuda()
         target = Variable(target, requires_grad=False).cuda(async=True)
 
-        # choose optimal alpha per layer
-        bopsRatio = model.chooseRandomPath()
+        # choose alpha per layer
+        bopsRatio = modelChoosePathFunc()
         # optimize model weights
         optimizer.zero_grad()
         logits = model(input)
+        # calc loss
         loss = crit(logits, target)
+        # back propagate
         loss.backward()
         clip_grad_norm_(model.parameters(), grad_clip)
-        # print('w grads:{}'.format(model.block1.alphas.grad))
+        # update weights
         optimizer.step()
 
         prec1, prec5 = accuracy(logits, target, topk=(1, 5))
@@ -57,8 +59,8 @@ def trainWeights(train_queue, model, crit, optimizer, lr, grad_clip, nEpoch, log
                     .format(step, nBatches, loss_container.avg, top1.avg, bopsRatio, endTime - startTime))
 
     # log accuracy, loss, etc.
-    message = 'Epoch:[{}] , training accuracy:[{:.3f}] , training loss:[{:.3f}] , optimizer_lr:[{:.5f}], scheduler_lr:[{:.5f}]' \
-        .format(nEpoch, top1.avg, loss_container.avg, optimizer.defaults['lr'], lr)
+    message = 'Epoch:[{}] , training accuracy:[{:.3f}] , training loss:[{:.3f}] , optimizer_lr:[{:.5f}]' \
+        .format(nEpoch, top1.avg, loss_container.avg, optimizer.param_groups[0]['lr'])
 
     for _, logger in loggers.items():
         logger.info(message)
@@ -210,11 +212,12 @@ def optimize(args, model, uniform_model, modelClass, logger):
         scheduler.step()
         lr = scheduler.get_lr()[0]
 
-        trainLogger.info('optimizer_lr:[{:.5f}], scheduler_lr:[{:.5f}]'.format(optimizer.defaults['lr'], lr))
+        trainLogger.info('optimizer_lr:[{:.5f}], scheduler_lr:[{:.5f}]'.format(optimizer.param_groups[0]['lr'], lr))
 
         # training
         print('========== Epoch:[{}] =============='.format(epoch))
-        trainWeights(train_queue, model, cross_entropy, optimizer, lr, args.grad_clip, epoch, loggersDict)
+        trainWeights(train_queue, model, model.chooseRandomPath, cross_entropy, optimizer, args.grad_clip, epoch,
+                     loggersDict)
 
         # switch stage, i.e. freeze one more layer
         if (epoch in epochsSwitchStage) or (epoch == nEpochs):
@@ -227,6 +230,7 @@ def optimize(args, model, uniform_model, modelClass, logger):
             optimizer = SGD(model.parameters(), scheduler.get_lr()[0],
                             momentum=args.momentum, weight_decay=args.weight_decay)
             scheduler = CosineAnnealingLR(optimizer, float(nEpochs), eta_min=args.learning_rate_min)
+            scheduler.step()
 
         # save model checkpoint
         save_checkpoint(trainFolderPath, model, epoch, best_prec1, is_best=False)
@@ -242,8 +246,6 @@ def optimize(args, model, uniform_model, modelClass, logger):
     stats = Statistics(model.layersList, model.nLayers(), args.save)
     # init architect
     architect = Architect(modelReplicator, args)
-    # turn on alphas
-    model.turnOnAlphas()
 
     # init number of epochs
     nEpochs = model.nLayers()
@@ -251,6 +253,8 @@ def optimize(args, model, uniform_model, modelClass, logger):
     best_prec1 = 0.0
     # train alphas
     for epoch in range(epoch + 1, epoch + nEpochs + 1):
+        # turn on alphas
+        model.turnOnAlphas()
         print('========== Epoch:[{}] =============='.format(epoch))
         # init epoch train logger
         trainLogger = initTrainLogger(str(epoch), trainFolderPath, args.propagate)
@@ -265,6 +269,33 @@ def optimize(args, model, uniform_model, modelClass, logger):
         is_best = valid_acc > best_prec1
         best_prec1 = max(valid_acc, best_prec1)
         save_checkpoint(trainFolderPath, model, epoch, best_prec1, is_best)
+
+        ## train weights ##
+        trainLogger.info('===== train weights =====')
+        # turn off alphas
+        model.turnOffAlphas()
+        # turn on weights gradients
+        model.turnOnWeights()
+        # init optimizer
+        optimizer = SGD(model.parameters(), args.learning_rate,
+                        momentum=args.momentum, weight_decay=args.weight_decay)
+        # train weights with 1 epoch per stage
+        wEpoch = 1
+        switchStageFlag = True
+        while switchStageFlag:
+            trainWeights(train_queue, model, model.choosePathByAlphas, cross_entropy, optimizer,
+                         args.grad_clip, wEpoch, dict(train=trainLogger))
+            # switch stage
+            switchStageFlag = model.switch_stage(trainLogger)
+            wEpoch += 1
+
+        # set weights training epoch string
+        wEpoch = '{}_w'.format(epoch)
+        # last weights training epoch we want to log also to main logger
+        trainWeights(train_queue, model, model.choosePathByAlphas, cross_entropy, optimizer,
+                     args.grad_clip, wEpoch, loggersDict)
+        # validation
+        infer(valid_queue, model, cross_entropy, wEpoch, loggersDict)
 
 # def train(train_queue, search_queue, args, model, architect, crit, optimizer, lr, logger):
 #     weights_loss_container = AvgrageMeter()
