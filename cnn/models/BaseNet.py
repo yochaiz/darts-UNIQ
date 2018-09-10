@@ -126,11 +126,22 @@ class BaseNet(Module):
     def loadUNIQPre_trained(self, path, logger, gpu):
         raise NotImplementedError('subclasses must override loadUNIQPre_trained()!')
 
+    @abstractmethod
+    def turnOnWeights(self):
+        raise NotImplementedError('subclasses must override turnOnWeights()!')
+
     def nLayers(self):
         return len(self.layersList)
 
     def arch_parameters(self):
         return self.learnable_alphas
+
+    def turnOffAlphas(self):
+        for layer in self.layersList:
+            # turn off alphas gradients
+            layer.alphas.requires_grad = False
+
+        self.learnable_alphas = []
 
     def turnOnAlphas(self):
         self.learnable_alphas = []
@@ -143,9 +154,10 @@ class BaseNet(Module):
                 # turn off noise in op
                 op.noise = False
 
-                # set pre & post quantization hooks, from now on we want to quantize these ops
-                op.register_forward_pre_hook(save_quant_state)
-                op.register_forward_hook(restore_quant_state)
+                ## ==== for tinyNet ====
+                # # set pre & post quantization hooks, from now on we want to quantize these ops
+                # op.register_forward_pre_hook(save_quant_state)
+                # op.register_forward_hook(restore_quant_state)
 
     def loadBitwidthWeigths(self, stateDict, MaxBopsBits, bitwidth):
         # TODO: get model and assure the selected index bitwidth
@@ -279,14 +291,23 @@ class BaseNet(Module):
     #     # logits = self.forward(input)
     #     # return self._criterion(logits, target, self.countBops())
 
+    def calcBopsRatio(self):
+        return self._criterion.calcBopsRatio(self.countBops())
+
     # select random alpha
     def chooseRandomPath(self):
         for l in self.layersList:
             l.chooseRandomPath()
 
         # calc bops ratio
-        bopsRatio = self._criterion.calcBopsRatio(self.countBops())
-        return bopsRatio
+        return self.calcBopsRatio()
+
+    def choosePathByAlphas(self):
+        for l in self.layersList:
+            l.choosePathByAlphas()
+
+        # calc bops ratio
+        return self.calcBopsRatio()
 
     def trainMode(self):
         for l in self.layersList:
@@ -295,9 +316,9 @@ class BaseNet(Module):
     def evalMode(self):
         for l in self.layersList:
             l.evalMode()
+
         # calc bops ratio
-        bopsRatio = self._criterion.calcBopsRatio(self.countBops())
-        return bopsRatio
+        return self.calcBopsRatio()
 
     # return top k operations per layer
     def topOps(self, k):
