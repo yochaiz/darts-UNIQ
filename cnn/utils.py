@@ -5,14 +5,19 @@ from shutil import copyfile
 import logging
 from inspect import getfile, currentframe
 from os import path, listdir
-import torchvision.transforms as transforms
+
 from torch.autograd import Variable
 from torch import save as saveModel
+from torch import load as loadModel
 from torch.utils.data.dataloader import DataLoader
 from torch.utils.data.sampler import SubsetRandomSampler
-from torchvision.datasets.cifar import CIFAR10
+
 from UNIQ.preprocess import get_transform
 from UNIQ.data import get_dataset
+
+
+# import torchvision.transforms as transforms
+# import torchvision.transforms as transforms
 
 
 class AvgrageMeter(object):
@@ -138,8 +143,23 @@ def save_checkpoint(path, model, epoch, best_prec1, is_best=False):
 def load_pre_trained(path, model, logger, gpu):
     if path is not None:
         if os.path.exists(path):
-            # model.loadPreTrainedModel(path, logger, gpu)
-            model.loadUNIQPre_trained(path, logger, gpu)
+            # load checkpoint
+            checkpoint = loadModel(path, map_location=lambda storage, loc: storage.cuda(gpu))
+            chckpntStateDict = checkpoint['state_dict']
+            # load model state dict keys
+            modelStateDictKeys = set(model.state_dict().keys())
+            # compare dictionaries
+            dictDiff = modelStateDictKeys.symmetric_difference(set(chckpntStateDict.keys()))
+            # decide how to load checkpoint state dict
+            if len(dictDiff) == 0:
+                # load directly, keys are the same
+                model.load_state_dict(chckpntStateDict)
+            else:
+                # use some function to map keys
+                model.loadUNIQPre_trained(chckpntStateDict)
+
+            logger.info('Loaded model from [{}]'.format(path))
+            logger.info('checkpoint validation accuracy:[{:.5f}]'.format(checkpoint['best_prec1']))
         else:
             logger.info('Failed to load pre-trained from [{}], path does not exists'.format(path))
 
