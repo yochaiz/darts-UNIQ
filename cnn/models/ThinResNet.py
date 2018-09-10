@@ -65,7 +65,7 @@ class ThinResNet(ResNet):
         self.avgpool = AvgPool2d(8)
         self.fc = Linear(64, 10).cuda()
 
-    def loadUNIQPre_trained(self, path, logger, gpu):
+    def loadUNIQPre_trained(self, chckpntDict):
         def iterateKey(chckpntDict, map, key1, key2, dstKey):
             keyIdx = 0
             key = '{}.{}.{}'.format(key1, key2, keyIdx)
@@ -84,8 +84,6 @@ class ThinResNet(ResNet):
             'block1.1': 'block1.ops.0.op.0.1'
         }
 
-        checkpoint = loadModel(path, map_location=lambda storage, loc: storage.cuda(gpu))
-        chckpntDict = checkpoint['state_dict']
         newStateDict = OrderedDict()
 
         blockNum = 2
@@ -108,8 +106,6 @@ class ThinResNet(ResNet):
 
             key1 = 'block{}'.format(blockNum)
             b, blockNum = getNextblock(self, key1, blockNum)
-
-        # d = self.state_dict()
 
         token = '.ops.'
         for key in chckpntDict.keys():
@@ -135,9 +131,6 @@ class ThinResNet(ResNet):
 
         # load model weights
         self.load_state_dict(newStateDict)
-
-        logger.info('Loaded model from [{}]'.format(path))
-        logger.info('checkpoint validation accuracy:[{:.5f}]'.format(checkpoint['best_prec1']))
 
 # # ====================================================
 # # for training pre_trained, i.e. full precision

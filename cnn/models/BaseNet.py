@@ -123,7 +123,7 @@ class BaseNet(Module):
         raise NotImplementedError('subclasses must override switch_stage()!')
 
     @abstractmethod
-    def loadUNIQPre_trained(self, path, logger, gpu):
+    def loadUNIQPre_trained(self, chckpntDict):
         raise NotImplementedError('subclasses must override loadUNIQPre_trained()!')
 
     @abstractmethod
