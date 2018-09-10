@@ -141,6 +141,8 @@ def save_checkpoint(path, model, epoch, best_prec1, is_best=False):
 
 
 def load_pre_trained(path, model, logger, gpu):
+    # init bool flag whether we loaded ops in the same layer with equal or different weights
+    loadOpsWithDifferentWeights = False
     if path is not None:
         if os.path.exists(path):
             # load checkpoint
@@ -150,8 +152,10 @@ def load_pre_trained(path, model, logger, gpu):
             modelStateDictKeys = set(model.state_dict().keys())
             # compare dictionaries
             dictDiff = modelStateDictKeys.symmetric_difference(set(chckpntStateDict.keys()))
+            # update flag value
+            loadOpsWithDifferentWeights = len(dictDiff) == 0
             # decide how to load checkpoint state dict
-            if len(dictDiff) == 0:
+            if loadOpsWithDifferentWeights:
                 # load directly, keys are the same
                 model.load_state_dict(chckpntStateDict)
             else:
@@ -162,6 +166,8 @@ def load_pre_trained(path, model, logger, gpu):
             logger.info('checkpoint validation accuracy:[{:.5f}]'.format(checkpoint['best_prec1']))
         else:
             logger.info('Failed to load pre-trained from [{}], path does not exists'.format(path))
+
+    return loadOpsWithDifferentWeights
 
 
 def setup_logging(log_file, logger_name, propagate=False):
