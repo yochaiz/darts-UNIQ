@@ -39,8 +39,7 @@ class ResNet(BaseNet):
         # set noise=True for 1st layer
         if len(self.layersList) > 0:
             for op in self.layersList[0].ops:
-                if op.quant:
-                    op.noise = True
+                op.noise = op.quant
 
         # turn on grads in 1st layer alphas
         # self.layersList[0].alphas.requires_grad = True
@@ -101,8 +100,38 @@ class ResNet(BaseNet):
     def getLearnableParams(self):
         return self.learnable_params
 
+    def turnOnWeights(self):
+        for layer in self.layersList:
+            for op in layer.ops:
+                # turn off operations noise
+                op.noise = False
+                # remove hooks
+                for handler in op.hookHandlers:
+                    handler.remove()
+                # clear hooks handlers list
+                op.hookHandlers.clear()
+                # turn on operations gradients
+                for m in op.modules():
+                    if isinstance(m, Conv2d):
+                        for param in m.parameters():
+                            param.requires_grad = True
+                    elif isinstance(m, ActQuant):
+                        m.quatize_during_training = False
+                        m.noise_during_training = True
+
+        # set noise=True for 1st layer
+        if len(self.layersList) > 0:
+            for op in self.layersList[0].ops:
+                op.noise = op.quant
+        # update learnable parameters
+        self.learnable_params = [param for param in self.parameters() if param.requires_grad]
+        # reset nLayersQuantCompleted
+        self.nLayersQuantCompleted = 0
+
     def switch_stage(self, logger=None):
-        if self.nLayersQuantCompleted < len(self.layersList):
+        # check whether we have to perform a switching stage, or there are no more stages left
+        conditionFlag = self.nLayersQuantCompleted < len(self.layersList)
+        if conditionFlag:
             layer = self.layersList[self.nLayersQuantCompleted]
             assert (layer.alphas.requires_grad is False)
 
@@ -112,8 +141,8 @@ class ResNet(BaseNet):
                 op.noise = False
 
                 # set pre & post quantization hooks, from now on we want to quantize these ops
-                op.register_forward_pre_hook(save_quant_state)
-                op.register_forward_hook(restore_quant_state)
+                op.hookHandlers.append(op.register_forward_pre_hook(save_quant_state))
+                op.hookHandlers.append(op.register_forward_hook(restore_quant_state))
 
                 # turn off gradients
                 for m in op.modules():
@@ -136,16 +165,12 @@ class ResNet(BaseNet):
                 for op in layer.ops:
                     op.noise = True
 
-                # # turn on layer alphas gradients
-                # layer.alphas.requires_grad = True
-                # # update learnable alphas
-                # self.update_learnable_alphas()
-                # self.update_learnable_alphas()
-
             if logger:
                 logger.info(
-                    'Switching stage, nLayersQuantCompleted:[{}], learnable_params:[{}], learnable_alphas size:[{}]'
+                    'Switching stage, nLayersQuantCompleted:[{}], learnable_params:[{}], learnable_alphas:[{}]'
                         .format(self.nLayersQuantCompleted, len(self.learnable_params), len(self.learnable_alphas)))
+
+        return conditionFlag
 
     # load original pre_trained model of UNIQ
     def loadUNIQPre_trained(self, path, logger, gpu):
