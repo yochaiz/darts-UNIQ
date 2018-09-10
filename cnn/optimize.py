@@ -55,7 +55,7 @@ def trainWeights(train_queue, model, modelChoosePathFunc, crit, optimizer, grad_
 
         if trainLogger:
             trainLogger.info(
-                'train [{}/{}] weight_loss:[{:.5f}] Accuracy:[{:.3f}] BopsRatio:[{:.3f}] time:[{:.5f}]'
+                'train [{}/{}] weight_loss:[{:.5f}] Accuracy:[{:.3f}] PathBopsRatio:[{:.3f}] time:[{:.5f}]'
                     .format(step, nBatches, loss_container.avg, top1.avg, bopsRatio, endTime - startTime))
 
     # log accuracy, loss, etc.
@@ -102,12 +102,12 @@ def trainAlphas(search_queue, model, architect, stats, nEpoch, loggers):
         endTime = time()
 
         if trainLogger:
-            trainLogger.info('train [{}/{}] arch_loss:[{:.5f}] BopsRatio:[{:.3f}] time:[{:.5f}]'
+            trainLogger.info('train [{}/{}] arch_loss:[{:.5f}] OptBopsRatio:[{:.3f}] time:[{:.5f}]'
                              .format(step, nBatches, loss_container.avg, bopsRatio, endTime - startTime))
 
     # log accuracy, loss, etc.
-    message = 'Epoch:[{}] , arch loss:[{:.3f}] , lr:[{:.5f}]' \
-        .format(nEpoch, loss_container.avg, architect.lr)
+    message = 'Epoch:[{}] , arch loss:[{:.3f}] , OptBopsRatio:[{:.3f}] , lr:[{:.5f}]' \
+        .format(nEpoch, loss_container.avg, bopsRatio, architect.lr)
 
     for _, logger in loggers.items():
         logger.info(message)
@@ -147,10 +147,11 @@ def infer(valid_queue, model, crit, nEpoch, loggers):
             endTime = time()
 
             if trainLogger:
-                trainLogger.info('validation [{}/{}] Loss:[{:.5f}] Accuracy:[{:.3f}] BopsRatio:[{:.3f}] time:[{:.5f}]'
-                                 .format(step, nBatches, objs.avg, top1.avg, bopsRatio, endTime - startTime))
+                trainLogger.info(
+                    'validation [{}/{}] Loss:[{:.5f}] Accuracy:[{:.3f}] OptBopsRatio:[{:.3f}] time:[{:.5f}]'
+                    .format(step, nBatches, objs.avg, top1.avg, bopsRatio, endTime - startTime))
 
-    message = 'Epoch:[{}] , validation accuracy:[{:.3f}] , validation loss:[{:.3f}] , BopsRatio:[{:.3f}]' \
+    message = 'Epoch:[{}] , validation accuracy:[{:.3f}] , validation loss:[{:.3f}] , OptBopsRatio:[{:.3f}]' \
         .format(nEpoch, top1.avg, objs.avg, bopsRatio)
 
     for _, logger in loggers.items():
