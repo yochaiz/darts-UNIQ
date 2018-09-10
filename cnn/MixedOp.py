@@ -23,6 +23,7 @@ class QuantizedOp(UNIQNet):
 
         self.useResidual = useResidual
         self.forward = self.residualForward if useResidual else self.standardForward
+        self.hookHandlers = []
 
         self.op = op.cuda()
         self.prepare_uniq()
@@ -125,6 +126,11 @@ class MixedOp(Module):
     # select random alpha
     def chooseRandomPath(self):
         self.curr_alpha_idx = randint(0, len(self.alphas) - 1)
+
+    # select alpha based on alphas distribution
+    def choosePathByAlphas(self):
+        dist = Categorical(probs=self.alphas)
+        self.curr_alpha_idx = dist.sample().item()
 
     def trainMode(self):
         self.forward = self.trainForward
