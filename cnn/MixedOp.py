@@ -137,9 +137,8 @@ class MixedOp(Module):
 
     def evalMode(self):
         # update current alpha to max alpha value
-        if self.alphas.requires_grad:
-            dist = F.softmax(self.alphas, dim=-1)
-            self.curr_alpha_idx = dist.argmax().item()
+        dist = F.softmax(self.alphas, dim=-1)
+        self.curr_alpha_idx = dist.argmax().item()
         # update forward function
         self.forward = self.evalForward
 
