@@ -147,7 +147,7 @@ if __name__ == '__main__':
     # model = DataParallel(model, args.gpu)
     model = model.cuda()
     # load pre-trained full-precision model
-    load_pre_trained(args.pre_trained, model, logger, args.gpu[0])
+    args.loadedOpsWithDiffWeights = load_pre_trained(args.pre_trained, model, logger, args.gpu[0])
 
     # print some attributes
     printModelToFile(model, args.save)
