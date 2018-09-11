@@ -11,6 +11,12 @@ import matplotlib.pyplot as plt
 
 
 class Statistics:
+    entropyKey = 'alphas_entropy'
+    weightedAvgKey = 'alphas_weighted_average'
+    alphaLossVarianceKey = 'alphas_loss_variance'
+    allSamplesLossVarianceKey = 'all_samples_loss_variance'
+    gradNormKey = 'alphas_gradient_norm'
+
     def __init__(self, layersList, nLayers, saveFolder):
         self.nLayers = nLayers
         # create plot folder
@@ -19,25 +25,20 @@ class Statistics:
             makedirs(plotFolderPath)
 
         self.saveFolder = plotFolderPath
-        # init list of entropy, weighted average per layer
-        self.entropyPerLayer = [[] for _ in range(nLayers)]
-        self.weightedAveragePerLayer = [[] for _ in range(nLayers)]
-        self.gradientNormPerLayer = [[] for _ in range(nLayers)]
-        self.lossVariancePerLayer = [[[] for _ in range(layer.numOfOps())] for layer in layersList]
-        self.allLossSamplesVariance = [[]]
+        # init containers
+        self.containers = {
+            self.entropyKey: [[] for _ in range(nLayers)],
+            self.weightedAvgKey: [[] for _ in range(nLayers)],
+            self.alphaLossVarianceKey: [[[] for _ in range(layer.numOfOps())] for layer in layersList],
+            self.allSamplesLossVarianceKey: [[]],
+            self.gradNormKey: [[] for _ in range(nLayers)]
+        }
         # init list of batch labels for y axis
         self.batchLabels = []
         # map each list we plot for all layers on single plot to filename
-        self.plotAllLayersMap = {
-            'alphas_entropy': self.entropyPerLayer,
-            'alphas_weighted_average': self.weightedAveragePerLayer,
-            'all_samples_loss_variance': self.allLossSamplesVariance,
-            'alphas_gradient_norm': self.gradientNormPerLayer
-        }
-        # map each list we plot each layer on different plot to filename
-        self.plotLayersSeparateMap = {
-            'alphas_loss_variance': self.lossVariancePerLayer
-        }
+        self.plotAllLayersKeys = [self.entropyKey, self.weightedAvgKey, self.allSamplesLossVarianceKey,
+                                  self.gradNormKey]
+        self.plotLayersSeparateKeys = [self.alphaLossVarianceKey]
         # collect op bitwidth per layer in model
         self.layersBitwidths = [tensor([op.bitwidth[0] for op in layer.ops], dtype=float32).cuda()
                                 for layer in layersList]
@@ -46,26 +47,19 @@ class Statistics:
         assert (self.nLayers == model.nLayers())
         # add batch label
         self.batchLabels.append('[{}]_[{}]'.format(nEpoch, nBatch))
-        # add all samples loss variance
-        self.allLossSamplesVariance[0].append(model.allLossSamplesVariance)
         # add data per layer
         for i, layer in enumerate(model.layersList):
-            # add layer gradient norm
-            self.gradientNormPerLayer[i].append(layer.alphas.grad.norm().item())
             # calc layer alphas probabilities
             probs = F.softmax(layer.alphas, dim=-1).detach()
             # calc entropy
-            self.entropyPerLayer[i].append(entropy(probs))
+            self.containers[self.entropyKey][i].append(entropy(probs))
             # collect weight bitwidth of each op in layer
             weightBitwidth = self.layersBitwidths[i]
             # calc weighted average of weights bitwidth
             res = probs * weightBitwidth
             res = res.sum().item()
             # add layer weighted average
-            self.weightedAveragePerLayer[i].append(res)
-            # add layer alphas loss variance
-            for j, alphaVariance in enumerate(layer.alphasLossVariance):
-                self.lossVariancePerLayer[i][j].append(alphaVariance.item())
+            self.containers[self.weightedAvgKey][i].append(res)
 
         # plot data
         self.plotData()
@@ -88,7 +82,8 @@ class Statistics:
         # set x axis values
         xValues = list(range(len(self.batchLabels)))
         # generate different plots
-        for fileName, data in self.plotAllLayersMap.items():
+        for fileName in self.plotAllLayersKeys:
+            data = self.containers[fileName]
             # create plot
             fig, ax = plt.subplots(nrows=1, ncols=1)
             # add each layer alphas data to plot
@@ -98,7 +93,8 @@ class Statistics:
             self.__setPlotProperties(fig, ax, xLabel='Batch #', yLabel=fileName,
                                      title='{} over epochs'.format(fileName), fileName=fileName)
 
-        for fileName, data in self.plotLayersSeparateMap.items():
+        for fileName in self.plotLayersSeparateKeys:
+            data = self.containers[fileName]
             # add each layer alphas data to plot
             for i, layerVariance in enumerate(data):
                 # create plot
