@@ -17,7 +17,7 @@ class ModelReplicator:
         # create replications
         for gpu in gpus:
             # create model new instance
-            cModel = modelClass(args.lmbda, args.maxBops, args.bitwidth, args.kernel, args.bopsCounter)
+            cModel = modelClass(args)
             # set model to cuda on specific GPU
             cModel = cModel.cuda(gpu)
             # set model criterion to its GPU
