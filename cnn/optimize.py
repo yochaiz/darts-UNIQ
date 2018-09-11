@@ -11,7 +11,6 @@ from cnn.utils import accuracy, AvgrageMeter, load_data
 from cnn.utils import initTrainLogger, logDominantQuantizedOp, save_checkpoint
 from cnn.architect import Architect
 from cnn.model_replicator import ModelReplicator
-from cnn.statistics import Statistics
 
 
 def trainWeights(train_queue, model, modelChoosePathFunc, crit, optimizer, grad_clip, nEpoch, loggers):
@@ -69,7 +68,7 @@ def trainWeights(train_queue, model, modelChoosePathFunc, crit, optimizer, grad_
     logDominantQuantizedOp(model, k=3, logger=trainLogger)
 
 
-def trainAlphas(search_queue, model, architect, stats, nEpoch, loggers):
+def trainAlphas(search_queue, model, architect, nEpoch, loggers):
     loss_container = AvgrageMeter()
 
     trainLogger = loggers.get('train')
@@ -89,7 +88,7 @@ def trainAlphas(search_queue, model, architect, stats, nEpoch, loggers):
         loss = architect.step(model, input, target)
 
         # add alphas data to statistics
-        stats.addBatchData(model, nEpoch, step)
+        model.stats.addBatchData(model, nEpoch, step)
         # log dominant QuantizedOp in each layer
         logDominantQuantizedOp(model, k=3, logger=trainLogger)
         # save alphas to csv
@@ -247,8 +246,6 @@ def optimize(args, model, modelClass, logger):
 
     # init model replicator object
     modelReplicator = ModelReplicator(model, modelClass, args)
-    # init statistics instance
-    stats = Statistics(model.layersList, model.nLayers(), args.save)
     # init architect
     architect = Architect(modelReplicator, args)
 
@@ -266,7 +263,7 @@ def optimize(args, model, modelClass, logger):
         # set loggers dictionary
         loggersDict = dict(train=trainLogger, main=logger)
         # train alphas
-        trainAlphas(search_queue, model, architect, stats, epoch, loggersDict)
+        trainAlphas(search_queue, model, architect, epoch, loggersDict)
         # validation on current optimal model
         valid_acc = infer(valid_queue, model, model.evalMode, cross_entropy, epoch, loggersDict)
 
