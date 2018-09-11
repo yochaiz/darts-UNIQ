@@ -4,7 +4,6 @@ from time import sleep
 from subprocess import Popen
 from datetime import datetime
 from signal import signal, SIGTERM
-from shutil import copy2
 
 
 def handleSIGTERM(procs):
@@ -19,12 +18,11 @@ now = datetime.now()
 outputFile = '{}.out'.format(datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
 
 commands = [
-    [executable, './train_search.py', '--gpu', '0',
-     '--epochs', '5', '--batch_size', '100',
-     '--bitwidth', '1,2,3,4,5', '--MaxBopsBits', '3',
-     '--bopsCounter', 'continuous',
-     '--pre_trained', '/home/yochaiz/UNIQ/results/resnet_cifar10_trained_32_bit_deeper/model_best.pth.tar',
-     '--data', '/home/yochaiz/UNIQ/results/'
+    [executable, './train_search.py',
+     '--data', '../data/', '--batch_size', '256', '--arch_learning_rate', '0.5', '--lmbda', '0',
+     '--bitwidth', '2,8', '--MaxBopsBits', '8', '--epochs', '1', '--bopsCounter', 'discrete',
+     '--model', 'thin_resnet', '--pre_trained', './pre_trained/thin_resnet_[2,8]/train/model_checkpoint.pth.tar',
+     '--nCopies', '2'
      ]
 ]
 
