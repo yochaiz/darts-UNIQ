@@ -10,13 +10,11 @@ import torch.backends.cudnn as cudnn
 from torch.cuda import is_available, set_device
 from torch.cuda import manual_seed as cuda_manual_seed
 from torch import manual_seed as torch_manual_seed
-from torch.nn import CrossEntropyLoss
 
 import cnn.models as models
 from cnn.utils import create_exp_dir, count_parameters_in_MB, load_pre_trained
 from cnn.utils import initLogger, printModelToFile
 from cnn.optimize import optimize
-from cnn.uniq_loss import UniqLoss
 
 
 # collect possible models names
