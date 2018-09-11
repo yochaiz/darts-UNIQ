@@ -60,8 +60,9 @@ class ModelReplicator:
                 # update statistics
                 for layerIdx, v in gradNorm:
                     stats.containers[stats.gradNormKey][layerIdx].append(v)
-                for layerIdx, j, v in alphaLossVariance:
-                    stats.containers[stats.alphaLossVarianceKey][layerIdx][j].append(v)
+                for layerIdx, j, avg, variance in alphaLossVariance:
+                    stats.containers[stats.alphaLossAvgKey][layerIdx][j].append(avg)
+                    stats.containers[stats.alphaLossVarianceKey][layerIdx][j].append(variance)
                 # update layers alphas gradients
                 for layerAlphasGrads, layerIdx in zip(alphasGrad, layersIndices):
                     alphas = model.layersList[layerIdx].alphas
@@ -75,7 +76,8 @@ class ModelReplicator:
             # calc all loss samples variance
             allLossSamples = [((x - allLossSamplesAvg) ** 2) for x in allLossSamples]
             allLossSamplesVariance = (sum(allLossSamples) / (nTotalSamples - 1)).item()
-            # add all samples loss variance to statistics
+            # add all samples loss average & variance to statistics
+            stats.containers[stats.allSamplesLossAvgKey][0].append(allLossSamplesAvg)
             stats.containers[stats.allSamplesLossVarianceKey][0].append(allLossSamplesVariance)
 
             # subtract average total loss from every alpha gradient
@@ -138,7 +140,7 @@ class ModelReplicator:
                 lossVariance = [((x - alphaAvgLoss) ** 2) for x in alphaLossSamples]
                 lossVariance = sum(lossVariance) / (nSamplesPerAlpha - 1)
                 # add alpha loss variance to statistics
-                alphaLossVariance.append((layerIdx, i, lossVariance.item()))
+                alphaLossVariance.append((layerIdx, i, alphaAvgLoss.item(), lossVariance.item()))
 
             # turn in coin toss for this layer
             layer.alphas.requires_grad = True

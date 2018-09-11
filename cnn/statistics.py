@@ -14,7 +14,9 @@ class Statistics:
     entropyKey = 'alphas_entropy'
     weightedAvgKey = 'alphas_weighted_average'
     alphaLossVarianceKey = 'alphas_loss_variance'
+    alphaLossAvgKey = 'alphas_loss_avg'
     allSamplesLossVarianceKey = 'all_samples_loss_variance'
+    allSamplesLossAvgKey = 'all_samples_loss_avg'
     gradNormKey = 'alphas_gradient_norm'
 
     def __init__(self, layersList, nLayers, saveFolder):
@@ -25,20 +27,22 @@ class Statistics:
             makedirs(plotFolderPath)
 
         self.saveFolder = plotFolderPath
+        # init list of batch labels for y axis
+        self.batchLabels = []
         # init containers
         self.containers = {
             self.entropyKey: [[] for _ in range(nLayers)],
             self.weightedAvgKey: [[] for _ in range(nLayers)],
             self.alphaLossVarianceKey: [[[] for _ in range(layer.numOfOps())] for layer in layersList],
+            self.alphaLossAvgKey: [[[] for _ in range(layer.numOfOps())] for layer in layersList],
             self.allSamplesLossVarianceKey: [[]],
+            self.allSamplesLossAvgKey: [[]],
             self.gradNormKey: [[] for _ in range(nLayers)]
         }
-        # init list of batch labels for y axis
-        self.batchLabels = []
         # map each list we plot for all layers on single plot to filename
         self.plotAllLayersKeys = [self.entropyKey, self.weightedAvgKey, self.allSamplesLossVarianceKey,
-                                  self.gradNormKey]
-        self.plotLayersSeparateKeys = [self.alphaLossVarianceKey]
+                                  self.allSamplesLossAvgKey, self.gradNormKey]
+        self.plotLayersSeparateKeys = [self.alphaLossAvgKey, self.alphaLossVarianceKey]
         # collect op bitwidth per layer in model
         self.layersBitwidths = [tensor([op.bitwidth[0] for op in layer.ops], dtype=float32).cuda()
                                 for layer in layersList]

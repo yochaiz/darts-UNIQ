@@ -238,6 +238,8 @@ class BaseNet(Module):
                 # calc loss samples variance
                 lossVariance = [((x - alphaAvgLoss) ** 2) for x in alphaLossSamples]
                 lossVariance = sum(lossVariance) / (nSamplesPerAlpha - 1)
+                # add alpha loss average to statistics
+                self.stats.containers[self.stats.alphaLossAvgKey][j][i].append(alphaAvgLoss.item())
                 # add alpha loss variance to statistics
                 self.stats.containers[self.stats.alphaLossVarianceKey][j][i].append(lossVariance.item())
 
@@ -257,7 +259,8 @@ class BaseNet(Module):
         # calc all loss samples variance
         allLossSamples = [((x - allLossSamplesAvg) ** 2) for x in allLossSamples]
         allLossSamplesVariance = (sum(allLossSamples) / (nTotalSamples - 1)).item()
-        # add all samples loss variance to statistics
+        # add all samples average & loss variance to statistics
+        self.stats.containers[self.stats.allSamplesLossAvgKey][0].append(allLossSamplesAvg)
         self.stats.containers[self.stats.allSamplesLossVarianceKey][0].append(allLossSamplesVariance)
 
         # subtract average total loss from every alpha gradient
