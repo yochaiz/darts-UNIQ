@@ -157,6 +157,6 @@ if __name__ == '__main__':
     logger.info('Ops per layer:{}'.format([len(layer.ops) for layer in model.layersList]))
     logger.info('nPerms:[{}]'.format(model.nPerms))
 
-    optimize(args, model, uniform_model, modelClass, logger)
+    optimize(args, model, modelClass, logger)
 
     logger.info('Done !')

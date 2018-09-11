@@ -113,7 +113,7 @@ def trainAlphas(search_queue, model, architect, stats, nEpoch, loggers):
         logger.info(message)
 
 
-def infer(valid_queue, model, crit, nEpoch, loggers):
+def infer(valid_queue, model, modelInferMode, crit, nEpoch, loggers):
     objs = AvgrageMeter()
     top1 = AvgrageMeter()
     top5 = AvgrageMeter()
@@ -121,7 +121,7 @@ def infer(valid_queue, model, crit, nEpoch, loggers):
     trainLogger = loggers.get('train')
 
     model.eval()
-    bopsRatio = model.evalMode()
+    bopsRatio = modelInferMode()
     # print eval layer index selection
     if trainLogger:
         trainLogger.info('Layers optimal indices:{}'.format([layer.curr_alpha_idx for layer in model.layersList]))
@@ -149,7 +149,7 @@ def infer(valid_queue, model, crit, nEpoch, loggers):
             if trainLogger:
                 trainLogger.info(
                     'validation [{}/{}] Loss:[{:.5f}] Accuracy:[{:.3f}] OptBopsRatio:[{:.3f}] time:[{:.5f}]'
-                    .format(step, nBatches, objs.avg, top1.avg, bopsRatio, endTime - startTime))
+                        .format(step, nBatches, objs.avg, top1.avg, bopsRatio, endTime - startTime))
 
     message = 'Epoch:[{}] , validation accuracy:[{:.3f}] , validation loss:[{:.3f}] , OptBopsRatio:[{:.3f}]' \
         .format(nEpoch, top1.avg, objs.avg, bopsRatio)
@@ -167,10 +167,11 @@ def inferUniformModel(model, uniform_model, valid_queue, cross_entropy, MaxBopsB
     if trainLogger:
         trainLogger.info('== Validation uniform model ==')
 
-    infer(valid_queue, uniform_model, cross_entropy, trainLogger.name, loggers)
+    # validation
+    infer(valid_queue, model, model.uniformMode, cross_entropy, epoch, dict(main=logger))
 
 
-def optimize(args, model, uniform_model, modelClass, logger):
+def optimize(args, model, modelClass, logger):
     trainFolderPath = '{}/{}'.format(args.save, args.trainFolder)
 
     optimizer = SGD(model.parameters(), args.learning_rate, momentum=args.momentum, weight_decay=args.weight_decay)
@@ -226,7 +227,7 @@ def optimize(args, model, uniform_model, modelClass, logger):
             # switch stage, i.e. freeze one more layer
             if (epoch in epochsSwitchStage) or (epoch == nEpochs):
                 # validation
-                infer(valid_queue, model, cross_entropy, epoch, loggersDict)
+                infer(valid_queue, model, model.evalMode, cross_entropy, epoch, loggersDict)
 
                 # switch stage
                 model.switch_stage(trainLogger)
@@ -243,11 +244,6 @@ def optimize(args, model, uniform_model, modelClass, logger):
         switchStageFlag = True
         while switchStageFlag:
             switchStageFlag = model.switch_stage(logger)
-
-    # calc validation accuracy & loss on uniform model
-    trainLogger = initTrainLogger('Uniform', trainFolderPath, args.propagate)
-    inferUniformModel(model, uniform_model, valid_queue, cross_entropy, args.MaxBopsBits, args.bitwidth,
-                      dict(train=trainLogger, main=logger))
 
     # init model replicator object
     modelReplicator = ModelReplicator(model, modelClass, args)
@@ -272,7 +268,7 @@ def optimize(args, model, uniform_model, modelClass, logger):
         # train alphas
         trainAlphas(search_queue, model, architect, stats, epoch, loggersDict)
         # validation on current optimal model
-        valid_acc = infer(valid_queue, model, cross_entropy, epoch, loggersDict)
+        valid_acc = infer(valid_queue, model, model.evalMode, cross_entropy, epoch, loggersDict)
 
         # save model checkpoint
         is_best = valid_acc > best_prec1
@@ -303,8 +299,10 @@ def optimize(args, model, uniform_model, modelClass, logger):
         # last weights training epoch we want to log also to main logger
         trainWeights(train_queue, model, model.choosePathByAlphas, cross_entropy, optimizer,
                      args.grad_clip, wEpoch, loggersDict)
-        # validation
-        infer(valid_queue, model, cross_entropy, wEpoch, loggersDict)
+        # validation on optimal model
+        infer(valid_queue, model, model.evalMode, cross_entropy, wEpoch, loggersDict)
+        # calc validation accuracy & loss on uniform model
+        infer(valid_queue, model, model.uniformMode, cross_entropy, 'Uniform', dict(main=logger))
 
 # def train(train_queue, search_queue, args, model, architect, crit, optimizer, lr, logger):
 #     weights_loss_container = AvgrageMeter()
