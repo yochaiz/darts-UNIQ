@@ -10,7 +10,6 @@ from torch.nn import CrossEntropyLoss
 from cnn.utils import accuracy, AvgrageMeter, load_data
 from cnn.utils import initTrainLogger, logDominantQuantizedOp, save_checkpoint
 from cnn.architect import Architect
-from cnn.model_replicator import ModelReplicator
 
 
 def trainWeights(train_queue, model, modelChoosePathFunc, crit, optimizer, grad_clip, nEpoch, loggers):
@@ -244,10 +243,8 @@ def optimize(args, model, modelClass, logger):
         while switchStageFlag:
             switchStageFlag = model.switch_stage(logger)
 
-    # init model replicator object
-    modelReplicator = ModelReplicator(model, modelClass, args)
     # init architect
-    architect = Architect(modelReplicator, args)
+    architect = Architect(model, modelClass, args)
 
     # init number of epochs
     nEpochs = model.nLayers()

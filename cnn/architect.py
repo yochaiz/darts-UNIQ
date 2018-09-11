@@ -1,6 +1,8 @@
 from torch.optim import Adam, SGD
 from torch.nn.utils.clip_grad import clip_grad_norm_
 
+from cnn.model_replicator import ModelReplicator
+
 
 # from torch import cat, zeros_like
 # from torch.autograd import Variable, grad
@@ -12,13 +14,12 @@ from torch.nn.utils.clip_grad import clip_grad_norm_
 
 
 class Architect(object):
-
-    def __init__(self, modelReplicator, args):
+    def __init__(self, model, modelClass, args):
         self.network_momentum = args.momentum
         self.lr = args.arch_learning_rate
         self.weight_decay = args.arch_weight_decay
 
-        self.modelReplicator = modelReplicator
+        self.modelReplicator = ModelReplicator(model, modelClass, args)
 
         # self.model = model
         # self.optimizer = Adam(self.model.arch_parameters(), lr=args.arch_learning_rate,
