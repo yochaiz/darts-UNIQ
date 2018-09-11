@@ -129,7 +129,7 @@ class MixedOp(Module):
 
     # select alpha based on alphas distribution
     def choosePathByAlphas(self):
-        dist = Categorical(probs=self.alphas)
+        dist = Categorical(logits=self.alphas)
         chosen = dist.sample()
         self.curr_alpha_idx = chosen.item()
 
