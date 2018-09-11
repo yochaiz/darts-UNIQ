@@ -131,7 +131,9 @@ if __name__ == '__main__':
 
     # build model for uniform distribution of bits
     modelClass = models.__dict__[args.model]
-    uniform_model = modelClass(0, None, [args.MaxBopsBits], args.kernel, args.bopsCounter)
+    uniform_args = argparse.Namespace(**vars(args))
+    uniform_args.bitwidth = [args.MaxBopsBits]
+    uniform_model = modelClass(uniform_args)
     # init maxBops
     args.maxBops = uniform_model.countBops()
 
@@ -141,8 +143,7 @@ if __name__ == '__main__':
         raise ValueError('spawn failed')
 
     # init model
-    model = modelClass(args.lmbda, args.maxBops, args.bitwidth, args.kernel, args.bopsCounter, args.save)
-    # model = DataParallel(model, args.gpu)
+    model = modelClass(args)
     model = model.cuda()
     # load pre-trained full-precision model
     args.loadedOpsWithDiffWeights = load_pre_trained(args.pre_trained, model, logger, args.gpu[0])

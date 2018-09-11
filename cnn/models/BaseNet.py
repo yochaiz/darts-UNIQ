@@ -65,16 +65,18 @@ class BaseNet(Module):
 
     alphasCsvFileName = 'alphas.csv'
 
-    def __init__(self, lmbda, maxBops, initLayersParams, bopsFuncKey, saveFolder):
+    def __init__(self, args, initLayersParams):
         super(BaseNet, self).__init__()
         # init layers
         self.initLayers(initLayersParams)
         # build mixture layers list
         self.layersList = [m for m in self.modules() if isinstance(m, MixedOp)]
         # set bops counter function
-        self.countBopsFunc = self.countBopsFuncs[bopsFuncKey]
+        self.countBopsFunc = self.countBopsFuncs[args.bopsCounter]
         # init criterion
-        self._criterion = UniqLoss(lmdba=lmbda, maxBops=maxBops or self.countBops(), folderName=saveFolder)
+        args.maxBops = getattr(args, 'maxBops', self.countBops())
+        self._criterion = UniqLoss(args)
+        # self._criterion = UniqLoss(lmdba=lmbda, maxBops=maxBops or self.countBops(), folderName=saveFolder)
         self._criterion = self._criterion.cuda()
         # collect learnable params (weights)
         self.learnable_params = [param for param in self.parameters() if param.requires_grad]
@@ -96,6 +98,7 @@ class BaseNet(Module):
 
         # init alphas DataFrame
         self.alphas_df = None
+        saveFolder = args.save
         if saveFolder:
             # update save path if saveFolder exists
             self.alphasCsvFileName = '{}/{}'.format(saveFolder, self.alphasCsvFileName)
@@ -220,6 +223,7 @@ class BaseNet(Module):
                 # init loss samples list
                 alphaLossSamples = []
                 for _ in range(nSamplesPerAlpha):
+                    # forward through some path in model
                     logits = self.forward(input)
                     # alphaLoss += self._criterion(logits, target, self.countBops()).detach()
                     alphaLossSamples.append(self._criterion(logits, target, self.countBops()).detach())
@@ -316,6 +320,13 @@ class BaseNet(Module):
     def evalMode(self):
         for l in self.layersList:
             l.evalMode()
+
+        # calc bops ratio
+        return self.calcBopsRatio()
+
+    def uniformMode(self):
+        for l in self.layersList:
+            l.uniformMode(self._criterion.maxBops)
 
         # calc bops ratio
         return self.calcBopsRatio()

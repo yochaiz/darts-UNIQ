@@ -21,17 +21,18 @@ class BopsLoss:
 
 
 class UniqLoss(Module):
-    def __init__(self, lmdba, maxBops, folderName):
+    def __init__(self, args):
         super(UniqLoss, self).__init__()
-        self.lmdba = lmdba
+        self.lmdba = args.lmbda
         self.search_loss = CrossEntropyLoss().cuda()
 
-        self.maxBops = maxBops
+        self.maxBops = args.maxBops
+        self.maxBopsBits = args.MaxBopsBits
 
         # init bops loss function and plot it
         self.bops_base_func = Tanh()
         self.bopsLoss = self._bops_loss(xDst=1, yDst=0.2, yMin=0, yMax=5)
-        self.plotFunction(self.bopsLoss, folderName)
+        self.plotFunction(self.bopsLoss, args.save)
 
         # init values
         self.bopsRatio = -1

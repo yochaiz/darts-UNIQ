@@ -32,9 +32,12 @@ class BasicBlock(Module):
 
 
 class ResNet(BaseNet):
-    def __init__(self, lmbda, maxBops, bitwidths, kernel_sizes, bopsFuncKey, saveFolder=None):
-        super(ResNet, self).__init__(lmbda=lmbda, maxBops=maxBops, initLayersParams=(bitwidths, kernel_sizes),
-                                     bopsFuncKey=bopsFuncKey, saveFolder=saveFolder)
+    # def __init__(self, lmbda, maxBops, bitwidths, kernel_sizes, bopsFuncKey, saveFolder=None):
+    #     super(ResNet, self).__init__(lmbda=lmbda, maxBops=maxBops, initLayersParams=(bitwidths, kernel_sizes),
+    #                                  bopsFuncKey=bopsFuncKey, saveFolder=saveFolder)
+
+    def __init__(self, args):
+        super(ResNet, self).__init__(args, initLayersParams=(args.bitwidth, args.kernel))
 
         # set noise=True for 1st layer
         if len(self.layersList) > 0:
