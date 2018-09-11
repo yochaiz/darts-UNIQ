@@ -86,6 +86,7 @@ class ModelReplicator:
         # copy model alphas
         for cLayer, mLayer in zip(cModel.layersList, model.layersList):
             cLayer.alphas.data.copy_(mLayer.alphas.data)
+            cLayer.alphas.requires_grad = mLayer.alphas.requires_grad
 
         # init total loss
         totalLoss = 0.0
