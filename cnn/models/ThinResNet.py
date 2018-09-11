@@ -43,9 +43,6 @@ class BasicBlockFullPrecision(Module):
 
 
 class ThinResNet(ResNet):
-    # def __init__(self, lmbda, maxBops, bitwidths, kernel_sizes, bopsFuncKey, saveFolder=None):
-    #     super(ThinResNet, self).__init__(lmbda, maxBops, bitwidths, kernel_sizes, bopsFuncKey, saveFolder)
-
     def __init__(self, args):
         super(ThinResNet, self).__init__(args)
 
