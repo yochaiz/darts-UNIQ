@@ -31,6 +31,7 @@ class ModelReplicator:
     def loss(self, model, input, target):
         nCopies = len(self.replications)
         if nCopies > 0:
+            stats = model.stats
             # clone input & target to all GPUs
             inputPerGPU = {}
             targetPerGPU = {}
@@ -51,11 +52,16 @@ class ModelReplicator:
                 results = pool.map(self.lossPerReplication, args)
 
             # process returned results
-            for alphasGrad, partialLossSamples, layersIndices, partialLoss in results:
+            for alphasGrad, partialLossSamples, layersIndices, partialLoss, gradNorm, alphaLossVariance in results:
                 # add alphas loss samples to all loss samples list
                 allLossSamples.extend(partialLossSamples)
                 # calc total loss & total number of samples
                 totalLoss += partialLoss
+                # update statistics
+                for layerIdx, v in gradNorm:
+                    stats.containers[stats.gradNormKey][layerIdx].append(v)
+                for layerIdx, j, v in alphaLossVariance:
+                    stats.containers[stats.alphaLossVarianceKey][layerIdx][j].append(v)
                 # update layers alphas gradients
                 for layerAlphasGrads, layerIdx in zip(alphasGrad, layersIndices):
                     alphas = model.layersList[layerIdx].alphas
@@ -68,7 +74,9 @@ class ModelReplicator:
             allLossSamplesAvg = sum(allLossSamples) / nTotalSamples
             # calc all loss samples variance
             allLossSamples = [((x - allLossSamplesAvg) ** 2) for x in allLossSamples]
-            model.allLossSamplesVariance = (sum(allLossSamples) / (nTotalSamples - 1)).item()
+            allLossSamplesVariance = (sum(allLossSamples) / (nTotalSamples - 1)).item()
+            # add all samples loss variance to statistics
+            stats.containers[stats.allSamplesLossVarianceKey][0].append(allLossSamplesVariance)
 
             # subtract average total loss from every alpha gradient
             for layer in model.layersList:
@@ -96,8 +104,10 @@ class ModelReplicator:
         nSamplesPerAlpha = 50
         # init layers alphas grad
         alphasGrad = []
+        # save stats data
+        gradNorm = []
+        alphaLossVariance = []
         for layerIdx in layersIndices:
-            orgLayer = model.layersList[layerIdx]
             layer = cModel.layersList[layerIdx]
             # turn off coin toss for this layer
             layer.alphas.requires_grad = False
@@ -109,8 +119,6 @@ class ModelReplicator:
             for i, alpha in enumerate(layer.alphas):
                 # select the specific alpha in this layer
                 layer.curr_alpha_idx = i
-                # init alpha loss
-                alphaLoss = 0.0
                 # init loss samples list
                 alphaLossSamples = []
                 for _ in range(nSamplesPerAlpha):
@@ -120,8 +128,6 @@ class ModelReplicator:
 
                 # add current alpha loss samples to all loss samples list
                 allLossSamples.extend(alphaLossSamples)
-                # update alpha average loss
-                # alphaLoss /= nSamplesPerAlpha
                 # calc alpha average loss
                 alphaAvgLoss = sum(alphaLossSamples) / nSamplesPerAlpha
                 layerAlphasGrad[i] = alphaAvgLoss
@@ -130,14 +136,18 @@ class ModelReplicator:
 
                 # calc loss samples variance
                 lossVariance = [((x - alphaAvgLoss) ** 2) for x in alphaLossSamples]
-                orgLayer.alphasLossVariance.data[i] = sum(lossVariance) / (nSamplesPerAlpha - 1)
+                lossVariance = sum(lossVariance) / (nSamplesPerAlpha - 1)
+                # add alpha loss variance to statistics
+                alphaLossVariance.append((layerIdx, i, lossVariance.item()))
 
             # turn in coin toss for this layer
             layer.alphas.requires_grad = True
             # add layer alphas grad to container
             alphasGrad.append(layerAlphasGrad)
+            # add gradNorm to statistics
+            gradNorm.append((layerIdx, layerAlphasGrad.norm().item()))
 
-        return alphasGrad, allLossSamples, layersIndices, totalLoss.cuda()
+        return alphasGrad, allLossSamples, layersIndices, totalLoss.cuda(), gradNorm, alphaLossVariance
 
     # def copyModel(self, model, gpu):
     #     # create new model instance

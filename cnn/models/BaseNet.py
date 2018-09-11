@@ -1,8 +1,7 @@
 from abc import abstractmethod
 
-from itertools import product
-from random import randint
 from pandas import DataFrame
+from scipy.stats import entropy
 
 from torch import tensor, zeros
 from torch.nn import Module
@@ -10,6 +9,7 @@ from torch.nn import functional as F
 
 from cnn.MixedOp import MixedOp
 from cnn.uniq_loss import UniqLoss
+from cnn.statistics import Statistics
 
 from UNIQ.actquant import ActQuant
 from UNIQ.quantize import quantize, restore_weights, backup_weights
@@ -67,6 +67,8 @@ class BaseNet(Module):
 
     def __init__(self, args, initLayersParams):
         super(BaseNet, self).__init__()
+        # init save folder
+        saveFolder = args.save
         # init layers
         self.initLayers(initLayersParams)
         # build mixture layers list
@@ -78,14 +80,14 @@ class BaseNet(Module):
         self._criterion = UniqLoss(args)
         # self._criterion = UniqLoss(lmdba=lmbda, maxBops=maxBops or self.countBops(), folderName=saveFolder)
         self._criterion = self._criterion.cuda()
+        # init statistics
+        self.stats = Statistics(self.layersList, self.nLayers(), saveFolder)
         # collect learnable params (weights)
         self.learnable_params = [param for param in self.parameters() if param.requires_grad]
         # init learnable alphas
         self.learnable_alphas = []
         # init number of layers we have completed its quantization
         self.nLayersQuantCompleted = 0
-        # init all batch samples loss variance holder
-        self.allLossSamplesVariance = 0
 
         # init layers permutation list
         self.layersPerm = []
@@ -98,7 +100,6 @@ class BaseNet(Module):
 
         # init alphas DataFrame
         self.alphas_df = None
-        saveFolder = args.save
         if saveFolder:
             # update save path if saveFolder exists
             self.alphasCsvFileName = '{}/{}'.format(saveFolder, self.alphasCsvFileName)
@@ -207,7 +208,7 @@ class BaseNet(Module):
         totalLoss = 0.0
         # init loss samples list for ALL alphas
         allLossSamples = []
-        for layer in self.layersList:
+        for j, layer in enumerate(self.layersList):
             # turn off coin toss for this layer
             layer.alphas.requires_grad = False
             # init layer alphas gradient
@@ -218,8 +219,6 @@ class BaseNet(Module):
             for i, alpha in enumerate(layer.alphas):
                 # select the specific alpha in this layer
                 layer.curr_alpha_idx = i
-                # init alpha loss
-                alphaLoss = 0.0
                 # init loss samples list
                 alphaLossSamples = []
                 for _ in range(nSamplesPerAlpha):
@@ -230,8 +229,6 @@ class BaseNet(Module):
 
                 # add current alpha loss samples to all loss samples list
                 allLossSamples.extend(alphaLossSamples)
-                # update alpha average loss
-                # alphaLoss /= nSamplesPerAlpha
                 # calc alpha average loss
                 alphaAvgLoss = sum(alphaLossSamples) / nSamplesPerAlpha
                 layerAlphasGrad[i] = alphaAvgLoss
@@ -240,12 +237,17 @@ class BaseNet(Module):
 
                 # calc loss samples variance
                 lossVariance = [((x - alphaAvgLoss) ** 2) for x in alphaLossSamples]
-                layer.alphasLossVariance.data[i] = sum(lossVariance) / (nSamplesPerAlpha - 1)
+                lossVariance = sum(lossVariance) / (nSamplesPerAlpha - 1)
+                # add alpha loss variance to statistics
+                self.stats.containers[self.stats.alphaLossVarianceKey][j][i].append(lossVariance.item())
 
             # turn in coin toss for this layer
             layer.alphas.requires_grad = True
             # set layer alphas gradient
             layer.alphas.grad = layerAlphasGrad
+
+            # add gradNorm to statistics
+            self.stats.containers[self.stats.gradNormKey][j].append(layerAlphasGrad.norm().item())
 
         # average total loss
         totalLoss /= self.nLayers()
@@ -254,7 +256,9 @@ class BaseNet(Module):
         allLossSamplesAvg = sum(allLossSamples) / nTotalSamples
         # calc all loss samples variance
         allLossSamples = [((x - allLossSamplesAvg) ** 2) for x in allLossSamples]
-        self.allLossSamplesVariance = (sum(allLossSamples) / (nTotalSamples - 1)).item()
+        allLossSamplesVariance = (sum(allLossSamples) / (nTotalSamples - 1)).item()
+        # add all samples loss variance to statistics
+        self.stats.containers[self.stats.allSamplesLossVarianceKey][0].append(allLossSamplesVariance)
 
         # subtract average total loss from every alpha gradient
         for layer in self.layersList:
