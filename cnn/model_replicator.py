@@ -30,6 +30,7 @@ class ModelReplicator:
 
     def loss(self, model, input, target):
         nCopies = len(self.replications)
+        totalLoss = None
         if nCopies > 0:
             stats = model.stats
             # clone input & target to all GPUs
@@ -88,7 +89,7 @@ class ModelReplicator:
                 # multiply each grad by its probability
                 layer.alphas.grad *= probs
 
-            return totalLoss
+        return totalLoss
 
     # def lossPerReplication(self, model, cModel, input, target, layersIndices, gpu):
     def lossPerReplication(self, args):
