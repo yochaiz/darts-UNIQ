@@ -143,6 +143,16 @@ class MixedOp(Module):
         # update forward function
         self.forward = self.evalForward
 
+    # select op index based on desired bitwidth
+    def uniformMode(self, bitwidth):
+        for i, op in enumerate(self.ops):
+            if bitwidth in op.bitwidth:
+                self.curr_alpha_idx = i
+                break
+
+        # update forward function
+        self.forward = self.evalForward
+
     def trainForward(self, x):
         if self.alphas.requires_grad:
             results = [op(x).unsqueeze(1) for op in self.ops]

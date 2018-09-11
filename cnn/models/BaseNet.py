@@ -326,7 +326,7 @@ class BaseNet(Module):
 
     def uniformMode(self):
         for l in self.layersList:
-            l.uniformMode(self._criterion.maxBops)
+            l.uniformMode(self._criterion.maxBopsBits)
 
         # calc bops ratio
         return self.calcBopsRatio()
