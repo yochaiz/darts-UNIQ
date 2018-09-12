@@ -8,9 +8,8 @@ from cnn.models import BaseNet
 
 
 class TinyNet(BaseNet):
-    def __init__(self, lmbda, maxBops, bitwidths, kernel_sizes, bopsFuncKey, saveFolder=None):
-        super(TinyNet, self).__init__(lmbda=lmbda, maxBops=maxBops, initLayersParams=(bitwidths, kernel_sizes),
-                                      bopsFuncKey=bopsFuncKey, saveFolder=saveFolder)
+    def __init(self, args):
+        super(TinyNet, self).__init__(args, initLayersParams=(args.bitwidth, args.kernel))
 
         for layer in self.layersList:
             # turn on noise
