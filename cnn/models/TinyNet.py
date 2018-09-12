@@ -1,10 +1,9 @@
 from collections import OrderedDict
 
-from torch.nn import Sequential
-from torch import load as loadModel
+from torch.nn import Sequential, Conv2d
 
 from cnn.MixedOp import MixedConvWithReLU, MixedLinear
-from cnn.models import BaseNet
+from cnn.models.BaseNet import BaseNet, save_quant_state, restore_quant_state, ActQuant
 
 
 class TinyNet(BaseNet):
@@ -15,10 +14,6 @@ class TinyNet(BaseNet):
             # turn on noise
             for op in layer.ops:
                 op.noise = op.quant
-
-            # # turn on alphas gradients
-            # layer.alphas.requires_grad = True
-            # self.learnable_alphas.append(layer.alphas)
 
     def initLayers(self, params):
         bitwidths, kernel_sizes = params
@@ -52,6 +47,57 @@ class TinyNet(BaseNet):
 
     def switch_stage(self, logger=None):
         pass
+
+    def turnOnAlphas(self):
+        self.learnable_alphas = []
+        for layer in self.layersList:
+            # turn on alphas gradients
+            layer.alphas.requires_grad = True
+            self.learnable_alphas.append(layer.alphas)
+
+            for op in layer.ops:
+                # turn off noise in op
+                assert (op.noise is True)
+                op.noise = False
+
+                # set pre & post quantization hooks, from now on we want to quantize these ops
+                op.register_forward_pre_hook(save_quant_state)
+                op.register_forward_hook(restore_quant_state)
+
+                # turn off weights gradients
+                for m in op.modules():
+                    if isinstance(m, Conv2d):
+                        for param in m.parameters():
+                            param.requires_grad = False
+                    elif isinstance(m, ActQuant):
+                        m.quatize_during_training = True
+                        m.noise_during_training = False
+
+        # update learnable parameters
+        self.learnable_params = [param for param in self.parameters() if param.requires_grad]
+
+    def turnOnWeights(self):
+        for layer in self.layersList:
+            for op in layer.ops:
+                assert (op.noise is False)
+                # turn on operations noise
+                op.noise = True
+                # remove hooks
+                for handler in op.hookHandlers:
+                    handler.remove()
+                # clear hooks handlers list
+                op.hookHandlers.clear()
+                # turn on operations gradients
+                for m in op.modules():
+                    if isinstance(m, Conv2d):
+                        for param in m.parameters():
+                            param.requires_grad = True
+                    elif isinstance(m, ActQuant):
+                        m.quatize_during_training = False
+                        m.noise_during_training = True
+
+        # update learnable parameters
+        self.learnable_params = [param for param in self.parameters() if param.requires_grad]
 
     # load original pre_trained model of UNIQ
     def loadUNIQPre_trained(self, chckpntDict):
