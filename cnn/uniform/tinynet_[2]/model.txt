@@ -1,0 +1,76 @@
+2018-09-12 13:07:20,546 - INFO - TinyNet(
+  (features): Sequential(
+    (0): MixedConvWithReLU(
+      (ops): ModuleList(
+        (0): QuantizedOp(
+          (op): Sequential(
+            (0): Sequential(
+              (0): Conv2d(3, 16, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1), bias=False)
+              (1): BatchNorm2d(16, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+            )
+            (1): ReLU(inplace)
+          )
+        )
+      )
+    )
+    (1): MixedConvWithReLU(
+      (ops): ModuleList(
+        (0): QuantizedOp(
+          (op): Sequential(
+            (0): Sequential(
+              (0): Conv2d(16, 32, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1), bias=False)
+              (1): BatchNorm2d(32, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+            )
+            (1): ReLU(inplace)
+          )
+        )
+      )
+    )
+    (2): MixedConvWithReLU(
+      (ops): ModuleList(
+        (0): QuantizedOp(
+          (op): Sequential(
+            (0): Sequential(
+              (0): Conv2d(32, 64, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1), bias=False)
+              (1): BatchNorm2d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+            )
+            (1): ReLU(inplace)
+          )
+        )
+      )
+    )
+    (3): MixedConvWithReLU(
+      (ops): ModuleList(
+        (0): QuantizedOp(
+          (op): Sequential(
+            (0): Sequential(
+              (0): Conv2d(64, 128, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1), bias=False)
+              (1): BatchNorm2d(128, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+            )
+            (1): ReLU(inplace)
+          )
+        )
+      )
+    )
+  )
+  (fc): MixedLinear(
+    (ops): ModuleList(
+      (0): QuantizedOp(
+        (op): Linear(in_features=512, out_features=10, bias=True)
+      )
+    )
+  )
+  (_criterion): UniqLoss(
+    (search_loss): CrossEntropyLoss()
+    (bops_base_func): Tanh()
+  )
+)
+2018-09-12 13:07:20,548 - INFO - =============================================
+2018-09-12 13:07:20,549 - INFO - Top [2] quantizations per layer:
+2018-09-12 13:07:20,551 - INFO - =============================================
+2018-09-12 13:07:20,552 - INFO - Layer:[0]  Idx:[0]  w:[1.00000]  alpha:[1.00000]  bitwidth:[2]  act_bitwidth:[2]  ||  
+2018-09-12 13:07:20,553 - INFO - Layer:[1]  Idx:[0]  w:[1.00000]  alpha:[1.00000]  bitwidth:[2]  act_bitwidth:[2]  ||  
+2018-09-12 13:07:20,554 - INFO - Layer:[2]  Idx:[0]  w:[1.00000]  alpha:[1.00000]  bitwidth:[2]  act_bitwidth:[2]  ||  
+2018-09-12 13:07:20,555 - INFO - Layer:[3]  Idx:[0]  w:[1.00000]  alpha:[1.00000]  bitwidth:[2]  act_bitwidth:[2]  ||  
+2018-09-12 13:07:20,556 - INFO - Layer:[4]  Idx:[0]  w:[1.00000]  alpha:[1.00000]  bitwidth:[2]  ||  
+2018-09-12 13:07:20,557 - INFO - =============================================
