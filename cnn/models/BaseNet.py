@@ -1,7 +1,6 @@
 from abc import abstractmethod
 
 from pandas import DataFrame
-from scipy.stats import entropy
 
 from torch import tensor, zeros
 from torch.nn import Module
