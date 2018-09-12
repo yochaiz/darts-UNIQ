@@ -152,6 +152,14 @@ def load_pre_trained(path, model, logger, gpu):
             modelStateDictKeys = set(model.state_dict().keys())
             # compare dictionaries
             dictDiff = modelStateDictKeys.symmetric_difference(set(chckpntStateDict.keys()))
+            # # update flag value
+            # loadOpsWithDifferentWeights = True
+            # for v in dictDiff:
+            #     if v.endswith('.num_batches_tracked') is False:
+            #         loadOpsWithDifferentWeights = False
+            #         break
+            #     else:
+            #         chckpntStateDict.pop(v)
             # update flag value
             loadOpsWithDifferentWeights = len(dictDiff) == 0
             # decide how to load checkpoint state dict
