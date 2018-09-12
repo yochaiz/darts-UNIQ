@@ -8,7 +8,7 @@ from cnn.models import BaseNet
 
 
 class TinyNet(BaseNet):
-    def __init(self, args):
+    def __init__(self, args):
         super(TinyNet, self).__init__(args, initLayersParams=(args.bitwidth, args.kernel))
 
         for layer in self.layersList:
@@ -54,7 +54,7 @@ class TinyNet(BaseNet):
         pass
 
     # load original pre_trained model of UNIQ
-    def loadUNIQPre_trained(self, path, logger, gpu):
+    def loadUNIQPre_trained(self, chckpntDict):
         map = {}
         map['features.0'] = 'features.0.ops.0.op.0.0'
         map['features.1'] = 'features.0.ops.0.op.0.1'
@@ -70,8 +70,6 @@ class TinyNet(BaseNet):
 
         map['fc'] = 'fc.ops.0.op'
 
-        checkpoint = loadModel(path, map_location=lambda storage, loc: storage.cuda(gpu))
-        chckpntDict = checkpoint['state_dict']
         newStateDict = OrderedDict()
 
         # d = self.state_dict()
@@ -99,6 +97,3 @@ class TinyNet(BaseNet):
 
         # load model weights
         self.load_state_dict(newStateDict)
-
-        logger.info('Loaded model from [{}]'.format(path))
-        logger.info('checkpoint validation accuracy:[{:.5f}]'.format(checkpoint['best_prec1']))
