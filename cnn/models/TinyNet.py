@@ -61,8 +61,8 @@ class TinyNet(BaseNet):
                 op.noise = False
 
                 # set pre & post quantization hooks, from now on we want to quantize these ops
-                op.register_forward_pre_hook(save_quant_state)
-                op.register_forward_hook(restore_quant_state)
+                op.hookHandlers.append(op.register_forward_pre_hook(save_quant_state))
+                op.hookHandlers.append(op.register_forward_hook(restore_quant_state))
 
                 # turn off weights gradients
                 for m in op.modules():
