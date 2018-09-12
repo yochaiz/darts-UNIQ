@@ -68,11 +68,12 @@ class Statistics:
         # plot data
         self.plotData()
 
-    def __setPlotProperties(self, fig, ax, xLabel, yLabel, title, fileName):
+    def __setPlotProperties(self, fig, ax, xLabel, yLabel, yMax, title, fileName):
         # ax.set_xticks(xValues)
         # ax.set_xticklabels(self.batchLabels)
         ax.set_xlabel(xLabel)
         ax.set_ylabel(yLabel)
+        ax.set_ylim(ymax=yMax)
         ax.set_title(title)
         ax.legend(loc='upper center', bbox_to_anchor=(0.5, 1.02), ncol=5, fancybox=True, shadow=True)
         fig.set_size_inches((12, 8))
@@ -90,11 +91,18 @@ class Statistics:
             data = self.containers[fileName]
             # create plot
             fig, ax = plt.subplots(nrows=1, ncols=1)
+            # init ylim values
+            dataMax = 0
+            dataSum = []
             # add each layer alphas data to plot
             for i, layerData in enumerate(data):
                 ax.plot(xValues, layerData, 'o-', label=i)
+                dataMax = max(dataMax, max(layerData))
+                dataSum.append(sum(layerData) / len(layerData))
+            # set yMax
+            yMax = min(dataMax * 1.1, (sum(dataSum) / len(dataSum)) * 1.5)
 
-            self.__setPlotProperties(fig, ax, xLabel='Batch #', yLabel=fileName,
+            self.__setPlotProperties(fig, ax, xLabel='Batch #', yLabel=fileName, yMax=yMax,
                                      title='{} over epochs'.format(fileName), fileName=fileName)
 
         for fileName in self.plotLayersSeparateKeys:
@@ -103,9 +111,16 @@ class Statistics:
             for i, layerVariance in enumerate(data):
                 # create plot
                 fig, ax = plt.subplots(nrows=1, ncols=1)
+                # init ylim values
+                dataMax = 0
+                dataSum = []
                 for j, alphaVariance in enumerate(layerVariance):
                     ax.plot(xValues, alphaVariance, 'o-', label=int(self.layersBitwidths[i][j].item()))
+                    dataMax = max(dataMax, max(alphaVariance))
+                    dataSum.append(sum(alphaVariance) / len(alphaVariance))
+                # set yMax
+                yMax = min(dataMax * 1.1, (sum(dataSum) / len(dataSum)) * 1.5)
 
-                self.__setPlotProperties(fig, ax, xLabel='Batch #', yLabel=fileName,
+                self.__setPlotProperties(fig, ax, xLabel='Batch #', yLabel=fileName, yMax=yMax,
                                          title='{} --layer:[{}]-- over epochs'.format(fileName, i),
                                          fileName='{}_{}.png'.format(fileName, i))
