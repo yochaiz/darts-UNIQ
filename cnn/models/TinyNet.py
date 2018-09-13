@@ -18,12 +18,6 @@ class TinyNet(BaseNet):
     def initLayers(self, params):
         bitwidths, kernel_sizes = params
 
-        # self.features = nn.Sequential(
-        #     MixedConv(bitwidths, 3, 16, kernel_sizes, stride=2), nn.ReLU(inplace=True),
-        #     MixedConv(bitwidths, 16, 32, kernel_sizes, stride=2), nn.ReLU(inplace=True),
-        #     MixedConv(bitwidths, 32, 64, kernel_sizes, stride=2), nn.ReLU(inplace=True),
-        #     MixedConv(bitwidths, 64, 128, kernel_sizes, stride=2), nn.ReLU(inplace=True)
-        # )
         self.features = Sequential(
             MixedConvWithReLU(bitwidths, 3, 16, kernel_sizes, stride=2),
             MixedConvWithReLU(bitwidths, 16, 32, kernel_sizes, stride=2),
