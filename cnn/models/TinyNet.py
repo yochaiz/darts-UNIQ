@@ -29,7 +29,7 @@ class TinyNet(BaseNet):
                               in_planes, out_planes, kernel_sizes, stride=2)
             for i, (in_planes, out_planes) in enumerate(layersPlanes)]
 
-        self.features = Sequential(**layers)
+        self.features = Sequential(*layers)
 
         # self.fc = MixedLinear(bitwidths, 512, 10)
         self.fc = Linear(512, 10).cuda()
