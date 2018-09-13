@@ -1,7 +1,6 @@
 from collections import OrderedDict
 
-from torch import load as loadModel
-from torch.nn import Module, Conv2d, AvgPool2d
+from torch.nn import Module, Conv2d, AvgPool2d, Linear
 
 from UNIQ.actquant import ActQuant
 
@@ -49,27 +48,27 @@ class ResNet(BaseNet):
     def initLayers(self, params):
         bitwidths, kernel_sizes = params
 
-        self.block1 = MixedConvWithReLU(bitwidths, 3, 16, kernel_sizes, 1)
+        # init layers (type, in_planes, out_planes)
+        layersPlanes = [(MixedConvWithReLU, 3, 16),
+                        (BasicBlock, 16, 16), (BasicBlock, 16, 16), (BasicBlock, 16, 16),
+                        (BasicBlock, 16, 32), (BasicBlock, 32, 32), (BasicBlock, 32, 32),
+                        (BasicBlock, 32, 64), (BasicBlock, 64, 64), (BasicBlock, 64, 64)]
 
-        layers = [
-            BasicBlock(bitwidths, 16, 16, kernel_sizes, 1),
-            BasicBlock(bitwidths, 16, 16, kernel_sizes, 1),
-            BasicBlock(bitwidths, 16, 16, kernel_sizes, 1),
-            BasicBlock(bitwidths, 16, 32, kernel_sizes, 1),
-            BasicBlock(bitwidths, 32, 32, kernel_sizes, 1),
-            BasicBlock(bitwidths, 32, 32, kernel_sizes, 1),
-            BasicBlock(bitwidths, 32, 64, kernel_sizes, 1),
-            BasicBlock(bitwidths, 64, 64, kernel_sizes, 1),
-            BasicBlock(bitwidths, 64, 64, kernel_sizes, 1)
-        ]
+        # create list of layers from layersPlanes
+        # supports bitwidth as list of ints, i.e. same bitwidths to all layers
+        # supports bitwidth as list of lists, i.e. specific bitwidths to each layer
+        layers = [layerType(bitwidths if isinstance(bitwidths[0], int) else bitwidths[i],
+                            in_planes, out_planes, kernel_sizes, 1)
+                  for i, (layerType, in_planes, out_planes) in enumerate(layersPlanes)]
 
-        i = 2
+        i = 1
         for l in layers:
             setattr(self, 'block{}'.format(i), l)
             i += 1
 
         self.avgpool = AvgPool2d(8)
-        self.fc = MixedLinear(bitwidths, 64, 10)
+        # self.fc = MixedLinear(bitwidths, 64, 10)
+        self.fc = Linear(64, 10).cuda()
 
     def forward(self, x):
         out = self.block1(x)

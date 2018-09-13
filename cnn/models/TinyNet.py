@@ -1,6 +1,6 @@
 from collections import OrderedDict
 
-from torch.nn import Sequential, Conv2d
+from torch.nn import Sequential, Conv2d, Linear
 
 from cnn.MixedOp import MixedConvWithReLU, MixedLinear
 from cnn.models.BaseNet import BaseNet, save_quant_state, restore_quant_state, ActQuant
@@ -18,19 +18,21 @@ class TinyNet(BaseNet):
     def initLayers(self, params):
         bitwidths, kernel_sizes = params
 
-        # self.features = nn.Sequential(
-        #     MixedConv(bitwidths, 3, 16, kernel_sizes, stride=2), nn.ReLU(inplace=True),
-        #     MixedConv(bitwidths, 16, 32, kernel_sizes, stride=2), nn.ReLU(inplace=True),
-        #     MixedConv(bitwidths, 32, 64, kernel_sizes, stride=2), nn.ReLU(inplace=True),
-        #     MixedConv(bitwidths, 64, 128, kernel_sizes, stride=2), nn.ReLU(inplace=True)
-        # )
-        self.features = Sequential(
-            MixedConvWithReLU(bitwidths, 3, 16, kernel_sizes, stride=2),
-            MixedConvWithReLU(bitwidths, 16, 32, kernel_sizes, stride=2),
-            MixedConvWithReLU(bitwidths, 32, 64, kernel_sizes, stride=2),
-            MixedConvWithReLU(bitwidths, 64, 128, kernel_sizes, stride=2),
-        )
-        self.fc = MixedLinear(bitwidths, 512, 10)
+        # init layers (in_planes, out_planes)
+        layersPlanes = [(3, 16), (16, 32), (32, 64), (64, 128)]
+
+        # create list of layers from layersPlanes
+        # supports bitwidth as list of ints, i.e. same bitwidths to all layers
+        # supports bitwidth as list of lists, i.e. specific bitwidths to each layer
+        layers = [
+            MixedConvWithReLU(bitwidths if isinstance(bitwidths[0], int) else bitwidths[i],
+                              in_planes, out_planes, kernel_sizes, stride=2)
+            for i, (in_planes, out_planes) in enumerate(layersPlanes)]
+
+        self.features = Sequential(**layers)
+
+        # self.fc = MixedLinear(bitwidths, 512, 10)
+        self.fc = Linear(512, 10).cuda()
 
         # self.features = nn.Sequential(
         #     nn.Conv2d(3, 16, 3, 2, 1, bias=False), nn.BatchNorm2d(16), nn.ReLU(inplace=True),

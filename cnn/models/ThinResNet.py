@@ -1,7 +1,6 @@
 from collections import OrderedDict
 
 from torch.nn import Sequential, Conv2d, BatchNorm2d, ReLU, Module, AvgPool2d, Linear
-from torch import load as loadModel
 
 from .ResNet import ResNet, BasicBlock
 from cnn.MixedOp import MixedConvWithReLU
@@ -49,15 +48,17 @@ class ThinResNet(ResNet):
     def initLayers(self, params):
         bitwidths, kernel_sizes = params
 
-        self.block1 = MixedConvWithReLU(bitwidths, 3, 16, kernel_size=kernel_sizes, stride=1)
+        # init layers (type, in_planes, out_planes)
+        layersPlanes = [(MixedConvWithReLU, 3, 16), (BasicBlock, 16, 16), (BasicBlock, 16, 32), (BasicBlock, 32, 64)]
 
-        layers = [
-            BasicBlock(bitwidths, 16, 16, kernel_size=kernel_sizes, stride=1),
-            BasicBlock(bitwidths, 16, 32, kernel_size=kernel_sizes, stride=1),
-            BasicBlock(bitwidths, 32, 64, kernel_size=kernel_sizes, stride=1)
-        ]
+        # create list of layers from layersPlanes
+        # supports bitwidth as list of ints, i.e. same bitwidths to all layers
+        # supports bitwidth as list of lists, i.e. specific bitwidths to each layer
+        layers = [layerType(bitwidths if isinstance(bitwidths[0], int) else bitwidths[i],
+                            in_planes, out_planes, kernel_sizes, stride=1)
+                  for i, (layerType, in_planes, out_planes) in enumerate(layersPlanes)]
 
-        i = 2
+        i = 1
         for l in layers:
             setattr(self, 'block{}'.format(i), l)
             i += 1
