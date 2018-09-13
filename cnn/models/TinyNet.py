@@ -1,6 +1,6 @@
 from collections import OrderedDict
 
-from torch.nn import Sequential, Conv2d
+from torch.nn import Sequential, Conv2d, Linear
 
 from cnn.MixedOp import MixedConvWithReLU, MixedLinear
 from cnn.models.BaseNet import BaseNet, save_quant_state, restore_quant_state, ActQuant
@@ -24,7 +24,8 @@ class TinyNet(BaseNet):
             MixedConvWithReLU(bitwidths, 32, 64, kernel_sizes, stride=2),
             MixedConvWithReLU(bitwidths, 64, 128, kernel_sizes, stride=2),
         )
-        self.fc = MixedLinear(bitwidths, 512, 10)
+        # self.fc = MixedLinear(bitwidths, 512, 10)
+        self.fc = Linear(512, 10).cuda()
 
         # self.features = nn.Sequential(
         #     nn.Conv2d(3, 16, 3, 2, 1, bias=False), nn.BatchNorm2d(16), nn.ReLU(inplace=True),
