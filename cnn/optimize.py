@@ -245,11 +245,11 @@ def optimize(args, model, modelClass, logger):
 
     # init architect
     architect = Architect(model, modelClass, args)
-
     # init number of epochs
     nEpochs = model.nLayers()
     # init validation best precision value
     best_prec1 = 0.0
+    updateLR = 1  # TODO: replace it with something elegant
     # train alphas
     for epoch in range(epoch + 1, epoch + nEpochs + 1):
         # turn on alphas
@@ -263,6 +263,10 @@ def optimize(args, model, modelClass, logger):
         trainAlphas(search_queue, model, architect, epoch, loggersDict)
         # validation on current optimal model
         valid_acc = infer(valid_queue, model, model.evalMode, cross_entropy, epoch, loggersDict)
+        # update architecture learning rate
+        if updateLR == 1:
+            architect.lr = max(architect.lr / 10, 0.001)
+        updateLR = (updateLR + 1) % 2
 
         # save model checkpoint
         is_best = valid_acc > best_prec1
