@@ -19,6 +19,9 @@ class Statistics:
     allSamplesLossAvgKey = 'all_samples_loss_avg'
     gradNormKey = 'alphas_gradient_norm'
 
+    # set plot points style
+    ptsStyle = 'o'
+
     def __init__(self, layersList, nLayers, saveFolder):
         self.nLayers = nLayers
         # create plot folder
@@ -96,7 +99,7 @@ class Statistics:
             dataSum = []
             # add each layer alphas data to plot
             for i, layerData in enumerate(data):
-                ax.plot(xValues, layerData, 'o-', label=i)
+                ax.plot(xValues, layerData, self.ptsStyle, label=i)
                 dataMax = max(dataMax, max(layerData))
                 dataSum.append(sum(layerData) / len(layerData))
             # set yMax
@@ -115,7 +118,7 @@ class Statistics:
                 dataMax = 0
                 dataSum = []
                 for j, alphaVariance in enumerate(layerVariance):
-                    ax.plot(xValues, alphaVariance, 'o-', label=int(self.layersBitwidths[i][j].item()))
+                    ax.plot(xValues, alphaVariance, self.ptsStyle, label=int(self.layersBitwidths[i][j].item()))
                     dataMax = max(dataMax, max(alphaVariance))
                     dataSum.append(sum(alphaVariance) / len(alphaVariance))
                 # set yMax
