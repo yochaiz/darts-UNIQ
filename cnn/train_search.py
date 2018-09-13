@@ -65,8 +65,9 @@ def parseArgs(lossFuncsLambda):
     parser.add_argument('--arch_learning_rate', type=float, default=0.2, help='learning rate for arch encoding')
     parser.add_argument('--arch_weight_decay', type=float, default=1e-3, help='weight decay for arch encoding')
 
-    parser.add_argument('--pre_trained', type=str,
-                        default=None)
+    parser.add_argument('--pre_trained', type=str, default=None, help='pre-trained model to copy weights from')
+    parser.add_argument('--opt_pre_trained', type=str, default=None,
+                        help='pre-trained full-precision model for OPTIMAL model to copy weights from')
     # default='/home/yochaiz/darts/cnn/pre_trained_models/resnet_18_3_ops/model_opt.pth.tar')
     parser.add_argument('--nBitsMin', type=int, default=1, choices=range(1, 32 + 1), help='min number of bits')
     parser.add_argument('--nBitsMax', type=int, default=3, choices=range(1, 32 + 1), help='max number of bits')
@@ -172,6 +173,5 @@ if __name__ == '__main__':
     alphasReg = alphasRegClass(args, model, modelClass, logger)
     #train according to chosen regime
     alphasReg.train()
-
 
     logger.info('Done !')
