@@ -87,7 +87,8 @@ class BaseNet(Module):
         self.learnable_alphas = []
         # init number of layers we have completed its quantization
         self.nLayersQuantCompleted = 0
-
+        #init number of samples of each alpha
+        self.nSamplesPerAlpha = args.nSamplesPerAlpha
         # init layers permutation list
         self.layersPerm = []
         # init number of permutations counter
@@ -202,7 +203,7 @@ class BaseNet(Module):
 
     def _loss(self, input, target):
         # init how many samples per alpha
-        nSamplesPerAlpha = 50
+        nSamplesPerAlpha = self.nSamplesPerAlpha
         # init total loss
         totalLoss = 0.0
         # init loss samples list for ALL alphas
