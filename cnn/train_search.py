@@ -15,22 +15,30 @@ import cnn.models as models
 from cnn.utils import create_exp_dir, count_parameters_in_MB, load_pre_trained
 from cnn.utils import initLogger, printModelToFile
 from cnn.optimize import optimize
-
+import cnn.trainRegime as trainRegime
 
 # collect possible models names
 def loadModelNames():
     return [name for (name, obj) in models.__dict__.items() if isclass(obj) and name.islower()]
 
+#collect possible alphas optimization
+def loadAlphasRegimeNames():
+    return [name for (name, obj) in trainRegime.__dict__.items() if isclass(obj) and (name != 'TrainRegime')]
+
 
 def parseArgs(lossFuncsLambda):
     modelNames = loadModelNames()
+    alphasRegimeNames = loadAlphasRegimeNames()
 
     parser = argparse.ArgumentParser("cifar")
     parser.add_argument('--data', type=str, required=True, help='location of the data corpus')
     parser.add_argument('--dataset', metavar='DATASET', default='cifar10', help='dataset name')
     parser.add_argument('--model', '-a', metavar='MODEL', default='tinynet', choices=modelNames,
                         help='model architecture: ' + ' | '.join(modelNames) + ' (default: alexnet)')
+    parser.add_argument('--alphas_reg',  metavar='ALPHAS_REG', default='WeightsOnceAlphasOnce', choices=alphasRegimeNames,
+                        help='alphas optimization method: ' + ' | '.join(alphasRegimeNames) + ' (default: weights once alphas once)')
     parser.add_argument('--batch_size', type=int, default=256, help='batch size')
+    parser.add_argument('--nSamplesPerAlpha', type=int, default=50, help='How many alphas to sample to estimate the expectation value')
     parser.add_argument('--learning_rate', type=float, default=0.01, help='init learning rate')
     parser.add_argument('--learning_rate_min', type=float, default=1E-5, help='min learning rate')
     parser.add_argument('--momentum', type=float, default=0.9, help='momentum')
@@ -86,7 +94,7 @@ def parseArgs(lossFuncsLambda):
     if args.bitwidth:
         args.bitwidth = [int(i) for i in args.bitwidth.split(',')]
     else:
-        args.bitwidth = range(args.nBitsMin, args.nBitsMax + 1)
+        args.bitwidth = list(range(args.nBitsMin, args.nBitsMax + 1))
 
     # convert kernel sizes to list, sorted ascending
     args.kernel = [int(i) for i in args.kernel.split(',')]
@@ -157,6 +165,13 @@ if __name__ == '__main__':
     logger.info('Ops per layer:{}'.format([len(layer.ops) for layer in model.layersList]))
     logger.info('nPerms:[{}]'.format(model.nPerms))
 
-    optimize(args, model, modelClass, logger)
+    #optimize(args, model, modelClass, logger)
+
+    # build regime for alphas optimization
+    alphasRegClass = trainRegime.__dict__[args.alphas_reg]
+    alphasReg = alphasRegClass(args, model, modelClass, logger)
+    #train according to chosen regime
+    alphasReg.train()
+
 
     logger.info('Done !')
