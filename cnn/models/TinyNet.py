@@ -18,12 +18,19 @@ class TinyNet(BaseNet):
     def initLayers(self, params):
         bitwidths, kernel_sizes = params
 
-        self.features = Sequential(
-            MixedConvWithReLU(bitwidths, 3, 16, kernel_sizes, stride=2),
-            MixedConvWithReLU(bitwidths, 16, 32, kernel_sizes, stride=2),
-            MixedConvWithReLU(bitwidths, 32, 64, kernel_sizes, stride=2),
-            MixedConvWithReLU(bitwidths, 64, 128, kernel_sizes, stride=2),
-        )
+        # init layers (in_planes, out_planes)
+        layersPlanes = [(3, 16), (16, 32), (32, 64), (64, 128)]
+
+        # create list of layers from layersPlanes
+        # supports bitwidth as list of ints, i.e. same bitwidths to all layers
+        # supports bitwidth as list of lists, i.e. specific bitwidths to each layer
+        layers = [
+            MixedConvWithReLU(bitwidths if isinstance(bitwidths[0], int) else bitwidths[i],
+                              in_planes, out_planes, kernel_sizes, stride=2)
+            for i, (in_planes, out_planes) in enumerate(layersPlanes)]
+
+        self.features = Sequential(**layers)
+
         # self.fc = MixedLinear(bitwidths, 512, 10)
         self.fc = Linear(512, 10).cuda()
 

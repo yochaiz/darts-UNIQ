@@ -48,19 +48,18 @@ class ModifiedResNet(ResNet):
     def initLayers(self, params):
         bitwidths, kernel_sizes = params
 
-        self.block1 = MixedConvWithReLU(bitwidths, 3, 16, kernel_size=kernel_sizes, stride=1)
+        # init layers (type, in_planes, out_planes)
+        layersPlanes = [(MixedConvWithReLU, 3, 16),
+                        (BasicBlock, 16, 16), (BasicBlock, 16, 16), (BasicBlock, 16, 16), (BasicBlock, 16, 16),
+                        (BasicBlock, 16, 32), (BasicBlock, 32, 32), (BasicBlock, 32, 32),
+                        (BasicBlock, 32, 64), (BasicBlock, 64, 64)]
 
-        layers = [
-            BasicBlock(bitwidths, 16, 16, kernel_size=kernel_sizes, stride=1),
-            BasicBlock(bitwidths, 16, 16, kernel_size=kernel_sizes, stride=1),
-            BasicBlock(bitwidths, 16, 16, kernel_size=kernel_sizes, stride=1),
-            BasicBlock(bitwidths, 16, 16, kernel_size=kernel_sizes, stride=1),
-            BasicBlock(bitwidths, 16, 32, kernel_size=kernel_sizes, stride=1),
-            BasicBlock(bitwidths, 32, 32, kernel_size=kernel_sizes, stride=1),
-            BasicBlock(bitwidths, 32, 32, kernel_size=kernel_sizes, stride=1),
-            BasicBlock(bitwidths, 32, 64, kernel_size=kernel_sizes, stride=1),
-            BasicBlock(bitwidths, 64, 64, kernel_size=kernel_sizes, stride=1)
-        ]
+        # create list of layers from layersPlanes
+        # supports bitwidth as list of ints, i.e. same bitwidths to all layers
+        # supports bitwidth as list of lists, i.e. specific bitwidths to each layer
+        layers = [layerType(bitwidths if isinstance(bitwidths[0], int) else bitwidths[i],
+                            in_planes, out_planes, kernel_sizes, stride=1)
+                  for i, (layerType, in_planes, out_planes) in enumerate(layersPlanes)]
 
         i = 2
         for l in layers:
