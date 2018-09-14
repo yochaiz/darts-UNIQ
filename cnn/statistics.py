@@ -86,44 +86,42 @@ class Statistics:
         # close plot
         plt.close()
 
+    def __plotContainer(self, data, xValues, yLabel, title, fileName, labelFunc):
+        # create plot
+        fig, ax = plt.subplots(nrows=1, ncols=1)
+        # init ylim values
+        dataMax = 0
+        dataSum = []
+        # init flag to check whether we have plotted something or not
+        isPlotEmpty = True
+
+        for i, layerData in enumerate(data):
+            if len(xValues) == len(layerData):
+                ax.plot(xValues, layerData, self.ptsStyle, label=labelFunc(i))
+                isPlotEmpty = False
+                dataMax = max(dataMax, max(layerData))
+                dataSum.append(sum(layerData) / len(layerData))
+
+        if not isPlotEmpty:
+            # set yMax
+            yMax = min(dataMax * 1.1, (sum(dataSum) / len(dataSum)) * 1.5)
+
+            self.__setPlotProperties(fig, ax, xLabel='Batch #', yLabel=yLabel, yMax=yMax,
+                                     title=title, fileName=fileName)
+
     def plotData(self):
         # set x axis values
         xValues = list(range(len(self.batchLabels)))
         # generate different plots
         for fileName in self.plotAllLayersKeys:
             data = self.containers[fileName]
-            # create plot
-            fig, ax = plt.subplots(nrows=1, ncols=1)
-            # init ylim values
-            dataMax = 0
-            dataSum = []
-            # add each layer alphas data to plot
-            for i, layerData in enumerate(data):
-                ax.plot(xValues, layerData, self.ptsStyle, label=i)
-                dataMax = max(dataMax, max(layerData))
-                dataSum.append(sum(layerData) / len(layerData))
-            # set yMax
-            yMax = min(dataMax * 1.1, (sum(dataSum) / len(dataSum)) * 1.5)
-
-            self.__setPlotProperties(fig, ax, xLabel='Batch #', yLabel=fileName, yMax=yMax,
-                                     title='{} over epochs'.format(fileName), fileName=fileName)
+            self.__plotContainer(data, xValues, yLabel=fileName, title='{} over epochs'.format(fileName),
+                                 fileName=fileName, labelFunc=lambda x: x)
 
         for fileName in self.plotLayersSeparateKeys:
             data = self.containers[fileName]
             # add each layer alphas data to plot
             for i, layerVariance in enumerate(data):
-                # create plot
-                fig, ax = plt.subplots(nrows=1, ncols=1)
-                # init ylim values
-                dataMax = 0
-                dataSum = []
-                for j, alphaVariance in enumerate(layerVariance):
-                    ax.plot(xValues, alphaVariance, self.ptsStyle, label=int(self.layersBitwidths[i][j].item()))
-                    dataMax = max(dataMax, max(alphaVariance))
-                    dataSum.append(sum(alphaVariance) / len(alphaVariance))
-                # set yMax
-                yMax = min(dataMax * 1.1, (sum(dataSum) / len(dataSum)) * 1.5)
-
-                self.__setPlotProperties(fig, ax, xLabel='Batch #', yLabel=fileName, yMax=yMax,
-                                         title='{} --layer:[{}]-- over epochs'.format(fileName, i),
-                                         fileName='{}_{}'.format(fileName, i))
+                self.__plotContainer(layerVariance, xValues, yLabel=fileName, fileName='{}_{}'.format(fileName, i),
+                                     title='{} --layer:[{}]-- over epochs'.format(fileName, i),
+                                     labelFunc=lambda x: int(self.layersBitwidths[i][x].item()))
