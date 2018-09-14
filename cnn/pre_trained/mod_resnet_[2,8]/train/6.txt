@@ -1,0 +1,125 @@
+2018-09-11 20:32:31,039 - INFO - optimizer_lr:[0.00999], scheduler_lr:[0.00999]
+2018-09-11 20:32:34,236 - INFO - train [0/98] weight_loss:[0.26631] Accuracy:[91.016] PathBopsRatio:[0.497] time:[0.05242]
+2018-09-11 20:32:34,302 - INFO - train [1/98] weight_loss:[0.30250] Accuracy:[89.062] PathBopsRatio:[0.839] time:[0.05309]
+2018-09-11 20:32:34,363 - INFO - train [2/98] weight_loss:[0.27684] Accuracy:[90.495] PathBopsRatio:[0.596] time:[0.04993]
+2018-09-11 20:32:34,426 - INFO - train [3/98] weight_loss:[0.27202] Accuracy:[90.527] PathBopsRatio:[0.574] time:[0.04917]
+2018-09-11 20:32:34,492 - INFO - train [4/98] weight_loss:[0.27829] Accuracy:[89.688] PathBopsRatio:[0.708] time:[0.04874]
+2018-09-11 20:32:34,560 - INFO - train [5/98] weight_loss:[0.28491] Accuracy:[89.388] PathBopsRatio:[0.690] time:[0.05118]
+2018-09-11 20:32:34,622 - INFO - train [6/98] weight_loss:[0.28353] Accuracy:[89.621] PathBopsRatio:[0.738] time:[0.04845]
+2018-09-11 20:32:34,687 - INFO - train [7/98] weight_loss:[0.29235] Accuracy:[89.453] PathBopsRatio:[0.714] time:[0.04920]
+2018-09-11 20:32:34,752 - INFO - train [8/98] weight_loss:[0.29348] Accuracy:[89.497] PathBopsRatio:[0.549] time:[0.04906]
+2018-09-11 20:32:34,817 - INFO - train [9/98] weight_loss:[0.31240] Accuracy:[88.867] PathBopsRatio:[0.662] time:[0.04911]
+2018-09-11 20:32:34,881 - INFO - train [10/98] weight_loss:[0.30670] Accuracy:[89.027] PathBopsRatio:[0.521] time:[0.04869]
+2018-09-11 20:32:34,945 - INFO - train [11/98] weight_loss:[0.31370] Accuracy:[88.737] PathBopsRatio:[0.545] time:[0.04854]
+2018-09-11 20:32:35,012 - INFO - train [12/98] weight_loss:[0.32183] Accuracy:[88.522] PathBopsRatio:[0.595] time:[0.05245]
+2018-09-11 20:32:35,071 - INFO - train [13/98] weight_loss:[0.31779] Accuracy:[88.672] PathBopsRatio:[0.599] time:[0.04859]
+2018-09-11 20:32:35,138 - INFO - train [14/98] weight_loss:[0.31932] Accuracy:[88.594] PathBopsRatio:[0.697] time:[0.05199]
+2018-09-11 20:32:35,197 - INFO - train [15/98] weight_loss:[0.31840] Accuracy:[88.623] PathBopsRatio:[0.823] time:[0.04897]
+2018-09-11 20:32:35,257 - INFO - train [16/98] weight_loss:[0.32123] Accuracy:[88.511] PathBopsRatio:[0.386] time:[0.04841]
+2018-09-11 20:32:35,322 - INFO - train [17/98] weight_loss:[0.31972] Accuracy:[88.672] PathBopsRatio:[0.573] time:[0.05111]
+2018-09-11 20:32:35,384 - INFO - train [18/98] weight_loss:[0.31768] Accuracy:[88.734] PathBopsRatio:[0.699] time:[0.05023]
+2018-09-11 20:32:35,443 - INFO - train [19/98] weight_loss:[0.31837] Accuracy:[88.691] PathBopsRatio:[0.536] time:[0.04836]
+2018-09-11 20:32:35,505 - INFO - train [20/98] weight_loss:[0.31976] Accuracy:[88.616] PathBopsRatio:[0.764] time:[0.04839]
+2018-09-11 20:32:35,567 - INFO - train [21/98] weight_loss:[0.31617] Accuracy:[88.743] PathBopsRatio:[0.549] time:[0.04831]
+2018-09-11 20:32:35,631 - INFO - train [22/98] weight_loss:[0.31488] Accuracy:[88.774] PathBopsRatio:[0.772] time:[0.05063]
+2018-09-11 20:32:35,694 - INFO - train [23/98] weight_loss:[0.31947] Accuracy:[88.607] PathBopsRatio:[0.637] time:[0.05089]
+2018-09-11 20:32:35,759 - INFO - train [24/98] weight_loss:[0.31797] Accuracy:[88.641] PathBopsRatio:[0.623] time:[0.05482]
+2018-09-11 20:32:35,831 - INFO - train [25/98] weight_loss:[0.31481] Accuracy:[88.792] PathBopsRatio:[0.381] time:[0.06372]
+2018-09-11 20:32:35,881 - INFO - train [26/98] weight_loss:[0.31740] Accuracy:[88.744] PathBopsRatio:[0.571] time:[0.04860]
+2018-09-11 20:32:35,959 - INFO - train [27/98] weight_loss:[0.31657] Accuracy:[88.811] PathBopsRatio:[0.700] time:[0.04872]
+2018-09-11 20:32:36,032 - INFO - train [28/98] weight_loss:[0.31894] Accuracy:[88.726] PathBopsRatio:[0.764] time:[0.05151]
+2018-09-11 20:32:36,096 - INFO - train [29/98] weight_loss:[0.31867] Accuracy:[88.789] PathBopsRatio:[0.646] time:[0.04967]
+2018-09-11 20:32:36,180 - INFO - train [30/98] weight_loss:[0.32029] Accuracy:[88.773] PathBopsRatio:[0.757] time:[0.06460]
+2018-09-11 20:32:36,231 - INFO - train [31/98] weight_loss:[0.31974] Accuracy:[88.770] PathBopsRatio:[0.571] time:[0.04935]
+2018-09-11 20:32:36,298 - INFO - train [32/98] weight_loss:[0.31943] Accuracy:[88.731] PathBopsRatio:[0.463] time:[0.04913]
+2018-09-11 20:32:36,367 - INFO - train [33/98] weight_loss:[0.31856] Accuracy:[88.752] PathBopsRatio:[0.739] time:[0.04956]
+2018-09-11 20:32:36,457 - INFO - train [34/98] weight_loss:[0.31669] Accuracy:[88.850] PathBopsRatio:[0.504] time:[0.07187]
+2018-09-11 20:32:36,508 - INFO - train [35/98] weight_loss:[0.32029] Accuracy:[88.704] PathBopsRatio:[0.639] time:[0.04899]
+2018-09-11 20:32:36,592 - INFO - train [36/98] weight_loss:[0.32330] Accuracy:[88.619] PathBopsRatio:[0.797] time:[0.07089]
+2018-09-11 20:32:36,643 - INFO - train [37/98] weight_loss:[0.32252] Accuracy:[88.641] PathBopsRatio:[0.649] time:[0.04903]
+2018-09-11 20:32:36,726 - INFO - train [38/98] weight_loss:[0.32377] Accuracy:[88.602] PathBopsRatio:[0.705] time:[0.07134]
+2018-09-11 20:32:36,777 - INFO - train [39/98] weight_loss:[0.32386] Accuracy:[88.594] PathBopsRatio:[0.597] time:[0.04916]
+2018-09-11 20:32:36,860 - INFO - train [40/98] weight_loss:[0.32255] Accuracy:[88.586] PathBopsRatio:[0.680] time:[0.07141]
+2018-09-11 20:32:36,918 - INFO - train [41/98] weight_loss:[0.32203] Accuracy:[88.597] PathBopsRatio:[0.713] time:[0.05564]
+2018-09-11 20:32:36,990 - INFO - train [42/98] weight_loss:[0.32575] Accuracy:[88.490] PathBopsRatio:[0.514] time:[0.06595]
+2018-09-11 20:32:37,042 - INFO - train [43/98] weight_loss:[0.32448] Accuracy:[88.521] PathBopsRatio:[0.531] time:[0.04987]
+2018-09-11 20:32:37,129 - INFO - train [44/98] weight_loss:[0.32200] Accuracy:[88.576] PathBopsRatio:[0.814] time:[0.06570]
+2018-09-11 20:32:37,183 - INFO - train [45/98] weight_loss:[0.32190] Accuracy:[88.570] PathBopsRatio:[0.395] time:[0.05223]
+2018-09-11 20:32:37,267 - INFO - train [46/98] weight_loss:[0.32417] Accuracy:[88.497] PathBopsRatio:[0.521] time:[0.06541]
+2018-09-11 20:32:37,318 - INFO - train [47/98] weight_loss:[0.32425] Accuracy:[88.509] PathBopsRatio:[0.908] time:[0.04917]
+2018-09-11 20:32:37,390 - INFO - train [48/98] weight_loss:[0.32595] Accuracy:[88.433] PathBopsRatio:[0.580] time:[0.05461]
+2018-09-11 20:32:37,450 - INFO - train [49/98] weight_loss:[0.32485] Accuracy:[88.477] PathBopsRatio:[0.621] time:[0.04924]
+2018-09-11 20:32:37,521 - INFO - train [50/98] weight_loss:[0.32563] Accuracy:[88.434] PathBopsRatio:[0.624] time:[0.05246]
+2018-09-11 20:32:37,584 - INFO - train [51/98] weight_loss:[0.32685] Accuracy:[88.409] PathBopsRatio:[0.807] time:[0.04919]
+2018-09-11 20:32:37,656 - INFO - train [52/98] weight_loss:[0.32563] Accuracy:[88.429] PathBopsRatio:[0.824] time:[0.05237]
+2018-09-11 20:32:37,718 - INFO - train [53/98] weight_loss:[0.32443] Accuracy:[88.477] PathBopsRatio:[0.539] time:[0.04932]
+2018-09-11 20:32:37,790 - INFO - train [54/98] weight_loss:[0.32448] Accuracy:[88.430] PathBopsRatio:[0.623] time:[0.05292]
+2018-09-11 20:32:37,855 - INFO - train [55/98] weight_loss:[0.32352] Accuracy:[88.463] PathBopsRatio:[0.758] time:[0.05220]
+2018-09-11 20:32:37,924 - INFO - train [56/98] weight_loss:[0.32480] Accuracy:[88.439] PathBopsRatio:[0.421] time:[0.05248]
+2018-09-11 20:32:37,992 - INFO - train [57/98] weight_loss:[0.32576] Accuracy:[88.389] PathBopsRatio:[0.781] time:[0.05219]
+2018-09-11 20:32:38,059 - INFO - train [58/98] weight_loss:[0.32697] Accuracy:[88.328] PathBopsRatio:[0.889] time:[0.05229]
+2018-09-11 20:32:38,121 - INFO - train [59/98] weight_loss:[0.32709] Accuracy:[88.353] PathBopsRatio:[0.691] time:[0.04970]
+2018-09-11 20:32:38,198 - INFO - train [60/98] weight_loss:[0.32671] Accuracy:[88.364] PathBopsRatio:[0.547] time:[0.06031]
+2018-09-11 20:32:38,286 - INFO - train [61/98] weight_loss:[0.32856] Accuracy:[88.313] PathBopsRatio:[0.648] time:[0.05003]
+2018-09-11 20:32:38,374 - INFO - train [62/98] weight_loss:[0.32709] Accuracy:[88.387] PathBopsRatio:[0.691] time:[0.07083]
+2018-09-11 20:32:38,425 - INFO - train [63/98] weight_loss:[0.32616] Accuracy:[88.422] PathBopsRatio:[0.706] time:[0.04912]
+2018-09-11 20:32:38,505 - INFO - train [64/98] weight_loss:[0.32664] Accuracy:[88.419] PathBopsRatio:[0.704] time:[0.07049]
+2018-09-11 20:32:38,555 - INFO - train [65/98] weight_loss:[0.32583] Accuracy:[88.447] PathBopsRatio:[0.681] time:[0.04895]
+2018-09-11 20:32:38,629 - INFO - train [66/98] weight_loss:[0.32725] Accuracy:[88.380] PathBopsRatio:[0.530] time:[0.06513]
+2018-09-11 20:32:38,680 - INFO - train [67/98] weight_loss:[0.32749] Accuracy:[88.402] PathBopsRatio:[0.499] time:[0.04913]
+2018-09-11 20:32:38,757 - INFO - train [68/98] weight_loss:[0.32602] Accuracy:[88.428] PathBopsRatio:[0.807] time:[0.06344]
+2018-09-11 20:32:38,808 - INFO - train [69/98] weight_loss:[0.32725] Accuracy:[88.415] PathBopsRatio:[0.561] time:[0.04912]
+2018-09-11 20:32:38,886 - INFO - train [70/98] weight_loss:[0.32644] Accuracy:[88.457] PathBopsRatio:[0.705] time:[0.06429]
+2018-09-11 20:32:38,936 - INFO - train [71/98] weight_loss:[0.32625] Accuracy:[88.477] PathBopsRatio:[0.629] time:[0.04898]
+2018-09-11 20:32:39,015 - INFO - train [72/98] weight_loss:[0.32679] Accuracy:[88.463] PathBopsRatio:[0.379] time:[0.06392]
+2018-09-11 20:32:39,066 - INFO - train [73/98] weight_loss:[0.32746] Accuracy:[88.445] PathBopsRatio:[0.656] time:[0.04917]
+2018-09-11 20:32:39,143 - INFO - train [74/98] weight_loss:[0.32668] Accuracy:[88.474] PathBopsRatio:[0.604] time:[0.06434]
+2018-09-11 20:32:39,201 - INFO - train [75/98] weight_loss:[0.32618] Accuracy:[88.482] PathBopsRatio:[0.362] time:[0.05487]
+2018-09-11 20:32:39,256 - INFO - train [76/98] weight_loss:[0.32645] Accuracy:[88.469] PathBopsRatio:[0.688] time:[0.05246]
+2018-09-11 20:32:39,317 - INFO - train [77/98] weight_loss:[0.32604] Accuracy:[88.482] PathBopsRatio:[0.816] time:[0.04947]
+2018-09-11 20:32:39,404 - INFO - train [78/98] weight_loss:[0.32701] Accuracy:[88.469] PathBopsRatio:[0.804] time:[0.07048]
+2018-09-11 20:32:39,459 - INFO - train [79/98] weight_loss:[0.32943] Accuracy:[88.403] PathBopsRatio:[0.664] time:[0.05385]
+2018-09-11 20:32:39,534 - INFO - train [80/98] weight_loss:[0.32825] Accuracy:[88.436] PathBopsRatio:[0.641] time:[0.07065]
+2018-09-11 20:32:39,585 - INFO - train [81/98] weight_loss:[0.32933] Accuracy:[88.405] PathBopsRatio:[0.528] time:[0.04891]
+2018-09-11 20:32:39,654 - INFO - train [82/98] weight_loss:[0.33100] Accuracy:[88.333] PathBopsRatio:[0.537] time:[0.06273]
+2018-09-11 20:32:39,705 - INFO - train [83/98] weight_loss:[0.33031] Accuracy:[88.360] PathBopsRatio:[0.739] time:[0.04922]
+2018-09-11 20:32:39,781 - INFO - train [84/98] weight_loss:[0.33056] Accuracy:[88.355] PathBopsRatio:[0.679] time:[0.06073]
+2018-09-11 20:32:39,832 - INFO - train [85/98] weight_loss:[0.33149] Accuracy:[88.331] PathBopsRatio:[0.621] time:[0.04916]
+2018-09-11 20:32:39,910 - INFO - train [86/98] weight_loss:[0.33120] Accuracy:[88.340] PathBopsRatio:[0.621] time:[0.06254]
+2018-09-11 20:32:39,960 - INFO - train [87/98] weight_loss:[0.33223] Accuracy:[88.312] PathBopsRatio:[0.655] time:[0.04810]
+2018-09-11 20:32:40,030 - INFO - train [88/98] weight_loss:[0.33364] Accuracy:[88.220] PathBopsRatio:[0.631] time:[0.05497]
+2018-09-11 20:32:40,087 - INFO - train [89/98] weight_loss:[0.33563] Accuracy:[88.164] PathBopsRatio:[0.712] time:[0.04960]
+2018-09-11 20:32:40,154 - INFO - train [90/98] weight_loss:[0.33521] Accuracy:[88.152] PathBopsRatio:[0.674] time:[0.05059]
+2018-09-11 20:32:40,215 - INFO - train [91/98] weight_loss:[0.33607] Accuracy:[88.120] PathBopsRatio:[0.529] time:[0.04950]
+2018-09-11 20:32:40,296 - INFO - train [92/98] weight_loss:[0.33690] Accuracy:[88.088] PathBopsRatio:[0.680] time:[0.06679]
+2018-09-11 20:32:40,347 - INFO - train [93/98] weight_loss:[0.33707] Accuracy:[88.061] PathBopsRatio:[0.708] time:[0.04914]
+2018-09-11 20:32:40,442 - INFO - train [94/98] weight_loss:[0.33854] Accuracy:[88.018] PathBopsRatio:[0.690] time:[0.07701]
+2018-09-11 20:32:40,502 - INFO - train [95/98] weight_loss:[0.33776] Accuracy:[88.057] PathBopsRatio:[0.438] time:[0.05809]
+2018-09-11 20:32:40,552 - INFO - train [96/98] weight_loss:[0.33731] Accuracy:[88.068] PathBopsRatio:[0.848] time:[0.04993]
+2018-09-11 20:32:40,624 - INFO - train [97/98] weight_loss:[0.33732] Accuracy:[88.060] PathBopsRatio:[0.780] time:[0.07101]
+2018-09-11 20:32:40,625 - INFO - Epoch:[6] , training accuracy:[88.060] , training loss:[0.337] , optimizer_lr:[0.00999]
+2018-09-11 20:32:40,632 - INFO - =============================================
+2018-09-11 20:32:40,632 - INFO - Top [3] quantizations per layer:
+2018-09-11 20:32:40,632 - INFO - =============================================
+2018-09-11 20:32:40,633 - INFO - Layer:[0]  Idx:[1]  w:[0.50000]  alpha:[0.50000]  bitwidth:[8]  act_bitwidth:[8]  ||  Idx:[0]  w:[0.50000]  alpha:[0.50000]  bitwidth:[2]  act_bitwidth:[2]  ||  
+2018-09-11 20:32:40,633 - INFO - Layer:[1]  Idx:[1]  w:[0.50000]  alpha:[0.50000]  bitwidth:[8]  act_bitwidth:[8]  ||  Idx:[0]  w:[0.50000]  alpha:[0.50000]  bitwidth:[2]  act_bitwidth:[2]  ||  
+2018-09-11 20:32:40,633 - INFO - Layer:[2]  Idx:[1]  w:[0.50000]  alpha:[0.50000]  bitwidth:[8]  act_bitwidth:[8]  ||  Idx:[0]  w:[0.50000]  alpha:[0.50000]  bitwidth:[2]  act_bitwidth:[2]  ||  
+2018-09-11 20:32:40,633 - INFO - Layer:[3]  Idx:[1]  w:[0.50000]  alpha:[0.50000]  bitwidth:[8]  act_bitwidth:[8]  ||  Idx:[0]  w:[0.50000]  alpha:[0.50000]  bitwidth:[2]  act_bitwidth:[2]  ||  
+2018-09-11 20:32:40,633 - INFO - Layer:[4]  Idx:[1]  w:[0.50000]  alpha:[0.50000]  bitwidth:[8]  act_bitwidth:[8]  ||  Idx:[0]  w:[0.50000]  alpha:[0.50000]  bitwidth:[2]  act_bitwidth:[2]  ||  
+2018-09-11 20:32:40,633 - INFO - Layer:[5]  Idx:[1]  w:[0.50000]  alpha:[0.50000]  bitwidth:[8]  act_bitwidth:[8]  ||  Idx:[0]  w:[0.50000]  alpha:[0.50000]  bitwidth:[2]  act_bitwidth:[2]  ||  
+2018-09-11 20:32:40,634 - INFO - Layer:[6]  Idx:[1]  w:[0.50000]  alpha:[0.50000]  bitwidth:[8]  act_bitwidth:[8]  ||  Idx:[0]  w:[0.50000]  alpha:[0.50000]  bitwidth:[2]  act_bitwidth:[2]  ||  
+2018-09-11 20:32:40,634 - INFO - Layer:[7]  Idx:[1]  w:[0.50000]  alpha:[0.50000]  bitwidth:[8]  act_bitwidth:[8]  ||  Idx:[0]  w:[0.50000]  alpha:[0.50000]  bitwidth:[2]  act_bitwidth:[2]  ||  
+2018-09-11 20:32:40,634 - INFO - Layer:[8]  Idx:[1]  w:[0.50000]  alpha:[0.50000]  bitwidth:[8]  act_bitwidth:[8]  ||  Idx:[0]  w:[0.50000]  alpha:[0.50000]  bitwidth:[2]  act_bitwidth:[2]  ||  
+2018-09-11 20:32:40,634 - INFO - Layer:[9]  Idx:[1]  w:[0.50000]  alpha:[0.50000]  bitwidth:[8]  act_bitwidth:[8]  ||  Idx:[0]  w:[0.50000]  alpha:[0.50000]  bitwidth:[2]  act_bitwidth:[2]  ||  
+2018-09-11 20:32:40,634 - INFO - Layer:[10]  Idx:[1]  w:[0.50000]  alpha:[0.50000]  bitwidth:[8]  act_bitwidth:[8]  ||  Idx:[0]  w:[0.50000]  alpha:[0.50000]  bitwidth:[2]  act_bitwidth:[2]  ||  
+2018-09-11 20:32:40,635 - INFO - Layer:[11]  Idx:[1]  w:[0.50000]  alpha:[0.50000]  bitwidth:[8]  ||  Idx:[0]  w:[0.50000]  alpha:[0.50000]  bitwidth:[2]  ||  
+2018-09-11 20:32:40,635 - INFO - Layer:[12]  Idx:[1]  w:[0.50000]  alpha:[0.50000]  bitwidth:[8]  act_bitwidth:[8]  ||  Idx:[0]  w:[0.50000]  alpha:[0.50000]  bitwidth:[2]  act_bitwidth:[2]  ||  
+2018-09-11 20:32:40,635 - INFO - Layer:[13]  Idx:[1]  w:[0.50000]  alpha:[0.50000]  bitwidth:[8]  act_bitwidth:[8]  ||  Idx:[0]  w:[0.50000]  alpha:[0.50000]  bitwidth:[2]  act_bitwidth:[2]  ||  
+2018-09-11 20:32:40,635 - INFO - Layer:[14]  Idx:[1]  w:[0.50000]  alpha:[0.50000]  bitwidth:[8]  act_bitwidth:[8]  ||  Idx:[0]  w:[0.50000]  alpha:[0.50000]  bitwidth:[2]  act_bitwidth:[2]  ||  
+2018-09-11 20:32:40,635 - INFO - Layer:[15]  Idx:[1]  w:[0.50000]  alpha:[0.50000]  bitwidth:[8]  act_bitwidth:[8]  ||  Idx:[0]  w:[0.50000]  alpha:[0.50000]  bitwidth:[2]  act_bitwidth:[2]  ||  
+2018-09-11 20:32:40,636 - INFO - Layer:[16]  Idx:[1]  w:[0.50000]  alpha:[0.50000]  bitwidth:[8]  act_bitwidth:[8]  ||  Idx:[0]  w:[0.50000]  alpha:[0.50000]  bitwidth:[2]  act_bitwidth:[2]  ||  
+2018-09-11 20:32:40,636 - INFO - Layer:[17]  Idx:[1]  w:[0.50000]  alpha:[0.50000]  bitwidth:[8]  act_bitwidth:[8]  ||  Idx:[0]  w:[0.50000]  alpha:[0.50000]  bitwidth:[2]  act_bitwidth:[2]  ||  
+2018-09-11 20:32:40,636 - INFO - Layer:[18]  Idx:[1]  w:[0.50000]  alpha:[0.50000]  bitwidth:[8]  ||  Idx:[0]  w:[0.50000]  alpha:[0.50000]  bitwidth:[2]  ||  
+2018-09-11 20:32:40,636 - INFO - Layer:[19]  Idx:[1]  w:[0.50000]  alpha:[0.50000]  bitwidth:[8]  act_bitwidth:[8]  ||  Idx:[0]  w:[0.50000]  alpha:[0.50000]  bitwidth:[2]  act_bitwidth:[2]  ||  
+2018-09-11 20:32:40,636 - INFO - Layer:[20]  Idx:[1]  w:[0.50000]  alpha:[0.50000]  bitwidth:[8]  act_bitwidth:[8]  ||  Idx:[0]  w:[0.50000]  alpha:[0.50000]  bitwidth:[2]  act_bitwidth:[2]  ||  
+2018-09-11 20:32:40,636 - INFO - =============================================
