@@ -104,7 +104,9 @@ class ModelReplicator:
         # init loss samples list for ALL alphas
         allLossSamples = []
         # init how many samples per alpha
-        nSamplesPerAlpha = 50
+        nSamplesPerAlpha = cModel.nSamplesPerAlpha
+        nSamplesPerAlpha1 = int(nSamplesPerAlpha / 2)
+        nSamplesPerAlpha2 = nSamplesPerAlpha - nSamplesPerAlpha1
         # init layers alphas grad
         alphasGrad = []
         # save stats data
@@ -122,23 +124,77 @@ class ModelReplicator:
             for i, alpha in enumerate(layer.alphas):
                 # select the specific alpha in this layer
                 layer.curr_alpha_idx = i
-                # init loss samples list
-                alphaLossSamples = []
-                for _ in range(nSamplesPerAlpha):
-                    logits = cModel.forward(input)
-                    # alphaLoss += cModel._criterion(logits, target, cModel.countBops()).detach()
-                    alphaLossSamples.append(cModel._criterion(logits, target, cModel.countBops()).detach())
 
-                # add current alpha loss samples to all loss samples list
-                allLossSamples.extend(alphaLossSamples)
+                # # init loss samples list
+                # alphaLossSamples = []
+                # for _ in range(nSamplesPerAlpha):
+                #     logits = cModel.forward(input)
+                #     # alphaLoss += cModel._criterion(logits, target, cModel.countBops()).detach()
+                #     alphaLossSamples.append(cModel._criterion(logits, target, cModel.countBops()).detach())
+
+                # # add current alpha loss samples to all loss samples list
+                # allLossSamples.extend(alphaLossSamples)
+                # # calc alpha average loss
+                # alphaAvgLoss = sum(alphaLossSamples) / nSamplesPerAlpha
+                # layerAlphasGrad[i] = alphaAvgLoss
+                # # add alpha loss to total loss
+                # totalLoss += (alphaAvgLoss * probs[i])
+
+                # # calc loss samples variance
+                # lossVariance = [((x - alphaAvgLoss) ** 2) for x in alphaLossSamples]
+                # lossVariance = sum(lossVariance) / (nSamplesPerAlpha - 1)
+                # # add alpha loss variance to statistics
+                # alphaLossVariance.append((layerIdx, i, alphaAvgLoss.item(), lossVariance.item()))
+
+                # sample path based on alphas distribution
+                alphaLossSamples1 = []
+                for _ in range(nSamplesPerAlpha1):
+                    logits = cModel.forward(input)
+                    alphaLossSamples1.append(cModel._criterion(logits, target, cModel.countBops()).detach())
+
                 # calc alpha average loss
-                alphaAvgLoss = sum(alphaLossSamples) / nSamplesPerAlpha
+                alphaAvgLoss1 = sum(alphaLossSamples1) / nSamplesPerAlpha1
+
+                # set previous & following layer alpha as current layer alpha
+                prevLayer = cModel.layersList[layerIdx - 1] if layerIdx - 1 >= 0 else None
+                nextLayer = cModel.layersList[layerIdx + 1] if layerIdx + 1 < cModel.nLayers() else None
+                for l in [prevLayer, nextLayer]:
+                    if l:
+                        # turn off coin toss for previous layer
+                        l.alphas.requires_grad = False
+                        # select the specific alpha in previous layer
+                        l.curr_alpha_idx = i
+
+                # sample paths
+                alphaLossSamples2 = []
+                for _ in range(nSamplesPerAlpha2):
+                    logits = cModel.forward(input)
+                    alphaLossSamples2.append(cModel._criterion(logits, target, cModel.countBops()).detach())
+
+                # calc alpha average loss
+                alphaAvgLoss2 = sum(alphaLossSamples2) / nSamplesPerAlpha2
+
+                for l in [prevLayer, nextLayer]:
+                    if l:
+                        # multiply by layer alphas
+                        lProbs = F.softmax(l.alphas, dim=-1)
+                        alphaAvgLoss2 *= lProbs[i]
+                        # turn on alphas grads in layer
+                        l.alphas.requires_grad = True
+
+                # calc merged avg loss of alphaAvgLoss1,alphaAvgLoss2
+                # add current alpha loss samples to all loss samples list
+                allLossSamples.extend(alphaLossSamples1)
+                allLossSamples.extend(alphaLossSamples2)
+                # calc alpha average loss
+                alphaAvgLoss = (alphaAvgLoss1 + alphaAvgLoss2) * 0.5
                 layerAlphasGrad[i] = alphaAvgLoss
                 # add alpha loss to total loss
                 totalLoss += (alphaAvgLoss * probs[i])
 
                 # calc loss samples variance
-                lossVariance = [((x - alphaAvgLoss) ** 2) for x in alphaLossSamples]
+                lossVariance = [((x - alphaAvgLoss) ** 2) for x in alphaLossSamples1] + \
+                               [((x - alphaAvgLoss) ** 2) for x in alphaLossSamples2]
                 lossVariance = sum(lossVariance) / (nSamplesPerAlpha - 1)
                 # add alpha loss variance to statistics
                 alphaLossVariance.append((layerIdx, i, alphaAvgLoss.item(), lossVariance.item()))
