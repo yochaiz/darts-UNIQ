@@ -40,9 +40,6 @@ class MinimalAlphaSamplesLoss(TrainRegime):
             # add alphas data to statistics
             # self.model.stats.addBatchData(self.model, self.epoch, step)
 
-            # save alphas to csv
-            model.save_alphas_to_csv(data=[self.epoch, step])
-
             endTime = time()
 
             if trainLogger:
@@ -107,8 +104,9 @@ class MinimalAlphaSamplesLoss(TrainRegime):
         return allAlphaAvgLoss
 
     def train(self):
+        model = self.model
         # turn on alphas
-        self.model.turnOnAlphas()
+        model.turnOnAlphas()
 
         trainLogger = initTrainLogger(str(self.epoch), self.trainFolderPath, self.args.propagate)
         # set loggers dictionary
@@ -117,8 +115,7 @@ class MinimalAlphaSamplesLoss(TrainRegime):
         self.trainSamplesAlphas(loggersDict)
 
         # validation on current optimal model
-        valid_acc = infer(self.valid_queue, self.model, self.model.evalMode, self.cross_entropy, self.epoch,
-                          loggersDict)
+        valid_acc = infer(self.valid_queue, model, model.evalMode, self.cross_entropy, self.epoch, loggersDict)
 
         # save model checkpoint
-        save_checkpoint(self.trainFolderPath, self.model, self.epoch, valid_acc, True)
+        save_checkpoint(self.trainFolderPath, model, self.epoch, valid_acc, True)
