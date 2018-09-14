@@ -1,8 +1,11 @@
-from .regime import TrainRegime, infer
-from torch.autograd.variable import Variable
 from time import time
-from cnn.utils import logDominantQuantizedOp, AvgrageMeter, save_checkpoint, initTrainLogger
 from numpy import argmin
+
+from torch.autograd.variable import Variable
+from torch.nn import functional as F
+
+from .regime import TrainRegime, infer
+from cnn.utils import AvgrageMeter, logDominantQuantizedOp, save_checkpoint, initTrainLogger
 
 
 class MinimalAlphaSamplesLoss(TrainRegime):
@@ -12,7 +15,7 @@ class MinimalAlphaSamplesLoss(TrainRegime):
         self.nSamplesPerAlpha = model.nSamplesPerAlpha
 
     def trainSamplesAlphas(self, loggers):
-        # loss_container = AvgrageMeter()
+        loss_container = AvgrageMeter()
 
         trainLogger = loggers.get('train')
         model = self.model
@@ -20,7 +23,9 @@ class MinimalAlphaSamplesLoss(TrainRegime):
         model.train()
 
         nBatches = len(self.search_queue)
-        allAlphaAvgLoss = []
+
+        # init list of model alphas loss average
+        self.alphasLoss = [[[] for _ in range(layer.numOfOps())] for layer in model.layersList]
 
         for step, (input, target) in enumerate(self.search_queue):
             startTime = time()
@@ -29,79 +34,96 @@ class MinimalAlphaSamplesLoss(TrainRegime):
             target = Variable(target, requires_grad=False).cuda(async=True)
 
             model.trainMode()
-            currAllAlphaAvgLoss = self.alphaAvgLoss(input, target)
+            batchLoss = self.calcBatchAlphaAvgLoss(input, target)
 
-            if not allAlphaAvgLoss:
-                allAlphaAvgLoss = currAllAlphaAvgLoss  # for first iteration
-            else:
-                for j, layer in enumerate(model.layersList):
-                    allAlphaAvgLoss[j] = [sum(x) for x in zip(currAllAlphaAvgLoss[j], allAlphaAvgLoss[j])]
-
+            # save loss to container
+            loss_container.update(batchLoss, input.size(0))
             # add alphas data to statistics
-            # self.model.stats.addBatchData(self.model, self.epoch, step)
+            model.stats.addBatchData(model, self.epoch, step)
 
             endTime = time()
 
             if trainLogger:
-                trainLogger.info('train [{}/{}]  time:[{:.5f}]'
-                                 .format(step, nBatches, endTime - startTime))
+                trainLogger.info('train [{}/{}] arch_loss:[{:.5f}] time:[{:.5f}]'
+                                 .format(step, nBatches, loss_container.avg, (endTime - startTime)))
 
-            # loss_container.update(loss, input.size(0))
+        if trainLogger:
+            trainLogger.info('==== Average loss per layer ====')
+        # average all losses per alpha over all batches
+        for i, layerLoss in enumerate(self.alphasLoss):
+            layerLossNew = []
+            for j, alphaLoss in enumerate(layerLoss):
+                avgLoss = (sum(alphaLoss) / len(alphaLoss)).item()
+                layerLossNew.append(avgLoss)
 
-        for j, layer in enumerate(model.layersList):
+            self.alphasLoss[i] = layerLossNew
+            if trainLogger:
+                trainLogger.info('Layer [{}]: {}'.format(i, layerLossNew))
+        if trainLogger:
+            trainLogger.info('===============================================')
+
+        # select optimal alpha (lowest average loss) in each layer
+        for layer, layerLoss in zip(model.layersList, self.alphasLoss):
             # choose the alpha with minimum avg loss
-            layer.curr_alpha_idx = argmin(allAlphaAvgLoss[j])
+            layer.curr_alpha_idx = argmin(layerLoss)
             # make curr_alpha_idx to be the maximum alpha so we can use regular eval mode
             layer.alphas[layer.curr_alpha_idx] = max(layer.alphas) + 1
 
         # count current optimal model bops
         bopsRatio = model.evalMode()
 
-        # log dominant QuantizedOp in each layer
-        logDominantQuantizedOp(model, k=3, logger=trainLogger)
-
-        # # log accuracy, loss, etc.
-        message = ' OptBopsRatio:[{:.3f}] ]' \
-            .format(bopsRatio)
+        # log accuracy, loss, etc.
+        message = 'Epoch:[{}] , arch_loss:[{:.3f}] , OptBopsRatio:[{:.3f}]' \
+            .format(self.epoch, loss_container.avg, bopsRatio)
 
         for _, logger in loggers.items():
             logger.info(message)
 
-    def alphaAvgLoss(self, input, target):
-        # init loss samples list for ALL alphas
-        allAlphaAvgLoss = []
-        for j, layer in enumerate(self.model.layersList):
+        # log dominant QuantizedOp in each layer
+        logDominantQuantizedOp(model, k=3, logger=trainLogger)
+
+    # calc average samples loss for each alpha on given batch
+    def calcBatchAlphaAvgLoss(self, input, target):
+        model = self.model
+        # init total loss
+        totalLoss = 0.0
+        for j, layer in enumerate(model.layersList):
             # turn off coin toss for this layer
             layer.alphas.requires_grad = False
-            alphaAvgLoss = []
             for i, alpha in enumerate(layer.alphas):
+                # calc layer alphas softmax
+                probs = F.softmax(layer.alphas, dim=-1)
                 # select the specific alpha in this layer
                 layer.curr_alpha_idx = i
                 # init loss samples list
                 alphaLossSamples = []
                 for _ in range(self.nSamplesPerAlpha):
                     # forward through some path in model
-                    logits = self.model.forward(input)
-                    alphaLossSamples.append(self.model._criterion(logits, target, self.model.countBops()).detach())
+                    logits = model.forward(input)
+                    alphaLossSamples.append(model._criterion(logits, target, model.countBops()).detach())
 
-                # calc alpha average loss
-                currAlphaAvgLoss = sum(alphaLossSamples) / self.nSamplesPerAlpha
-                alphaAvgLoss.append(currAlphaAvgLoss)
+                # calc current alpha batch average loss
+                alphaAvgLoss = sum(alphaLossSamples) / len(alphaLossSamples)
+                # add current alpha batch average loss to container
+                self.alphasLoss[j][i].append(alphaAvgLoss)
+                # add alpha loss to total loss
+                totalLoss += (alphaAvgLoss * probs[i])
 
                 # calc loss samples variance
-                lossVariance = [((x - currAlphaAvgLoss) ** 2) for x in alphaLossSamples]
-                lossVariance = sum(lossVariance) / (self.nSamplesPerAlpha - 1)
+                lossVariance = [((x - alphaAvgLoss) ** 2) for x in alphaLossSamples]
+                lossVariance = sum(lossVariance) / (len(lossVariance) - 1)
                 # add alpha loss average to statistics
-                self.model.stats.containers[self.model.stats.alphaLossAvgKey][j][i].append(currAlphaAvgLoss.item())
+                model.stats.containers[model.stats.alphaLossAvgKey][j][i].append(alphaAvgLoss.item())
                 # add alpha loss variance to statistics
-                self.model.stats.containers[self.model.stats.alphaLossVarianceKey][j][i].append(lossVariance.item())
+                model.stats.containers[model.stats.alphaLossVarianceKey][j][i].append(lossVariance.item())
 
-            # save all alpha avg loss
-            allAlphaAvgLoss.append(alphaAvgLoss)
             # turn in coin toss for this layer
             layer.alphas.requires_grad = True
 
-        return allAlphaAvgLoss
+        # average total loss
+        totalLoss /= model.nLayers()
+
+        return totalLoss
 
     def train(self):
         model = self.model
