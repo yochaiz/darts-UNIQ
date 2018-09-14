@@ -127,17 +127,21 @@ stateCheckpointPattern = '{}/{}_checkpoint.' + checkpointFileType
 stateOptModelPattern = '{}/{}_opt.' + checkpointFileType
 
 
-def save_state(state, is_best, path='.', filename=stateFilenameDefault):
+def save_state(state, is_best, path, filename):
     default_filename = stateCheckpointPattern.format(path, filename)
     saveModel(state, default_filename)
     if is_best:
         copyfile(default_filename, stateOptModelPattern.format(path, filename))
 
 
-def save_checkpoint(path, model, epoch, best_prec1, is_best=False):
+def save_checkpoint(path, model, epoch, best_prec1, is_best=False, filename=None):
+    # set state dictionary
     state = dict(epoch=epoch + 1, state_dict=model.state_dict(), alphas=model.alphas_state(),
                  nLayersQuantCompleted=model.nLayersQuantCompleted, best_prec1=best_prec1)
-    save_state(state, is_best, path=path)
+    # set state filename
+    filename = filename or stateFilenameDefault
+    # save state to file
+    save_state(state, is_best, path=path, filename=filename)
 
 
 def load_pre_trained(path, model, logger, gpu):
