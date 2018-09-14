@@ -1,4 +1,5 @@
 from time import time
+from argparse import Namespace
 
 from torch.nn.utils.clip_grad import clip_grad_norm_
 from torch.optim.lr_scheduler import CosineAnnealingLR
@@ -7,7 +8,7 @@ from torch.optim import SGD
 from torch.autograd.variable import Variable
 from torch.nn import CrossEntropyLoss
 
-from cnn.utils import accuracy, AvgrageMeter, load_data
+from cnn.utils import accuracy, AvgrageMeter, load_data, load_pre_trained
 from cnn.utils import initTrainLogger, logDominantQuantizedOp, save_checkpoint
 from cnn.architect import Architect
 
@@ -158,15 +159,21 @@ def infer(valid_queue, model, modelInferMode, crit, nEpoch, loggers):
     return top1.avg
 
 
-def inferUniformModel(model, uniform_model, valid_queue, cross_entropy, MaxBopsBits, bitwidth, loggers):
-    uniform_model.loadBitwidthWeigths(model.state_dict(), MaxBopsBits, bitwidth)
-    # calc validation on uniform model
-    trainLogger = loggers.get('train')
-    if trainLogger:
-        trainLogger.info('== Validation uniform model ==')
+def trainOptModel(model, modelClass, args, logger):
+    # copy args
+    opt_args = Namespace(**vars(args))
+    # set bitwidth
+    bopsRatio1 = model.evalMode()
+    opt_args.bitwidth = [layer.ops[layer.curr_alpha_idx].bitwidth for layer in model.layersList]
+    # create optimal model
+    optModel = modelClass(opt_args)
+    #
+    bopsRatio2 = optModel.countBops()
+    # load full-precision pre-trained model weights
+    loadedOpsWithDiffWeights = load_pre_trained(args.opt_pre_trained, optModel, logger, args.gpu[0])
+    assert(loadedOpsWithDiffWeights is False)
 
-    # validation
-    infer(valid_queue, model, model.uniformMode, cross_entropy, epoch, dict(main=logger))
+
 
 
 def optimize(args, model, modelClass, logger):
@@ -199,14 +206,14 @@ def optimize(args, model, modelClass, logger):
 
     scheduler = CosineAnnealingLR(optimizer, float(nEpochs), eta_min=args.learning_rate_min)
 
-    # init validation best precision value
-    best_prec1 = 0.0
     # init epoch
     epoch = 0
 
     # if we loaded ops in the same layer with the same weights, then we loaded the optimal full precision model,
     # therefore we have to train the weights for each QuantizedOp
     if args.loadedOpsWithDiffWeights is False:
+        # init validation best precision value
+        best_prec1 = 0.0
         for epoch in range(1, nEpochs + 1):
             trainLogger = initTrainLogger(str(epoch), trainFolderPath, args.propagate)
             # set loggers dictionary
@@ -255,8 +262,8 @@ def optimize(args, model, modelClass, logger):
         # turn on alphas
         model.turnOnAlphas()
         print('========== Epoch:[{}] =============='.format(epoch))
-        # init epoch train logger
-        trainLogger = initTrainLogger(str(epoch), trainFolderPath, args.propagate)
+        # init epoch alphas train logger
+        trainLogger = initTrainLogger('{}_alpha'.format(epoch), trainFolderPath, args.propagate)
         # set loggers dictionary
         loggersDict = dict(train=trainLogger, main=logger)
         # train alphas
@@ -273,8 +280,13 @@ def optimize(args, model, modelClass, logger):
         best_prec1 = max(valid_acc, best_prec1)
         save_checkpoint(trainFolderPath, model, epoch, best_prec1, is_best)
 
+        # train current optimal model from full precision
+
         ## train weights ##
-        trainLogger.info('===== train weights =====')
+        # init epoch weights train logger
+        trainLogger = initTrainLogger('{}_weights'.format(epoch), trainFolderPath, args.propagate)
+        # set loggers dictionary
+        loggersDict = dict(train=trainLogger, main=logger)
         # turn off alphas
         model.turnOffAlphas()
         # turn on weights gradients
