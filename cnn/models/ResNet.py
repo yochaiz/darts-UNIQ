@@ -67,8 +67,8 @@ class ResNet(BaseNet):
             i += 1
 
         self.avgpool = AvgPool2d(8)
-        # self.fc = MixedLinear(bitwidths, 64, 10)
-        self.fc = Linear(64, 10).cuda()
+        self.fc = MixedLinear(bitwidths, 64, 10)
+        # self.fc = Linear(64, 10).cuda()
 
     def forward(self, x):
         out = self.block1(x)
