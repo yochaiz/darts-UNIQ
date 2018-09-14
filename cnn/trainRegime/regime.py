@@ -1,4 +1,8 @@
 from time import time
+from abc import abstractmethod
+from argparse import Namespace
+from multiprocessing import Pool
+from os import makedirs, path
 
 from torch.nn.utils.clip_grad import clip_grad_norm_
 from torch.optim.lr_scheduler import CosineAnnealingLR
@@ -7,7 +11,7 @@ from torch.optim import SGD
 from torch.autograd.variable import Variable
 from torch.nn import CrossEntropyLoss
 
-from cnn.utils import accuracy, AvgrageMeter, load_data
+from cnn.utils import accuracy, AvgrageMeter, load_data, load_pre_trained
 from cnn.utils import initTrainLogger, logDominantQuantizedOp, save_checkpoint
 from cnn.model_replicator import ModelReplicator
 from cnn.statistics import Statistics
@@ -170,17 +174,13 @@ def inferUniformModel(model, uniform_model, valid_queue, cross_entropy, MaxBopsB
 
 
 class TrainRegime:
-    def __init__(self, args, model, modelClass,logger):
+    def __init__(self, args, model, modelClass, logger):
         self.args = args
         self.model = model
+        self.modelClass = modelClass
         self.logger = logger
 
         self.trainFolderPath = '{}/{}'.format(args.save, args.trainFolder)
-
-        optimizer = SGD(model.parameters(), args.learning_rate, momentum=args.momentum,
-                        weight_decay=args.weight_decay)
-        # optimizer = Adam(model.parameters(), lr=args.learning_rate,
-        #                  betas=(0.5, 0.999), weight_decay=args.weight_decay)
 
         # init cross entropy loss
         self.cross_entropy = CrossEntropyLoss().cuda()
@@ -203,54 +203,132 @@ class TrainRegime:
         logger.info('nEpochs:[{}]'.format(nEpochs))
         logger.info('epochsSwitchStage:{}'.format(epochsSwitchStage))
 
-        scheduler = CosineAnnealingLR(optimizer, float(nEpochs), eta_min=args.learning_rate_min)
-
-        # init validation best precision value
-        best_prec1 = 0.0
         # init epoch
         self.epoch = 0
 
         # if we loaded ops in the same layer with the same weights, then we loaded the optimal full precision model,
         # therefore we have to train the weights for each QuantizedOp
         if args.loadedOpsWithDiffWeights is False:
-            for self.epoch in range(1, nEpochs + 1):
-                trainLogger = initTrainLogger(str(self.epoch), self.trainFolderPath, args.propagate)
-                # set loggers dictionary
-                loggersDict = dict(train=trainLogger, main=logger)
+            self.epoch = self.gwow(model, args, trainFolderName='init_weights_train')
 
-                scheduler.step()
-                lr = scheduler.get_lr()[0]
-
-                trainLogger.info(
-                    'optimizer_lr:[{:.5f}], scheduler_lr:[{:.5f}]'.format(optimizer.param_groups[0]['lr'], lr))
-
-                # training
-                print('========== Epoch:[{}] =============='.format(self.epoch))
-                trainWeights(self.train_queue, model, model.chooseRandomPath, self.cross_entropy, optimizer, args.grad_clip,
-                             self.epoch,
-                             loggersDict)
-
-                # switch stage, i.e. freeze one more layer
-                if (self.epoch in epochsSwitchStage) or (self.epoch == nEpochs):
-                    # validation
-                    infer(self.valid_queue, model, model.evalMode, self.cross_entropy, self.epoch, loggersDict)
-
-                    # switch stage
-                    model.switch_stage(trainLogger)
-                    # update optimizer & scheduler due to update in learnable params
-                    optimizer = SGD(model.parameters(), scheduler.get_lr()[0],
-                                    momentum=args.momentum, weight_decay=args.weight_decay)
-                    scheduler = CosineAnnealingLR(optimizer, float(nEpochs), eta_min=args.learning_rate_min)
-                    scheduler.step()
-
-                # save model checkpoint
-                save_checkpoint(self.trainFolderPath, model, self.epoch, best_prec1, is_best=False)
+            # for self.epoch in range(1, nEpochs + 1):
+            #     trainLogger = initTrainLogger(str(self.epoch), self.trainFolderPath, args.propagate)
+            #     # set loggers dictionary
+            #     loggersDict = dict(train=trainLogger, main=logger)
+            #
+            #     scheduler.step()
+            #     lr = scheduler.get_lr()[0]
+            #
+            #     trainLogger.info(
+            #         'optimizer_lr:[{:.5f}], scheduler_lr:[{:.5f}]'.format(optimizer.param_groups[0]['lr'], lr))
+            #
+            #     # training
+            #     print('========== Epoch:[{}] =============='.format(self.epoch))
+            #     trainWeights(self.train_queue, model, model.chooseRandomPath, self.cross_entropy, optimizer, args.grad_clip,
+            #                  self.epoch,
+            #                  loggersDict)
+            #
+            #     # switch stage, i.e. freeze one more layer
+            #     if (self.epoch in epochsSwitchStage) or (self.epoch == nEpochs):
+            #         # validation
+            #         infer(self.valid_queue, model, model.evalMode, self.cross_entropy, self.epoch, loggersDict)
+            #
+            #         # switch stage
+            #         model.switch_stage(trainLogger)
+            #         # update optimizer & scheduler due to update in learnable params
+            #         optimizer = SGD(model.parameters(), scheduler.get_lr()[0],
+            #                         momentum=args.momentum, weight_decay=args.weight_decay)
+            #         scheduler = CosineAnnealingLR(optimizer, float(nEpochs), eta_min=args.learning_rate_min)
+            #         scheduler.step()
+            #
+            #     # save model checkpoint
+            #     save_checkpoint(self.trainFolderPath, model, self.epoch, best_prec1, is_best=False)
         else:
             # we loaded ops in the same layer with different weights, therefore we just have to switch_stage
             switchStageFlag = True
             while switchStageFlag:
                 switchStageFlag = model.switch_stage(logger)
 
-
-
         self.updateLR = 1  # TODO: replace it with something elegant
+        self.nEpochs = nEpochs
+        self.epochsSwitchStage = epochsSwitchStage
+
+    @abstractmethod
+    def train(self):
+        raise NotImplementedError('subclasses must override train()!')
+
+    def trainOptimalModel(self, epoch, logger):
+        model = self.model
+        args = self.args
+
+        # copy args
+        opt_args = Namespace(**vars(args))
+        # set bitwidth
+        bopsRatio1 = model.evalMode()
+        opt_args.bitwidth = [layer.ops[layer.curr_alpha_idx].bitwidth for layer in model.layersList]
+        # create optimal model
+        optModel = self.modelClass(opt_args)
+        #
+        bopsRatio2 = optModel.countBops()
+        # load full-precision pre-trained model weights
+        loadedOpsWithDiffWeights = load_pre_trained(args.opt_pre_trained, optModel, logger, args.gpu[0])
+        assert (loadedOpsWithDiffWeights is False)
+        # train model
+        with Pool(processes=1, maxtasksperchild=1) as pool:
+            pool.apply_async(self.gwow, args=(optModel, opt_args, '{}_opt'.format(epoch), 'optModel'))
+
+    def gwow(self, model, args, trainFolderName, filename=None):
+        nEpochs = self.nEpochs
+
+        # create train folder
+        folderPath = '{}/{}'.format(self.trainFolderPath, trainFolderName)
+        if not path.exists(folderPath):
+            makedirs(folderPath)
+
+        # init optimizer
+        optimizer = SGD(model.parameters(), args.learning_rate, momentum=args.momentum,
+                        weight_decay=args.weight_decay)
+        # init scheduler
+        scheduler = CosineAnnealingLR(optimizer, float(nEpochs), eta_min=args.learning_rate_min)
+
+        # init validation best precision value
+        best_prec1 = 0.0
+
+        for epoch in range(1, nEpochs + 1):
+            trainLogger = initTrainLogger(str(epoch), folderPath, args.propagate)
+            # set loggers dictionary
+            loggersDict = dict(train=trainLogger, main=self.logger)
+
+            scheduler.step()
+            lr = scheduler.get_lr()[0]
+
+            trainLogger.info(
+                'optimizer_lr:[{:.5f}], scheduler_lr:[{:.5f}]'.format(optimizer.param_groups[0]['lr'], lr))
+
+            # training
+            print('========== Epoch:[{}] =============='.format(epoch))
+            trainWeights(self.train_queue, model, model.chooseRandomPath, self.cross_entropy, optimizer, args.grad_clip,
+                         epoch, loggersDict)
+
+            # switch stage, i.e. freeze one more layer
+            if (epoch in self.epochsSwitchStage) or (epoch == nEpochs):
+                # validation
+                valid_acc = infer(self.valid_queue, model, model.evalMode, self.cross_entropy, epoch, loggersDict)
+
+                # switch stage
+                model.switch_stage(trainLogger)
+                # update optimizer & scheduler due to update in learnable params
+                optimizer = SGD(model.parameters(), scheduler.get_lr()[0],
+                                momentum=args.momentum, weight_decay=args.weight_decay)
+                scheduler = CosineAnnealingLR(optimizer, float(nEpochs), eta_min=args.learning_rate_min)
+                scheduler.step()
+
+                # save model checkpoint
+                is_best = valid_acc > best_prec1
+                best_prec1 = max(valid_acc, best_prec1)
+                save_checkpoint(self.trainFolderPath, model, epoch, best_prec1, is_best, filename)
+            else:
+                # save model checkpoint
+                save_checkpoint(self.trainFolderPath, model, epoch, best_prec1, is_best=False, filename=filename)
+
+        return epoch
