@@ -31,8 +31,8 @@ class TinyNet(BaseNet):
 
         self.features = Sequential(*layers)
 
-        # self.fc = MixedLinear(bitwidths, 512, 10)
-        self.fc = Linear(512, 10).cuda()
+        self.fc = MixedLinear(bitwidths, 512, 10)
+        # self.fc = Linear(512, 10).cuda()
 
         # self.features = nn.Sequential(
         #     nn.Conv2d(3, 16, 3, 2, 1, bias=False), nn.BatchNorm2d(16), nn.ReLU(inplace=True),
