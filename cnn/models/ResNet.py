@@ -10,15 +10,17 @@ from cnn.models.BaseNet import save_quant_state, restore_quant_state
 
 
 class BasicBlock(Module):
-    def __init__(self, bitwidths, in_planes, out_planes, kernel_size, stride):
+    def __init__(self, bitwidths, in_planes, out_planes, kernel_size, stride, input_size):
         super(BasicBlock, self).__init__()
 
         stride1 = stride if in_planes == out_planes else (stride + 1)
 
-        self.block1 = MixedConvWithReLU(bitwidths, in_planes, out_planes, kernel_size, stride1, useResidual=False)
-        self.block2 = MixedConvWithReLU(bitwidths, out_planes, out_planes, kernel_size, stride, useResidual=True)
+        self.block1 = MixedConvWithReLU(bitwidths, in_planes, out_planes, kernel_size, stride1, input_size[0],
+                                        useResidual=False)
+        self.block2 = MixedConvWithReLU(bitwidths, out_planes, out_planes, kernel_size, stride, input_size[-1],
+                                        useResidual=True)
 
-        self.downsample = MixedConv(bitwidths, in_planes, out_planes, [1], stride1) \
+        self.downsample = MixedConv(bitwidths, in_planes, out_planes, [1], stride1, input_size[0]) \
             if in_planes != out_planes else None
 
     def forward(self, x):
@@ -49,17 +51,17 @@ class ResNet(BaseNet):
         bitwidths, kernel_sizes = params
 
         # init layers (type, in_planes, out_planes)
-        layersPlanes = [(MixedConvWithReLU, 3, 16),
-                        (BasicBlock, 16, 16), (BasicBlock, 16, 16), (BasicBlock, 16, 16),
-                        (BasicBlock, 16, 32), (BasicBlock, 32, 32), (BasicBlock, 32, 32),
-                        (BasicBlock, 32, 64), (BasicBlock, 64, 64), (BasicBlock, 64, 64)]
+        layersPlanes = [(MixedConvWithReLU, 3, 16, 32),
+                        (BasicBlock, 16, 16, [32]), (BasicBlock, 16, 16, [32]), (BasicBlock, 16, 16, [32]),
+                        (BasicBlock, 16, 32, [32, 16]), (BasicBlock, 32, 32, [16]), (BasicBlock, 32, 32, [16]),
+                        (BasicBlock, 32, 64, [16, 8]), (BasicBlock, 64, 64, [8]), (BasicBlock, 64, 64, [8])]
 
         # create list of layers from layersPlanes
         # supports bitwidth as list of ints, i.e. same bitwidths to all layers
         # supports bitwidth as list of lists, i.e. specific bitwidths to each layer
         layers = [layerType(bitwidths if isinstance(bitwidths[0], int) else bitwidths[i],
-                            in_planes, out_planes, kernel_sizes, 1)
-                  for i, (layerType, in_planes, out_planes) in enumerate(layersPlanes)]
+                            in_planes, out_planes, kernel_sizes, 1, input_size)
+                  for i, (layerType, in_planes, out_planes, input_size) in enumerate(layersPlanes)]
 
         i = 1
         for l in layers:
@@ -67,8 +69,8 @@ class ResNet(BaseNet):
             i += 1
 
         self.avgpool = AvgPool2d(8)
-        self.fc = MixedLinear(bitwidths, 64, 10)
-        # self.fc = Linear(64, 10).cuda()
+        # self.fc = MixedLinear(bitwidths, 64, 10)
+        self.fc = Linear(64, 10).cuda()
 
     def forward(self, x):
         out = self.block1(x)
