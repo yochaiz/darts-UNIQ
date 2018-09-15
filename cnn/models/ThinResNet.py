@@ -49,14 +49,15 @@ class ThinResNet(ResNet):
         bitwidths, kernel_sizes = params
 
         # init layers (type, in_planes, out_planes)
-        layersPlanes = [(MixedConvWithReLU, 3, 16), (BasicBlock, 16, 16), (BasicBlock, 16, 32), (BasicBlock, 32, 64)]
+        layersPlanes = [(MixedConvWithReLU, 3, 16, 32), (BasicBlock, 16, 16, [32]),
+                        (BasicBlock, 16, 32, [32, 16]), (BasicBlock, 32, 64, [16, 8])]
 
         # create list of layers from layersPlanes
         # supports bitwidth as list of ints, i.e. same bitwidths to all layers
         # supports bitwidth as list of lists, i.e. specific bitwidths to each layer
         layers = [layerType(bitwidths if isinstance(bitwidths[0], int) else bitwidths[i],
-                            in_planes, out_planes, kernel_sizes, stride=1)
-                  for i, (layerType, in_planes, out_planes) in enumerate(layersPlanes)]
+                            in_planes, out_planes, kernel_sizes, 1, input_size)
+                  for i, (layerType, in_planes, out_planes, input_size) in enumerate(layersPlanes)]
 
         i = 1
         for l in layers:
