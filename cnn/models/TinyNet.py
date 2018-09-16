@@ -19,20 +19,20 @@ class TinyNet(BaseNet):
         bitwidths, kernel_sizes = params
 
         # init layers (in_planes, out_planes)
-        layersPlanes = [(3, 16), (16, 32), (32, 64), (64, 128)]
+        layersPlanes = [(3, 16, 32), (16, 32, 16), (32, 64, 8), (64, 128, 4)]
 
         # create list of layers from layersPlanes
         # supports bitwidth as list of ints, i.e. same bitwidths to all layers
         # supports bitwidth as list of lists, i.e. specific bitwidths to each layer
         layers = [
             MixedConvWithReLU(bitwidths if isinstance(bitwidths[0], int) else bitwidths[i],
-                              in_planes, out_planes, kernel_sizes, stride=2)
-            for i, (in_planes, out_planes) in enumerate(layersPlanes)]
+                              in_planes, out_planes, kernel_sizes, stride=2, input_size=input_size)
+            for i, (in_planes, out_planes, input_size) in enumerate(layersPlanes)]
 
         self.features = Sequential(*layers)
 
-        self.fc = MixedLinear(bitwidths, 512, 10)
-        # self.fc = Linear(512, 10).cuda()
+        # self.fc = MixedLinear(bitwidths, 512, 10)
+        self.fc = Linear(512, 10).cuda()
 
         # self.features = nn.Sequential(
         #     nn.Conv2d(3, 16, 3, 2, 1, bias=False), nn.BatchNorm2d(16), nn.ReLU(inplace=True),
@@ -116,7 +116,8 @@ class TinyNet(BaseNet):
         map['features.9'] = 'features.3.ops.0.op.0.0'
         map['features.10'] = 'features.3.ops.0.op.0.1'
 
-        map['fc'] = 'fc.ops.0.op'
+        # map['fc'] = 'fc.ops.0.op'
+        map['fc'] = 'fc'
 
         newStateDict = OrderedDict()
 
@@ -124,24 +125,25 @@ class TinyNet(BaseNet):
 
         token = '.ops.'
         for key in chckpntDict.keys():
-            if 'num_batches_tracked' in key:
-                continue
-
             prefix = key[:key.rindex('.')]
             suffix = key[key.rindex('.'):]
             newKey = map[prefix]
             # find new key layer
-            newKeyOp = newKey[:newKey.index(token)]
-            # init path to layer
-            layerPath = [p for p in newKeyOp.split('.')]
-            # get layer by walking through path
-            layer = self
-            for p in layerPath:
-                layer = getattr(layer, p)
-            # update layer ops
-            for i in range(len(layer.ops)):
-                newStateDict[newKey + suffix] = chckpntDict[key]
-                newKey = newKey.replace(newKeyOp + token + '{}.'.format(i), newKeyOp + token + '{}.'.format(i + 1))
+            idx = newKey.find(token)
+            if idx >= 0:
+                newKeyOp = newKey[:idx]
+                # init path to layer
+                layerPath = [p for p in newKeyOp.split('.')]
+                # get layer by walking through path
+                layer = self
+                for p in layerPath:
+                    layer = getattr(layer, p)
+                # update layer ops
+                for i in range(len(layer.ops)):
+                    newStateDict[newKey + suffix] = chckpntDict[key]
+                    newKey = newKey.replace(newKeyOp + token + '{}.'.format(i), newKeyOp + token + '{}.'.format(i + 1))
+            else:
+                newStateDict[key] = chckpntDict[key]
 
         # load model weights
         self.load_state_dict(newStateDict)
