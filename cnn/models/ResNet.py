@@ -201,7 +201,7 @@ class ResNet(BaseNet):
             map['layer{}.0.downsample.0'.format(n)] = 'block{}.downsample.ops.0.op.0'.format(m)
             map['layer{}.0.downsample.1'.format(n)] = 'block{}.downsample.ops.0.op.1'.format(m)
 
-        map['fc'] = 'fc.ops.0.op'
+        map['fc'] = 'fc'
 
         token = '.ops.'
         for key in chckpntDict.keys():
@@ -209,17 +209,23 @@ class ResNet(BaseNet):
             suffix = key[key.rindex('.'):]
             newKey = map[prefix]
             # find new key layer
-            newKeyOp = newKey[:newKey.index(token)]
-            # init path to layer
-            layerPath = [p for p in newKeyOp.split('.')]
-            # get layer by walking through path
-            layer = self
-            for p in layerPath:
-                layer = getattr(layer, p)
-            # update layer ops
-            for i in range(len(layer.ops)):
-                newStateDict[newKey + suffix] = chckpntDict[key]
-                newKey = newKey.replace(newKeyOp + token + '{}.'.format(i), newKeyOp + token + '{}.'.format(i + 1))
+            idx = newKey.find(token)
+            if idx >= 0:
+                newKeyOp = newKey[:idx]
+                # init path to layer
+                layerPath = [p for p in newKeyOp.split('.')]
+                # get layer by walking through path
+                layer = self
+                for p in layerPath:
+                    layer = getattr(layer, p)
+                # update layer ops
+                if isinstance(layer, MixedOp):
+                    for i in range(len(layer.ops)):
+                        newStateDict[newKey + suffix] = chckpntDict[key]
+                        newKey = newKey.replace(newKeyOp + token + '{}.'.format(i),
+                                                newKeyOp + token + '{}.'.format(i + 1))
+            else:
+                newStateDict[key] = chckpntDict[key]
 
         # load model weights
         self.load_state_dict(newStateDict)
