@@ -172,9 +172,11 @@ if __name__ == '__main__':
     # optimize(args, model, modelClass, logger)
 
     # build regime for alphas optimization
-    alphasRegClass = trainRegime.__dict__[args.alphas_reg]
+    alphasRegClass = trainRegime.__dict__[args.alphas_regime]
     alphasReg = alphasRegClass(args, model, modelClass, logger)
     # train according to chosen regime
     alphasReg.train()
+    # send final email
+    alphasReg.sendEmail()
 
     logger.info('Done !')
