@@ -1,5 +1,6 @@
 from scipy.stats import entropy
 from os import makedirs, path
+from math import ceil, floor, sqrt
 
 from torch import tensor, float32
 import torch.nn.functional as F
@@ -13,6 +14,7 @@ import matplotlib.pyplot as plt
 class Statistics:
     entropyKey = 'alphas_entropy'
     weightedAvgKey = 'alphas_weighted_average'
+    alphaDistributionKey = 'alphas_distribution'
     alphaLossVarianceKey = 'alphas_loss_variance'
     alphaLossAvgKey = 'alphas_loss_avg'
     allSamplesLossVarianceKey = 'all_samples_loss_variance'
@@ -44,6 +46,7 @@ class Statistics:
             self.weightedAvgKey: [[] for _ in range(nLayers)],
             self.alphaLossVarianceKey: [[[] for _ in range(layer.numOfOps())] for layer in layersList],
             self.alphaLossAvgKey: [[[] for _ in range(layer.numOfOps())] for layer in layersList],
+            self.alphaDistributionKey: [[[] for _ in range(layer.numOfOps())] for layer in layersList],
             self.allSamplesLossVarianceKey: [[]],
             self.allSamplesLossAvgKey: [[]],
             self.gradNormKey: [[] for _ in range(nLayers)]
@@ -51,7 +54,7 @@ class Statistics:
         # map each list we plot for all layers on single plot to filename
         self.plotAllLayersKeys = [self.entropyKey, self.weightedAvgKey, self.allSamplesLossVarianceKey,
                                   self.allSamplesLossAvgKey, self.gradNormKey]
-        self.plotLayersSeparateKeys = [self.alphaLossAvgKey, self.alphaLossVarianceKey]
+        self.plotLayersSeparateKeys = [self.alphaLossAvgKey, self.alphaLossVarianceKey, self.alphaDistributionKey]
 
     def addBatchData(self, model, nEpoch, nBatch):
         assert (self.nLayers == model.nLayers())
@@ -59,8 +62,11 @@ class Statistics:
         self.batchLabels.append('[{}]_[{}]'.format(nEpoch, nBatch))
         # add data per layer
         for i, layer in enumerate(model.layersList):
-            # calc layer alphas probabilities
+            # calc layer alphas distribution
             probs = F.softmax(layer.alphas, dim=-1).detach()
+            # save distribution
+            for j, p in enumerate(probs):
+                self.containers[self.alphaDistributionKey][i][j].append(p.item())
             # calc entropy
             self.containers[self.entropyKey][i].append(entropy(probs))
             # collect weight bitwidth of each op in layer
@@ -74,7 +80,7 @@ class Statistics:
         # plot data
         self.plotData()
 
-    def __setPlotProperties(self, fig, ax, xLabel, yLabel, yMax, title, fileName):
+    def __setAxesProperties(self, ax, xLabel, yLabel, yMax, title):
         # ax.set_xticks(xValues)
         # ax.set_xticklabels(self.batchLabels)
         ax.set_xlabel(xLabel)
@@ -82,14 +88,20 @@ class Statistics:
         ax.set_ylim(ymax=yMax, ymin=0.0)
         ax.set_title(title)
         ax.legend(loc='upper center', bbox_to_anchor=(0.5, 1.02), ncol=5, fancybox=True, shadow=True)
-        fig.set_size_inches((12, 8))
 
+    def __setFigProperties(self, fig, fileName):
+        fig.set_size_inches((14, 10))
+        fig.tight_layout()
         # save to file
         fig.savefig('{}/{}.png'.format(self.saveFolder, fileName))
+
+    def __setPlotProperties(self, fig, ax, xLabel, yLabel, yMax, title, fileName):
+        self.__setAxesProperties(ax, xLabel, yLabel, yMax, title)
+        self.__setFigProperties(fig, fileName)
         # close plot
         plt.close()
 
-    def __plotContainer(self, data, xValues, xLabel, yLabel, title, fileName, labelFunc, scale=True):
+    def __plotContainer(self, data, xValues, xLabel, yLabel, title, fileName, labelFunc, axOther=None, scale=True):
         # create plot
         fig, ax = plt.subplots(nrows=1, ncols=1)
         # init ylim values
@@ -101,6 +113,8 @@ class Statistics:
         for i, layerData in enumerate(data):
             if len(xValues) == len(layerData):
                 ax.plot(xValues, layerData, self.ptsStyle, label=labelFunc(i))
+                if axOther:
+                    axOther.plot(xValues, layerData, 'o-', label=labelFunc(i))
                 isPlotEmpty = False
                 dataMax = max(dataMax, max(layerData))
                 dataSum.append(sum(layerData) / len(layerData))
@@ -108,11 +122,15 @@ class Statistics:
         if not isPlotEmpty:
             # set yMax
             yMax = dataMax * 1.1
+
+            # axOther doesn't scale
+            if axOther:
+                self.__setAxesProperties(axOther, xLabel, yLabel, yMax, title)
+
             if scale:
                 yMax = min(yMax, (sum(dataSum) / len(dataSum)) * 1.5)
 
-            self.__setPlotProperties(fig, ax, xLabel=xLabel, yLabel=yLabel, yMax=yMax,
-                                     title=title, fileName=fileName)
+            self.__setPlotProperties(fig, ax, xLabel, yLabel, yMax, title, fileName)
 
     def plotData(self):
         # set x axis values
@@ -125,11 +143,23 @@ class Statistics:
 
         for fileName in self.plotLayersSeparateKeys:
             data = self.containers[fileName]
+            # build subplot for all plots
+            nPlots = len(data)
+            nRows, nCols = floor(sqrt(nPlots)), ceil(sqrt(nPlots))
+            fig, ax = plt.subplots(nrows=nRows, ncols=nCols)
+            axRow, axCol = 0, 0
             # add each layer alphas data to plot
-            for i, layerVariance in enumerate(data):
-                self.__plotContainer(layerVariance, xValues, xLabel='Batch #', fileName='{}_{}'.format(fileName, i),
+            for i, layerData in enumerate(data):
+                self.__plotContainer(layerData, xValues, xLabel='Batch #', fileName='{}_{}'.format(fileName, i),
                                      title='{} --layer:[{}]-- over epochs'.format(fileName, i), yLabel=fileName,
-                                     labelFunc=lambda x: int(self.layersBitwidths[i][x].item()))
+                                     labelFunc=lambda x: int(self.layersBitwidths[i][x].item()),
+                                     axOther=ax[axRow, axCol])
+                # update next axes indices
+                axCol = (axCol + 1) % nCols
+                if axCol == 0:
+                    axRow += 1
+            # save fig
+            self.__setFigProperties(fig, fileName)
 
     def plotBops(self, layersList):
         xValues = list(range(len(layersList)))
