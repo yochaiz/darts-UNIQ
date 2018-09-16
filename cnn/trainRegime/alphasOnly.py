@@ -1,7 +1,7 @@
 from .regime import TrainRegime, trainAlphas, infer
 from cnn.utils import initTrainLogger, save_checkpoint
 from cnn.architect import Architect
-from .weightsOnceAlphasOnce import Replicator
+from .alphasWeightsLoop import Replicator
 
 
 class AlphasOnly(TrainRegime):
