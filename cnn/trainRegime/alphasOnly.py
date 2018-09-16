@@ -1,14 +1,17 @@
 from .regime import TrainRegime, trainAlphas, infer
 from cnn.utils import initTrainLogger, save_checkpoint
 from cnn.architect import Architect
+from .weightsOnceAlphasOnce import Replicator
 
 
 class AlphasOnly(TrainRegime):
     def __init__(self, args, model, modelClass, logger):
         super(AlphasOnly, self).__init__(args, model, modelClass, logger)
 
+        # init model replicator
+        replicator = Replicator(model, modelClass, args)
         # init architect
-        self.architect = Architect(model, modelClass, args)
+        self.architect = Architect(replicator, args)
 
     def train(self):
         # init number of epochs
