@@ -1,25 +1,22 @@
 from torch.optim import Adam, SGD
 from torch.nn.utils.clip_grad import clip_grad_norm_
 
-from cnn.model_replicator import ModelReplicator
-
 
 # from torch import cat, zeros_like
 # from torch.autograd import Variable, grad
 # from cnn.model_search import Network
-
 
 # def _concat(xs):
 #     return cat([x.view(-1) for x in xs])
 
 
 class Architect(object):
-    def __init__(self, model, modelClass, args):
+    def __init__(self, modelReplicator, args):
         self.network_momentum = args.momentum
         self.lr = args.arch_learning_rate
         self.weight_decay = args.arch_weight_decay
 
-        self.modelReplicator = ModelReplicator(model, modelClass, args)
+        self.modelReplicator = modelReplicator
 
         # self.model = model
         # self.optimizer = Adam(self.model.arch_parameters(), lr=args.arch_learning_rate,
@@ -32,6 +29,8 @@ class Architect(object):
         arch_parameters = model.arch_parameters()
         # init optimizer
         optimizer = SGD(arch_parameters, lr=self.lr, momentum=self.network_momentum)
+        # update learning rate
+        self.lr *= 0.999
         # reset optimizer gradients
         optimizer.zero_grad()
         # calc loss
