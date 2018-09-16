@@ -32,7 +32,8 @@ class UniqLoss(Module):
         # init bops loss function and plot it
         # self.bopsLoss = BopsLoss(LeakyReLU(inplace=True), 1, 1, 0, 1).calcLoss
         self.bopsLoss = self._tanh_bops_loss(xDst=1, yDst=0.02, yMin=0, yMax=0.5)
-        self.plotFunction(self.bopsLoss, args.save)
+        self.bopsLossImgPath = '{}/bops_loss_func.png'.format(args.save)
+        self.plotFunction(self.bopsLoss)
 
         # init values
         self.bopsRatio = -1
@@ -77,7 +78,7 @@ class UniqLoss(Module):
         #
         # return t
 
-    def plotFunction(self, func, folderName):
+    def plotFunction(self, func):
         # build data for function
         nPts = 201
         ptsGap = 5
@@ -101,8 +102,7 @@ class UniqLoss(Module):
         ax.set_title('Bops ratio loss function')
         fig.set_size_inches(25, 10)
 
-        if folderName:
-            fig.savefig('{}/bops_loss_func.png'.format(folderName))
+        fig.savefig(self.bopsLossImgPath)
 
     # def _bops_loss(self, bops):
     #     # Parameters that were found emphirical
