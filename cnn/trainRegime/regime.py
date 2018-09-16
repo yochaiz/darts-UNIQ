@@ -2,7 +2,14 @@ from time import time
 from abc import abstractmethod
 from argparse import Namespace
 from multiprocessing import Pool
-from os import makedirs, path
+from os import makedirs, path, walk
+from smtplib import SMTP
+from email import encoders
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from email.mime.base import MIMEBase
+from base64 import b64decode
+from zipfile import ZipFile, ZIP_DEFLATED
 
 from torch.nn.utils.clip_grad import clip_grad_norm_
 from torch.optim.lr_scheduler import CosineAnnealingLR
@@ -13,8 +20,6 @@ from torch.nn import CrossEntropyLoss
 
 from cnn.utils import accuracy, AvgrageMeter, load_data, load_pre_trained
 from cnn.utils import initTrainLogger, logDominantQuantizedOp, save_checkpoint
-from cnn.model_replicator import ModelReplicator
-from cnn.statistics import Statistics
 
 
 def trainWeights(train_queue, model, modelChoosePathFunc, crit, optimizer, grad_clip, nEpoch, loggers):
@@ -70,50 +75,6 @@ def trainWeights(train_queue, model, modelChoosePathFunc, crit, optimizer, grad_
 
     # log dominant QuantizedOp in each layer
     logDominantQuantizedOp(model, k=3, logger=trainLogger)
-
-
-def trainAlphas(search_queue, model, architect, nEpoch, loggers):
-    loss_container = AvgrageMeter()
-
-    trainLogger = loggers.get('train')
-
-    model.train()
-
-    nBatches = len(search_queue)
-
-    for step, (input, target) in enumerate(search_queue):
-        startTime = time()
-        n = input.size(0)
-
-        input = Variable(input, requires_grad=False).cuda()
-        target = Variable(target, requires_grad=False).cuda(async=True)
-
-        model.trainMode()
-        loss = architect.step(model, input, target)
-
-        # add alphas data to statistics
-        model.stats.addBatchData(model, nEpoch, step)
-        # log dominant QuantizedOp in each layer
-        logDominantQuantizedOp(model, k=3, logger=trainLogger)
-        # save alphas to csv
-        model.save_alphas_to_csv(data=[nEpoch, step])
-        # save loss to container
-        loss_container.update(loss, n)
-        # count current optimal model bops
-        bopsRatio = model.evalMode()
-
-        endTime = time()
-
-        if trainLogger:
-            trainLogger.info('train [{}/{}] arch_loss:[{:.5f}] OptBopsRatio:[{:.3f}] time:[{:.5f}]'
-                             .format(step, nBatches, loss_container.avg, bopsRatio, endTime - startTime))
-
-    # log accuracy, loss, etc.
-    message = 'Epoch:[{}] , arch loss:[{:.3f}] , OptBopsRatio:[{:.3f}] , lr:[{:.5f}]' \
-        .format(nEpoch, loss_container.avg, bopsRatio, architect.lr)
-
-    for _, logger in loggers.items():
-        logger.info(message)
 
 
 def infer(valid_queue, model, modelInferMode, crit, nEpoch, loggers):
@@ -180,6 +141,10 @@ class TrainRegime:
         self.modelClass = modelClass
         self.logger = logger
 
+        # init email time
+        self.lastMailTime = time()
+        self.secondsBetweenMails = 5 * 3600
+
         self.trainFolderPath = '{}/{}'.format(args.save, args.trainFolder)
 
         # init cross entropy loss
@@ -205,6 +170,8 @@ class TrainRegime:
 
         # init epoch
         self.epoch = 0
+        self.nEpochs = nEpochs
+        self.epochsSwitchStage = epochsSwitchStage
 
         # if we loaded ops in the same layer with the same weights, then we loaded the optimal full precision model,
         # therefore we have to train the weights for each QuantizedOp
@@ -249,10 +216,6 @@ class TrainRegime:
             while switchStageFlag:
                 switchStageFlag = model.switch_stage(logger)
 
-        self.updateLR = 1  # TODO: replace it with something elegant
-        self.nEpochs = nEpochs
-        self.epochsSwitchStage = epochsSwitchStage
-
     @abstractmethod
     def train(self):
         raise NotImplementedError('subclasses must override train()!')
@@ -268,14 +231,15 @@ class TrainRegime:
         opt_args.bitwidth = [layer.ops[layer.curr_alpha_idx].bitwidth for layer in model.layersList]
         # create optimal model
         optModel = self.modelClass(opt_args)
+        optModel = optModel.cuda()
         #
-        bopsRatio2 = optModel.countBops()
+        bopsRatio2 = optModel.calcBopsRatio()
         # load full-precision pre-trained model weights
         loadedOpsWithDiffWeights = load_pre_trained(args.opt_pre_trained, optModel, logger, args.gpu[0])
         assert (loadedOpsWithDiffWeights is False)
         # train model
         with Pool(processes=1, maxtasksperchild=1) as pool:
-            pool.apply_async(self.gwow, args=(optModel, opt_args, '{}_opt'.format(epoch), 'optModel'))
+            pool.apply(self.gwow, args=(optModel, opt_args, '{}_opt'.format(epoch), 'optModel'))
 
     def gwow(self, model, args, trainFolderName, filename=None):
         nEpochs = self.nEpochs
@@ -332,3 +296,100 @@ class TrainRegime:
                 save_checkpoint(self.trainFolderPath, model, epoch, best_prec1, is_best=False, filename=filename)
 
         return epoch
+
+    def sendEmail(self):
+        model = self.model
+        args = self.args
+        saveFolder = args.save
+        # init files to zip
+        attachPaths = [self.trainFolderPath, model.alphasCsvFileName, model.stats.saveFolder,
+                       model._criterion.bopsLossImgPath]
+        # zip files
+        zipFname = 'attach.zip'
+        zipPath = '{}/{}'.format(saveFolder, zipFname)
+        zipf = ZipFile(zipPath, 'w', ZIP_DEFLATED)
+        for p in attachPaths:
+            if path.isdir(p):
+                # get p folder relative path
+                folderName = path.relpath(p)
+                for base, dirs, files in walk(p):
+                    for file in files:
+                        fn = path.join(base, file)
+                        zipf.write(fn, fn[fn.index(folderName):])
+            else:
+                zipf.write(p)
+        zipf.close()
+        # init email addresses
+        fromAddr = "yochaiz@campus.technion.ac.il"
+        toAddr = ['evron.itay@gmail.com', 'chaimbaskin@cs.technion.ac.il']
+        # init connection
+        server = SMTP('smtp.office365.com', 587)
+        server.ehlo()
+        server.starttls()
+        server.ehlo()
+        passwd = b'WXo4Nzk1NzE='
+        server.login(fromAddr, b64decode(passwd).decode('utf-8'))
+        # init message
+        msg = MIMEMultipart()
+        body = 'Hi,\nFiles are attached'
+        msg['From'] = fromAddr
+        msg['Subject'] = 'Results - Model:[{}] Bitwidth:{}'.format(args.model, args.bitwidth)
+        msg.attach(MIMEText(body, 'plain'))
+        with open(zipPath, 'rb') as z:
+            # attach zip file
+            part = MIMEBase('application', 'octet-stream')
+            part.set_payload(z.read())
+            encoders.encode_base64(part)
+            part.add_header('Content-Disposition', "attachment; filename= %s" % zipFname)
+            msg.attach(part)
+            # send message
+            for dst in toAddr:
+                msg['To'] = dst
+                text = msg.as_string()
+                server.sendmail(fromAddr, dst, text)
+        server.close()
+
+    def trainAlphas(self, search_queue, model, architect, nEpoch, loggers):
+        loss_container = AvgrageMeter()
+
+        trainLogger = loggers.get('train')
+
+        model.train()
+
+        nBatches = len(search_queue)
+
+        for step, (input, target) in enumerate(search_queue):
+            startTime = time()
+            n = input.size(0)
+
+            input = Variable(input, requires_grad=False).cuda()
+            target = Variable(target, requires_grad=False).cuda(async=True)
+
+            model.trainMode()
+            loss = architect.step(model, input, target)
+
+            # add alphas data to statistics
+            optBopsRatio = model.stats.addBatchData(model, nEpoch, step)
+            # log dominant QuantizedOp in each layer
+            logDominantQuantizedOp(model, k=3, logger=trainLogger)
+            # save alphas to csv
+            model.save_alphas_to_csv(data=[nEpoch, step])
+            # save loss to container
+            loss_container.update(loss, n)
+
+            endTime = time()
+
+            # send email
+            if endTime - self.lastMailTime > self.secondsBetweenMails:
+                self.sendEmail()
+
+                if trainLogger:
+                    trainLogger.info('train [{}/{}] arch_loss:[{:.5f}] OptBopsRatio:[{:.3f}] time:[{:.5f}]'
+                                     .format(step, nBatches, loss_container.avg, optBopsRatio, endTime - startTime))
+
+            # log accuracy, loss, etc.
+            message = 'Epoch:[{}] , arch loss:[{:.3f}] , OptBopsRatio:[{:.3f}] , lr:[{:.5f}]' \
+                .format(nEpoch, loss_container.avg, optBopsRatio, architect.lr)
+
+            for _, logger in loggers.items():
+                logger.info(message)
