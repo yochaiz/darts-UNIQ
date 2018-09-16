@@ -106,8 +106,9 @@ class MinimalAlphaSamplesLoss(TrainRegime):
             target = Variable(target, requires_grad=False).cuda(async=True)
 
             model.trainMode()
-            batchLoss, batchAlphasLoss = self.calcBatchAlphaAvgLoss(input, target)
-            # batchLoss, batchAlphasLoss = self.replicator.loss(model, input, target)
+            res = self.calcBatchAlphaAvgLoss(input, target)
+            # res = self.replicator.loss(model, input, target)
+            batchLoss, batchAlphasLoss = res
 
             # copy batch alphas average loss to main alphas average loss
             for batchLayerLoss, layerLoss in zip(batchAlphasLoss, alphasLoss):
