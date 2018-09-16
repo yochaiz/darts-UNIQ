@@ -122,7 +122,7 @@ class Statistics:
             if len(xValues) == len(layerData):
                 ax.plot(xValues, layerData, self.ptsStyle, label=labelFunc(i))
                 if axOther:
-                    axOther.plot(xValues, layerData, 'o-', label=labelFunc(i))
+                    axOther.plot(xValues, layerData, '-', label=labelFunc(i))
                 isPlotEmpty = False
                 dataMax = max(dataMax, max(layerData))
                 dataSum.append(sum(layerData) / len(layerData))
