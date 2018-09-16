@@ -4,7 +4,7 @@ from cnn.architect import Architect
 
 
 class AlphasOnly(TrainRegime):
-    def __init__(self, args, model, modelClass,logger):
+    def __init__(self, args, model, modelClass, logger):
         super(AlphasOnly, self).__init__(args, model, modelClass, logger)
 
         # init architect
@@ -28,12 +28,6 @@ class AlphasOnly(TrainRegime):
             trainAlphas(self.search_queue, self.model, self.architect, epoch, loggersDict)
             # validation on current optimal model
             valid_acc = infer(self.valid_queue, self.model, self.model.evalMode, self.cross_entropy, epoch, loggersDict)
-
-
-            # update architecture learning rate
-            if self.updateLR == 1:
-                self.architect.lr = max(self.architect.lr / 10, 0.001)
-            self.updateLR = (self.updateLR + 1) % 2
 
             # save model checkpoint
             is_best = valid_acc > best_prec1
