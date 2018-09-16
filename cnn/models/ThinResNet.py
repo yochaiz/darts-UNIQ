@@ -1,9 +1,8 @@
 from collections import OrderedDict
 
-from torch.nn import Sequential, Conv2d, BatchNorm2d, ReLU, Module, AvgPool2d, Linear
+from torch.nn import Sequential, Conv2d, BatchNorm2d, ReLU, Module
 
-from .ResNet import ResNet, BasicBlock
-from cnn.MixedOp import MixedConvWithReLU
+from .ResNet import ResNet, BasicBlock, MixedConvWithReLU
 
 
 class BasicBlockFullPrecision(Module):
@@ -45,27 +44,10 @@ class ThinResNet(ResNet):
     def __init__(self, args):
         super(ThinResNet, self).__init__(args)
 
-    def initLayers(self, params):
-        bitwidths, kernel_sizes = params
-
-        # init layers (type, in_planes, out_planes)
-        layersPlanes = [(MixedConvWithReLU, 3, 16, 32), (BasicBlock, 16, 16, [32]),
-                        (BasicBlock, 16, 32, [32, 16]), (BasicBlock, 32, 64, [16, 8])]
-
-        # create list of layers from layersPlanes
-        # supports bitwidth as list of ints, i.e. same bitwidths to all layers
-        # supports bitwidth as list of lists, i.e. specific bitwidths to each layer
-        layers = [layerType(bitwidths if isinstance(bitwidths[0], int) else bitwidths[i],
-                            in_planes, out_planes, kernel_sizes, 1, input_size)
-                  for i, (layerType, in_planes, out_planes, input_size) in enumerate(layersPlanes)]
-
-        i = 1
-        for l in layers:
-            setattr(self, 'block{}'.format(i), l)
-            i += 1
-
-        self.avgpool = AvgPool2d(8)
-        self.fc = Linear(64, 10).cuda()
+    # init layers (type, in_planes, out_planes)
+    def initLayersPlanes(self):
+        return [(MixedConvWithReLU, 3, 16, 32), (BasicBlock, 16, 16, [32]),
+                (BasicBlock, 16, 32, [32, 16]), (BasicBlock, 32, 64, [16, 8])]
 
     def loadUNIQPre_trained(self, chckpntDict):
         def iterateKey(chckpntDict, map, key1, key2, dstKey):
