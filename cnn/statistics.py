@@ -18,6 +18,7 @@ class Statistics:
     allSamplesLossVarianceKey = 'all_samples_loss_variance'
     allSamplesLossAvgKey = 'all_samples_loss_avg'
     gradNormKey = 'alphas_gradient_norm'
+    bopsKey = 'bops'
 
     # set plot points style
     ptsStyle = 'o'
@@ -32,6 +33,11 @@ class Statistics:
         self.saveFolder = plotFolderPath
         # init list of batch labels for y axis
         self.batchLabels = []
+        # collect op bitwidth per layer in model
+        self.layersBitwidths = [tensor([op.bitwidth[0] for op in layer.ops], dtype=float32).cuda()
+                                for layer in layersList]
+        # plot bops plot
+        self.plotBops(layersList)
         # init containers
         self.containers = {
             self.entropyKey: [[] for _ in range(nLayers)],
@@ -46,9 +52,6 @@ class Statistics:
         self.plotAllLayersKeys = [self.entropyKey, self.weightedAvgKey, self.allSamplesLossVarianceKey,
                                   self.allSamplesLossAvgKey, self.gradNormKey]
         self.plotLayersSeparateKeys = [self.alphaLossAvgKey, self.alphaLossVarianceKey]
-        # collect op bitwidth per layer in model
-        self.layersBitwidths = [tensor([op.bitwidth[0] for op in layer.ops], dtype=float32).cuda()
-                                for layer in layersList]
 
     def addBatchData(self, model, nEpoch, nBatch):
         assert (self.nLayers == model.nLayers())
@@ -86,7 +89,7 @@ class Statistics:
         # close plot
         plt.close()
 
-    def __plotContainer(self, data, xValues, yLabel, title, fileName, labelFunc):
+    def __plotContainer(self, data, xValues, xLabel, yLabel, title, fileName, labelFunc, scale=True):
         # create plot
         fig, ax = plt.subplots(nrows=1, ncols=1)
         # init ylim values
@@ -104,9 +107,11 @@ class Statistics:
 
         if not isPlotEmpty:
             # set yMax
-            yMax = min(dataMax * 1.1, (sum(dataSum) / len(dataSum)) * 1.5)
+            yMax = dataMax * 1.1
+            if scale:
+                yMax = min(yMax, (sum(dataSum) / len(dataSum)) * 1.5)
 
-            self.__setPlotProperties(fig, ax, xLabel='Batch #', yLabel=yLabel, yMax=yMax,
+            self.__setPlotProperties(fig, ax, xLabel=xLabel, yLabel=yLabel, yMax=yMax,
                                      title=title, fileName=fileName)
 
     def plotData(self):
@@ -115,13 +120,24 @@ class Statistics:
         # generate different plots
         for fileName in self.plotAllLayersKeys:
             data = self.containers[fileName]
-            self.__plotContainer(data, xValues, yLabel=fileName, title='{} over epochs'.format(fileName),
-                                 fileName=fileName, labelFunc=lambda x: x)
+            self.__plotContainer(data, xValues, xLabel='Batch #', yLabel=fileName,
+                                 title='{} over epochs'.format(fileName), fileName=fileName, labelFunc=lambda x: x)
 
         for fileName in self.plotLayersSeparateKeys:
             data = self.containers[fileName]
             # add each layer alphas data to plot
             for i, layerVariance in enumerate(data):
-                self.__plotContainer(layerVariance, xValues, yLabel=fileName, fileName='{}_{}'.format(fileName, i),
-                                     title='{} --layer:[{}]-- over epochs'.format(fileName, i),
+                self.__plotContainer(layerVariance, xValues, xLabel='Batch #', fileName='{}_{}'.format(fileName, i),
+                                     title='{} --layer:[{}]-- over epochs'.format(fileName, i), yLabel=fileName,
                                      labelFunc=lambda x: int(self.layersBitwidths[i][x].item()))
+
+    def plotBops(self, layersList):
+        xValues = list(range(len(layersList)))
+        data = [[] for _ in range(layersList[0].numOfOps())]
+        for layer in layersList:
+            for j, bops in enumerate(layer.bops):
+                data[j].append(bops / 1E6)
+
+        self.__plotContainer(data, xValues, xLabel='Layer #', yLabel='M-bops', title='bops per op in layer',
+                             fileName=self.bopsKey, labelFunc=lambda x: int(self.layersBitwidths[0][x].item()),
+                             scale=False)
