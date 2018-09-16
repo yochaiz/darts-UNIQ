@@ -1,4 +1,4 @@
-from torch.nn import CrossEntropyLoss, Module, Tanh
+from torch.nn import CrossEntropyLoss, Module, Tanh, LeakyReLU
 from torch import tensor, float32
 from numpy import arctanh, linspace
 
@@ -11,10 +11,10 @@ import matplotlib.pyplot as plt
 class BopsLoss:
     def __init__(self, bopsFunc, v, factor, yDelta, scale):
         self.bopsFunc = bopsFunc
-        self.v = v
-        self.factor = factor
-        self.yDelta = yDelta
-        self.scale = scale
+        self.v = tensor(v, dtype=float32).cuda()
+        self.factor = tensor(factor, dtype=float32).cuda()
+        self.yDelta = tensor(yDelta, dtype=float32).cuda()
+        self.scale = tensor(scale, dtype=float32).cuda()
 
     def calcLoss(self, x):
         return (self.bopsFunc((x - self.v) * self.factor) + self.yDelta) * self.scale
@@ -30,8 +30,8 @@ class UniqLoss(Module):
         self.maxBopsBits = args.MaxBopsBits
 
         # init bops loss function and plot it
-        self.bops_base_func = Tanh()
-        self.bopsLoss = self._bops_loss(xDst=1, yDst=0.2, yMin=0, yMax=5)
+        # self.bopsLoss = BopsLoss(LeakyReLU(inplace=True), 1, 1, 0, 1).calcLoss
+        self.bopsLoss = self._tanh_bops_loss(xDst=1, yDst=0.02, yMin=0, yMax=0.5)
         self.plotFunction(self.bopsLoss, args.save)
 
         # init values
@@ -54,8 +54,8 @@ class UniqLoss(Module):
         # TODO: sort all the GPU stuff in this class
 
     # given the 4 values, generate the appropriate tanh() function, s.t. t(xDst)=yDst & max{t}=yMax & min{t}=yMin
-    def _bops_loss(self, xDst, yDst, yMin, yMax):
-        factor = 20
+    def _tanh_bops_loss(self, xDst, yDst, yMin, yMax):
+        factor = 8
 
         yDelta = yMin - (-1)
         scale = yMax / (1 + yDelta)
@@ -66,12 +66,7 @@ class UniqLoss(Module):
         v = round(v, 5)
         v = xDst - v
 
-        yDelta = tensor(yDelta, dtype=float32).cuda()
-        scale = tensor(scale, dtype=float32).cuda()
-        v = tensor(v, dtype=float32).cuda()
-        factor = tensor(factor, dtype=float32).cuda()
-
-        bopsLoss = BopsLoss(self.bops_base_func, v, factor, yDelta, scale)
+        bopsLoss = BopsLoss(Tanh(), v, factor, yDelta, scale)
         return bopsLoss.calcLoss
 
         # def t(x):
