@@ -13,8 +13,6 @@ class Replicator(ModelReplicator):
     def __init__(self, model, modelClass, args):
         super(Replicator, self).__init__(model, modelClass, args)
 
-        self.nSamplesPerAlpha = model.nSamplesPerAlpha
-
     def buildArgs(self, inputPerGPU, targetPerGPU, layersIndicesPerModel):
         args = ((cModel, inputPerGPU[gpu], targetPerGPU[gpu], layersIndices)
                 for layersIndices, (cModel, gpu) in zip(layersIndicesPerModel, self.replications))
@@ -39,7 +37,7 @@ class Replicator(ModelReplicator):
                 layer.curr_alpha_idx = i
                 # init loss samples list
                 alphaLossSamples = []
-                for _ in range(self.nSamplesPerAlpha):
+                for _ in range(cModel.nSamplesPerAlpha):
                     # forward through some path in model
                     logits = cModel.forward(input)
                     alphaLossSamples.append(cModel._criterion(logits, target, cModel.countBops()).detach())
@@ -86,7 +84,6 @@ class MinimalAlphaSamplesLoss(TrainRegime):
     def __init__(self, args, model, modelClass, logger):
         super(MinimalAlphaSamplesLoss, self).__init__(args, model, modelClass, logger)
 
-        self.nSamplesPerAlpha = model.nSamplesPerAlpha
         self.replicator = Replicator(model, modelClass, args)
 
     def trainSamplesAlphas(self, loggers):
@@ -181,7 +178,7 @@ class MinimalAlphaSamplesLoss(TrainRegime):
                 layer.curr_alpha_idx = i
                 # init loss samples list
                 alphaLossSamples = []
-                for _ in range(self.nSamplesPerAlpha):
+                for _ in range(model.nSamplesPerAlpha):
                     # forward through some path in model
                     logits = model.forward(input)
                     alphaLossSamples.append(model._criterion(logits, target, model.countBops()).detach())
