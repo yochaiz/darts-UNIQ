@@ -21,6 +21,7 @@ class Statistics:
     allSamplesLossAvgKey = 'all_samples_loss_avg'
     gradNormKey = 'alphas_gradient_norm'
     bopsKey = 'bops'
+    batchOptModelBopsRatioKey = 'optimal_model_bops_ratio'
 
     # set plot points style
     ptsStyle = 'o'
@@ -49,17 +50,21 @@ class Statistics:
             self.alphaDistributionKey: [[[] for _ in range(layer.numOfOps())] for layer in layersList],
             self.allSamplesLossVarianceKey: [[]],
             self.allSamplesLossAvgKey: [[]],
+            self.batchOptModelBopsRatioKey: [[]],
             self.gradNormKey: [[] for _ in range(nLayers)]
         }
         # map each list we plot for all layers on single plot to filename
         self.plotAllLayersKeys = [self.entropyKey, self.weightedAvgKey, self.allSamplesLossVarianceKey,
-                                  self.allSamplesLossAvgKey, self.gradNormKey]
+                                  self.allSamplesLossAvgKey, self.gradNormKey, self.batchOptModelBopsRatioKey]
         self.plotLayersSeparateKeys = [self.alphaLossAvgKey, self.alphaLossVarianceKey, self.alphaDistributionKey]
 
     def addBatchData(self, model, nEpoch, nBatch):
         assert (self.nLayers == model.nLayers())
         # add batch label
         self.batchLabels.append('[{}]_[{}]'.format(nEpoch, nBatch))
+        # count current optimal model bops
+        optBopsRatio = model.evalMode()
+        self.containers[self.batchOptModelBopsRatioKey][0].append(optBopsRatio)
         # add data per layer
         for i, layer in enumerate(model.layersList):
             # calc layer alphas distribution
@@ -80,7 +85,10 @@ class Statistics:
         # plot data
         self.plotData()
 
-    def __setAxesProperties(self, ax, xLabel, yLabel, yMax, title):
+        return optBopsRatio
+
+    @staticmethod
+    def __setAxesProperties(ax, xLabel, yLabel, yMax, title):
         # ax.set_xticks(xValues)
         # ax.set_xticklabels(self.batchLabels)
         ax.set_xlabel(xLabel)
