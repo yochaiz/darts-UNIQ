@@ -380,8 +380,10 @@ class TrainRegime:
             endTime = time()
 
             # send email
-            if endTime - self.lastMailTime > self.secondsBetweenMails:
+            if (endTime - self.lastMailTime > self.secondsBetweenMails) or (step % 100 == 0):
                 self.sendEmail()
+                # update last email time
+                self.lastMailTime = time()
 
                 if trainLogger:
                     trainLogger.info('train [{}/{}] arch_loss:[{:.5f}] OptBopsRatio:[{:.3f}] time:[{:.5f}]'
