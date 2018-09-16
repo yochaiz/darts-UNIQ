@@ -6,6 +6,80 @@ from torch.nn import functional as F
 
 from .regime import TrainRegime, infer
 from cnn.utils import AvgrageMeter, logDominantQuantizedOp, save_checkpoint, initTrainLogger
+from cnn.model_replicator import ModelReplicator
+
+
+class Replicator(ModelReplicator):
+    def __init__(self, model, modelClass, args):
+        super(Replicator, self).__init__(model, modelClass, args)
+
+        self.nSamplesPerAlpha = model.nSamplesPerAlpha
+
+    def buildArgs(self, inputPerGPU, targetPerGPU, layersIndicesPerModel):
+        args = ((cModel, inputPerGPU[gpu], targetPerGPU[gpu], layersIndices)
+                for layersIndices, (cModel, gpu) in zip(layersIndicesPerModel, self.replications))
+
+        return args
+
+    def lossPerReplication(self, args):
+        cModel, input, target, layersIndices = args
+
+        # init total loss
+        totalLoss = 0.0
+        # init alphas average loss list, each element is (layerIdx,alphaIdx,alphaAvgLoss)
+        alphasLoss = []
+        for layerIdx in layersIndices:
+            layer = cModel.layersList[layerIdx]
+            # turn off coin toss for this layer
+            layer.alphas.requires_grad = False
+            for i, alpha in enumerate(layer.alphas):
+                # calc layer alphas softmax
+                probs = F.softmax(layer.alphas, dim=-1)
+                # select the specific alpha in this layer
+                layer.curr_alpha_idx = i
+                # init loss samples list
+                alphaLossSamples = []
+                for _ in range(self.nSamplesPerAlpha):
+                    # forward through some path in model
+                    logits = cModel.forward(input)
+                    alphaLossSamples.append(cModel._criterion(logits, target, cModel.countBops()).detach())
+
+                # calc current alpha batch average loss
+                alphaAvgLoss = sum(alphaLossSamples) / len(alphaLossSamples)
+                # add current alpha batch average loss to container
+                alphasLoss.append((layerIdx, i, alphaAvgLoss))
+                # add alpha loss to total loss
+                totalLoss += (alphaAvgLoss * probs[i])
+
+                # calc loss samples variance
+                lossVariance = [((x - alphaAvgLoss) ** 2) for x in alphaLossSamples]
+                lossVariance = sum(lossVariance) / (len(lossVariance) - 1)
+                # add alpha loss average to statistics
+                cModel.stats.containers[cModel.stats.alphaLossAvgKey][layerIdx][i].append(alphaAvgLoss.item())
+                # add alpha loss variance to statistics
+                cModel.stats.containers[cModel.stats.alphaLossVarianceKey][layerIdx][i].append(lossVariance.item())
+
+            # turn in coin toss for this layer
+            layer.alphas.requires_grad = True
+
+        return totalLoss.cuda(), alphasLoss
+
+    def processResults(self, model, results):
+        # init list of model alphas loss average
+        alphasLoss = [[[] for _ in range(layer.numOfOps())] for layer in model.layersList]
+        # init total loss
+        totalLoss = 0.0
+        for partialLoss, layersAlphasLoss in results:
+            # sum total loss
+            totalLoss += partialLoss
+            # update alphas average loss
+            for layerIdx, alphaIdx, avgLoss in layersAlphasLoss:
+                alphasLoss[layerIdx][alphaIdx].append(avgLoss)
+
+        # average total loss
+        totalLoss /= model.nLayers()
+
+        return totalLoss, alphasLoss
 
 
 class MinimalAlphaSamplesLoss(TrainRegime):
@@ -13,6 +87,7 @@ class MinimalAlphaSamplesLoss(TrainRegime):
         super(MinimalAlphaSamplesLoss, self).__init__(args, model, modelClass, logger)
 
         self.nSamplesPerAlpha = model.nSamplesPerAlpha
+        self.replicator = Replicator(model, modelClass, args)
 
     def trainSamplesAlphas(self, loggers):
         loss_container = AvgrageMeter()
@@ -25,7 +100,7 @@ class MinimalAlphaSamplesLoss(TrainRegime):
         nBatches = len(self.search_queue)
 
         # init list of model alphas loss average
-        self.alphasLoss = [[[] for _ in range(layer.numOfOps())] for layer in model.layersList]
+        alphasLoss = [[[] for _ in range(layer.numOfOps())] for layer in model.layersList]
 
         for step, (input, target) in enumerate(self.search_queue):
             startTime = time()
@@ -34,7 +109,13 @@ class MinimalAlphaSamplesLoss(TrainRegime):
             target = Variable(target, requires_grad=False).cuda(async=True)
 
             model.trainMode()
-            batchLoss = self.calcBatchAlphaAvgLoss(input, target)
+            batchLoss, batchAlphasLoss = self.calcBatchAlphaAvgLoss(input, target)
+            # batchLoss, batchAlphasLoss = self.replicator.loss(model, input, target)
+
+            # copy batch alphas average loss to main alphas average loss
+            for batchLayerLoss, layerLoss in zip(batchAlphasLoss, alphasLoss):
+                for batchAlphaLoss, alphaLoss in zip(batchLayerLoss, layerLoss):
+                    alphaLoss.extend(batchAlphaLoss)
 
             # save loss to container
             loss_container.update(batchLoss, input.size(0))
@@ -50,20 +131,21 @@ class MinimalAlphaSamplesLoss(TrainRegime):
         if trainLogger:
             trainLogger.info('==== Average loss per layer ====')
         # average all losses per alpha over all batches
-        for i, layerLoss in enumerate(self.alphasLoss):
+        for i, layerLoss in enumerate(alphasLoss):
             layerLossNew = []
             for j, alphaLoss in enumerate(layerLoss):
+                print('alphaLoss length:[{}]'.format(len(alphaLoss)))
                 avgLoss = (sum(alphaLoss) / len(alphaLoss)).item()
                 layerLossNew.append(avgLoss)
 
-            self.alphasLoss[i] = layerLossNew
+            alphasLoss[i] = layerLossNew
             if trainLogger:
                 trainLogger.info('Layer [{}]: {}'.format(i, layerLossNew))
         if trainLogger:
             trainLogger.info('===============================================')
 
         # select optimal alpha (lowest average loss) in each layer
-        for layer, layerLoss in zip(model.layersList, self.alphasLoss):
+        for layer, layerLoss in zip(model.layersList, alphasLoss):
             # choose the alpha with minimum avg loss
             layer.curr_alpha_idx = argmin(layerLoss)
             # make curr_alpha_idx to be the maximum alpha so we can use regular eval mode
@@ -85,6 +167,8 @@ class MinimalAlphaSamplesLoss(TrainRegime):
     # calc average samples loss for each alpha on given batch
     def calcBatchAlphaAvgLoss(self, input, target):
         model = self.model
+        # init list of model alphas loss average
+        alphasLoss = [[[] for _ in range(layer.numOfOps())] for layer in model.layersList]
         # init total loss
         totalLoss = 0.0
         for j, layer in enumerate(model.layersList):
@@ -105,7 +189,7 @@ class MinimalAlphaSamplesLoss(TrainRegime):
                 # calc current alpha batch average loss
                 alphaAvgLoss = sum(alphaLossSamples) / len(alphaLossSamples)
                 # add current alpha batch average loss to container
-                self.alphasLoss[j][i].append(alphaAvgLoss)
+                alphasLoss[j][i].append(alphaAvgLoss)
                 # add alpha loss to total loss
                 totalLoss += (alphaAvgLoss * probs[i])
 
@@ -123,7 +207,7 @@ class MinimalAlphaSamplesLoss(TrainRegime):
         # average total loss
         totalLoss /= model.nLayers()
 
-        return totalLoss
+        return totalLoss, alphasLoss
 
     def train(self):
         model = self.model
