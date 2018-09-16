@@ -14,16 +14,17 @@ from torch import manual_seed as torch_manual_seed
 import cnn.models as models
 from cnn.utils import create_exp_dir, count_parameters_in_MB, load_pre_trained
 from cnn.utils import initLogger, printModelToFile
-from cnn.optimize import optimize
 import cnn.trainRegime as trainRegime
+
 
 # collect possible models names
 def loadModelNames():
     return [name for (name, obj) in models.__dict__.items() if isclass(obj) and name.islower()]
 
-#collect possible alphas optimization
+
+# collect possible alphas optimization
 def loadAlphasRegimeNames():
-    return [name for (name, obj) in trainRegime.__dict__.items() if isclass(obj) and (name != 'TrainRegime')]
+    return [name for (name, obj) in trainRegime.__dict__.items() if isclass(obj) and name.islower()]
 
 
 def parseArgs(lossFuncsLambda):
@@ -35,10 +36,7 @@ def parseArgs(lossFuncsLambda):
     parser.add_argument('--dataset', metavar='DATASET', default='cifar10', help='dataset name')
     parser.add_argument('--model', '-a', metavar='MODEL', default='tinynet', choices=modelNames,
                         help='model architecture: ' + ' | '.join(modelNames) + ' (default: alexnet)')
-    parser.add_argument('--alphas_reg',  metavar='ALPHAS_REG', default='WeightsOnceAlphasOnce', choices=alphasRegimeNames,
-                        help='alphas optimization method: ' + ' | '.join(alphasRegimeNames) + ' (default: weights once alphas once)')
     parser.add_argument('--batch_size', type=int, default=256, help='batch size')
-    parser.add_argument('--nSamplesPerAlpha', type=int, default=50, help='How many alphas to sample to estimate the expectation value')
     parser.add_argument('--learning_rate', type=float, default=0.01, help='init learning rate')
     parser.add_argument('--learning_rate_min', type=float, default=1E-5, help='min learning rate')
     parser.add_argument('--momentum', type=float, default=0.9, help='momentum')
@@ -68,11 +66,16 @@ def parseArgs(lossFuncsLambda):
     parser.add_argument('--pre_trained', type=str, default=None, help='pre-trained model to copy weights from')
     parser.add_argument('--opt_pre_trained', type=str, default=None,
                         help='pre-trained full-precision model for OPTIMAL model to copy weights from')
-    # default='/home/yochaiz/darts/cnn/pre_trained_models/resnet_18_3_ops/model_opt.pth.tar')
+
     parser.add_argument('--nBitsMin', type=int, default=1, choices=range(1, 32 + 1), help='min number of bits')
     parser.add_argument('--nBitsMax', type=int, default=3, choices=range(1, 32 + 1), help='max number of bits')
     parser.add_argument('--bitwidth', type=str, default=None, help='list of bitwidth values, e.g. 1,4,16')
     parser.add_argument('--kernel', type=str, default='3', help='list of conv kernel sizes, e.g. 1,3,5')
+
+    parser.add_argument('--alphas_regime', default='alphas_weights_loop', choices=alphasRegimeNames,
+                        help='alphas optimization method')
+    parser.add_argument('--nSamplesPerAlpha', type=int, default=50,
+                        help='How many paths to sample in order to calculate average alpha loss')
 
     parser.add_argument('--loss', type=str, default='UniqLoss', choices=[key for key in lossFuncsLambda.keys()])
     parser.add_argument('--lmbda', type=float, default=1.0, help='Lambda value for UniqLoss')
@@ -124,7 +127,6 @@ if __name__ == '__main__':
     # loss functions manipulate lambda value
     lossFuncsLambda = dict(UniqLoss=1.0, CrossEntropy=0.0)
     args = parseArgs(lossFuncsLambda)
-    print(args)
     logger = initLogger(args.save, args.propagate)
 
     if not is_available():
@@ -158,6 +160,7 @@ if __name__ == '__main__':
     args.loadedOpsWithDiffWeights = load_pre_trained(args.pre_trained, model, logger, args.gpu[0])
 
     # print some attributes
+    print(args)
     printModelToFile(model, args.save)
     logger.info('GPU:{}'.format(args.gpu))
     logger.info("args = %s", args)
@@ -166,12 +169,12 @@ if __name__ == '__main__':
     logger.info('Ops per layer:{}'.format([len(layer.ops) for layer in model.layersList]))
     logger.info('nPerms:[{}]'.format(model.nPerms))
 
-    #optimize(args, model, modelClass, logger)
+    # optimize(args, model, modelClass, logger)
 
     # build regime for alphas optimization
     alphasRegClass = trainRegime.__dict__[args.alphas_reg]
     alphasReg = alphasRegClass(args, model, modelClass, logger)
-    #train according to chosen regime
+    # train according to chosen regime
     alphasReg.train()
 
     logger.info('Done !')
