@@ -21,7 +21,6 @@ class QuantizedOp(UNIQNet):
                                           step_setup=[1, 1],
                                           bitwidth=bitwidth, act_bitwidth=act_bitwidth)
 
-        self.useResidual = useResidual
         self.forward = self.residualForward if useResidual else self.standardForward
         self.hookHandlers = []
 
@@ -88,11 +87,14 @@ class Chooser(Function):
 
 
 class MixedOp(Module):
-    def __init__(self):
+    def __init__(self, bitwidths, params, coutBopsParams):
         super(MixedOp, self).__init__()
 
+        # assure bitwidths is a list of integers
+        if isinstance(bitwidths[0], list):
+            bitwidths = bitwidths[0]
         # init operations mixture
-        self.ops = self.initOps()
+        self.ops = self.initOps(bitwidths, params)
         # init operations alphas (weights)
         value = 1.0 / self.numOfOps()
         self.alphas = tensor((ones(self.numOfOps()) * value).cuda(), requires_grad=False)
@@ -102,24 +104,16 @@ class MixedOp(Module):
         self.forward = self.trainForward
 
         # init bops for operation
-        self.bops = self.countBops()
+        self.bops = self.countBops(coutBopsParams)
+        self.countBops = None
 
     @abstractmethod
     def initOps(self):
         raise NotImplementedError('subclasses must override initOps()!')
 
     @abstractmethod
-    def countBops(self):
+    def countBops(self, params):
         raise NotImplementedError('subclasses must override countBops()!')
-
-    # # select optimal alpha
-    # def trainMode(self):
-    #     # update current alpha to max alpha value
-    #     if self.alphas.requires_grad:
-    #         dist = F.softmax(self.alphas, dim=-1)
-    #         self.curr_alpha_idx = dist.argmax().item()
-    #
-    #     self.forward = self.trainForward
 
     # select random alpha
     def chooseRandomPath(self):
@@ -163,9 +157,6 @@ class MixedOp(Module):
             result = self.ops[self.curr_alpha_idx](x)
         return result
 
-    # def trainForward(self, x):
-    #     return self.ops[self.curr_alpha_idx](x)
-
     def evalForward(self, x):
         return self.ops[self.curr_alpha_idx](x)
 
@@ -178,92 +169,95 @@ class MixedOp(Module):
 
 class MixedLinear(MixedOp):
     def __init__(self, bitwidths, in_features, out_features):
-        self.bitwidths = bitwidths
-        self.in_features = in_features
-        self.out_features = out_features
+        params = in_features, out_features
 
-        super(MixedLinear, self).__init__()
+        super(MixedLinear, self).__init__(bitwidths, params, coutBopsParams=in_features)
 
-    def initOps(self):
+    def initOps(self, bitwidths, params):
+        in_features, out_features = params
+
         ops = ModuleList()
-        for bitwidth in self.bitwidths:
-            op = Linear(self.in_features, self.out_features)
+        for bitwidth in bitwidths:
+            op = Linear(in_features, out_features)
             op = QuantizedOp(op, bitwidth=[bitwidth], act_bitwidth=[])
             ops.append(op)
 
         return ops
 
-    def countBops(self):
-        return [count_flops(op, self.in_features, 1) for op in self.ops]
+    def countBops(self, input_size):
+        return [count_flops(op, input_size, 1) for op in self.ops]
 
 
 class MixedConv(MixedOp):
-    def __init__(self, bitwidths, in_planes, out_planes, kernel_size, stride):
+    def __init__(self, bitwidths, in_planes, out_planes, kernel_size, stride, input_size):
         assert (isinstance(kernel_size, list))
-        self.bitwidths = bitwidths
+        params = in_planes, out_planes, kernel_size, stride
+        coutBopsParams = input_size, in_planes
+
+        super(MixedConv, self).__init__(bitwidths, params, coutBopsParams)
+
         self.in_planes = in_planes
-        self.out_planes = out_planes
-        self.kernel_size = kernel_size
-        self.stride = stride
 
-        super(MixedConv, self).__init__()
+    def initOps(self, bitwidths, params):
+        in_planes, out_planes, kernel_size, stride = params
 
-    def initOps(self):
         ops = ModuleList()
-        for bitwidth in self.bitwidths:
-            for ker_sz in self.kernel_size:
+        for bitwidth in bitwidths:
+            for ker_sz in kernel_size:
                 op = Sequential(
-                    Conv2d(self.in_planes, self.out_planes, kernel_size=ker_sz,
-                           stride=self.stride, padding=floor(ker_sz / 2), bias=False),
-                    BatchNorm2d(self.out_planes)
+                    Conv2d(in_planes, out_planes, kernel_size=ker_sz,
+                           stride=stride, padding=floor(ker_sz / 2), bias=False),
+                    BatchNorm2d(out_planes)
                 )
                 op = QuantizedOp(op, bitwidth=[bitwidth], act_bitwidth=[])
                 ops.append(op)
 
         return ops
 
-    def countBops(self):
-        return [count_flops(op, 1, self.in_planes) for op in self.ops]
+    def countBops(self, coutBopsParams):
+        input_size, in_planes = coutBopsParams
+        return [count_flops(op, input_size, in_planes) for op in self.ops]
 
 
 class MixedConvWithReLU(MixedOp):
-    def __init__(self, bitwidths, in_planes, out_planes, kernel_size, stride, useResidual=False):
+    def __init__(self, bitwidths, in_planes, out_planes, kernel_size, stride, input_size, useResidual=False):
         assert (isinstance(kernel_size, list))
-        self.bitwidths = bitwidths
-        self.in_planes = in_planes
-        self.out_planes = out_planes
-        self.kernel_size = kernel_size
-        self.stride = stride
-        self.useResidual = useResidual
+        params = in_planes, out_planes, kernel_size, stride, useResidual
+        coutBopsParams = input_size, in_planes
 
         if useResidual:
             self.trainForward = self.trainResidualForward
             self.evalForward = self.evalResidualForward
 
-        super(MixedConvWithReLU, self).__init__()
+        super(MixedConvWithReLU, self).__init__(bitwidths, params, coutBopsParams)
 
-    def initOps(self):
+        self.in_planes = in_planes
+
+    def initOps(self, bitwidths, params):
+        in_planes, out_planes, kernel_size, stride, useResidual = params
+
         ops = ModuleList()
-        for bitwidth in self.bitwidths:
+        for bitwidth in bitwidths:
             act_bitwidth = bitwidth
             # for act_bitwidth in self.bitwidths:
-            for ker_sz in self.kernel_size:
+            for ker_sz in kernel_size:
                 op = Sequential(
                     Sequential(
-                        Conv2d(self.in_planes, self.out_planes, kernel_size=ker_sz,
-                               stride=self.stride, padding=floor(ker_sz / 2), bias=False),
-                        BatchNorm2d(self.out_planes)
+                        Conv2d(in_planes, out_planes, kernel_size=ker_sz,
+                               stride=stride, padding=floor(ker_sz / 2), bias=False),
+                        BatchNorm2d(out_planes)
                     ),
                     # ActQuant(quant=True, noise=False, bitwidth=act_bitwidth)
                     ReLU(inplace=True)
                 )
-                op = QuantizedOp(op, bitwidth=[bitwidth], act_bitwidth=[act_bitwidth], useResidual=self.useResidual)
+                op = QuantizedOp(op, bitwidth=[bitwidth], act_bitwidth=[act_bitwidth], useResidual=useResidual)
                 ops.append(op)
 
         return ops
 
-    def countBops(self):
-        return [count_flops(op, 1, self.in_planes) for op in self.ops]
+    def countBops(self, coutBopsParams):
+        input_size, in_planes = coutBopsParams
+        return [count_flops(op, input_size, in_planes) for op in self.ops]
 
     def trainResidualForward(self, x, residual):
         if self.alphas.requires_grad:
@@ -275,20 +269,5 @@ class MixedConvWithReLU(MixedOp):
             result = self.ops[self.curr_alpha_idx](x, residual)
         return result
 
-    # def trainResidualForward(self, x, residual):
-    #     return self.ops[self.curr_alpha_idx](x, residual)
-
     def evalResidualForward(self, x, residual):
         return self.ops[self.curr_alpha_idx](x, residual)
-
-    # # for standard op, without QuantizedOp wrapping
-    # def residualForward(self, x, residual):
-    #     weights = F.softmax(self.alphas, dim=-1)
-    #     opsForward = []
-    #     for op in self.ops:
-    #         out = op[0](x)
-    #         out += residual
-    #         out = op[1](out)
-    #         opsForward.append(out)
-    #
-    #     return sum(w * p for w, p in zip(weights, opsForward))
