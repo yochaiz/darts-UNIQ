@@ -21,6 +21,7 @@ class QuantizedOp(UNIQNet):
                                           step_setup=[1, 1],
                                           bitwidth=bitwidth, act_bitwidth=act_bitwidth)
 
+        self.useResidual = useResidual
         self.forward = self.residualForward if useResidual else self.standardForward
         self.hookHandlers = []
 
