@@ -4,7 +4,7 @@ from torch.nn import Module, Conv2d, AvgPool2d, Linear
 
 from UNIQ.actquant import ActQuant
 
-from cnn.MixedOp import MixedConv, MixedConvWithReLU, MixedLinear
+from cnn.MixedOp import MixedOp, MixedConv, MixedConvWithReLU, MixedLinear
 from cnn.models import BaseNet
 from cnn.models.BaseNet import save_quant_state, restore_quant_state
 
@@ -15,12 +15,13 @@ class BasicBlock(Module):
 
         stride1 = stride if in_planes == out_planes else (stride + 1)
 
-        self.block1 = MixedConvWithReLU(bitwidths, in_planes, out_planes, kernel_size, stride1, input_size[0],
-                                        useResidual=False)
-        self.block2 = MixedConvWithReLU(bitwidths, out_planes, out_planes, kernel_size, stride, input_size[-1],
-                                        useResidual=True)
+        self.block1 = MixedConvWithReLU(bitwidths if isinstance(bitwidths[0], int) else bitwidths[0],
+                                        in_planes, out_planes, kernel_size, stride1, input_size[0], useResidual=False)
+        self.block2 = MixedConvWithReLU(bitwidths if isinstance(bitwidths[0], int) else bitwidths[1],
+                                        out_planes, out_planes, kernel_size, stride, input_size[-1], useResidual=True)
 
-        self.downsample = MixedConv(bitwidths, in_planes, out_planes, [1], stride1, input_size[0]) \
+        self.downsample = MixedConv(bitwidths if isinstance(bitwidths[0], int) else bitwidths[2],
+                                    in_planes, out_planes, [1], stride1, input_size[0]) \
             if in_planes != out_planes else None
 
     def forward(self, x):
@@ -41,27 +42,34 @@ class ResNet(BaseNet):
             for op in self.layersList[0].ops:
                 op.noise = op.quant
 
-        # turn on grads in 1st layer alphas
-        # self.layersList[0].alphas.requires_grad = True
-        # self.update_learnable_alphas()
         # update model parameters() function
         self.parameters = self.getLearnableParams
+
+    # init layers (type, in_planes, out_planes)
+    def initLayersPlanes(self):
+        return [(MixedConvWithReLU, 3, 16, 32),
+                (BasicBlock, 16, 16, [32]), (BasicBlock, 16, 16, [32]), (BasicBlock, 16, 16, [32]),
+                (BasicBlock, 16, 32, [32, 16]), (BasicBlock, 32, 32, [16]), (BasicBlock, 32, 32, [16]),
+                (BasicBlock, 32, 64, [16, 8]), (BasicBlock, 64, 64, [8]), (BasicBlock, 64, 64, [8])]
 
     def initLayers(self, params):
         bitwidths, kernel_sizes = params
 
-        # init layers (type, in_planes, out_planes)
-        layersPlanes = [(MixedConvWithReLU, 3, 16, 32),
-                        (BasicBlock, 16, 16, [32]), (BasicBlock, 16, 16, [32]), (BasicBlock, 16, 16, [32]),
-                        (BasicBlock, 16, 32, [32, 16]), (BasicBlock, 32, 32, [16]), (BasicBlock, 32, 32, [16]),
-                        (BasicBlock, 32, 64, [16, 8]), (BasicBlock, 64, 64, [8]), (BasicBlock, 64, 64, [8])]
+        layersPlanes = self.initLayersPlanes()
 
         # create list of layers from layersPlanes
         # supports bitwidth as list of ints, i.e. same bitwidths to all layers
         # supports bitwidth as list of lists, i.e. specific bitwidths to each layer
-        layers = [layerType(bitwidths if isinstance(bitwidths[0], int) else bitwidths[i],
-                            in_planes, out_planes, kernel_sizes, 1, input_size)
-                  for i, (layerType, in_planes, out_planes, input_size) in enumerate(layersPlanes)]
+        layers = []
+        for i, (layerType, in_planes, out_planes, input_size) in enumerate(layersPlanes):
+            # build layer
+            l = layerType(bitwidths, in_planes, out_planes, kernel_sizes, 1, input_size)
+            # add layer to layers list
+            layers.append(l)
+            # remove layer specific bitwidths, in case of different bitwidths to layers
+            if isinstance(bitwidths[0], list):
+                nMixedOpLayers = sum(1 for m in l.modules() if isinstance(m, MixedOp))
+                del bitwidths[:nMixedOpLayers]
 
         i = 1
         for l in layers:
@@ -93,9 +101,6 @@ class ResNet(BaseNet):
     # def _loss(self, input, target):
     #     logits = self(input)
     #     return self._criterion(logits, target, self.countBops())
-
-    def update_learnable_alphas(self):
-        self.learnable_alphas = [l.alphas for l in self.layersList if l.alphas.requires_grad is True]
 
     def getLearnableParams(self):
         return self.learnable_params
