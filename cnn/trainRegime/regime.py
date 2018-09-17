@@ -326,7 +326,7 @@ class TrainRegime:
             endTime = time()
 
             # send email
-            if (endTime - self.lastMailTime > self.secondsBetweenMails) or ((step + 1) % (nBatches / 2) == 0):
+            if (endTime - self.lastMailTime > self.secondsBetweenMails) or ((step + 1) % int(nBatches / 2) == 0):
                 self.sendEmail()
                 # update last email time
                 self.lastMailTime = time()
