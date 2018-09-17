@@ -4,7 +4,7 @@ from time import sleep
 from subprocess import Popen
 from datetime import datetime
 from signal import signal, SIGTERM
-from shutil import copy2
+from argparse import ArgumentParser
 
 
 def handleSIGTERM(procs):
@@ -15,17 +15,25 @@ def handleSIGTERM(procs):
     signal(SIGTERM, sigHandler)
 
 
+parser = ArgumentParser()
+parser.add_argument('--data', type=str, required=True, help='JSON file path')
+parser.add_argument('--epochs', type=str, default='10',
+                    help='num of training epochs per layer, as list, e.g. 5,4,3,8,6.'
+                         'If len(epochs)<len(layers) then last value is used for rest of the layers')
+parser.add_argument('--learning_rate', type=float, default=0.1, help='init learning rate')
+
+args = parser.parse_args()
+
 now = datetime.now()
 outputFile = '{}.out'.format(datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
 
 commands = [
-    [executable, './train_opt.py',
-     '--epochs', '5',
-     '--pre_trained', '/home/yochaiz/UNIQ/results/resnet_cifar10_trained_32_bit_deeper/model_best.pth.tar',
-     '--folder', '../'
+    [executable, './train_opt2.py',
+     '--data', args.data,
+     '--epochs', args.epochs,
+     '--learning_rate', str(args.learning_rate)
      ]
 ]
-
 
 # # resume training
 # folders = ['2018-07-16_16-31-25']
