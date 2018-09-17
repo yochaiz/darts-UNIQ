@@ -1,6 +1,6 @@
 from argparse import ArgumentParser, Namespace
 from json import loads
-from os import path
+from os import path, remove
 
 import cnn.trainRegime as trainRegimes
 from cnn.utils import load_pre_trained, initLogger, printModelToFile, models, create_exp_dir
@@ -67,3 +67,7 @@ with open(scriptArgs.data, 'r') as f:
                     alphasRegimeClass(args, model, modelClass, logger)
 
                     logger.info('Done !')
+
+# remove the JSON file
+if path.exists(scriptArgs.data):
+    remove(scriptArgs.data)
