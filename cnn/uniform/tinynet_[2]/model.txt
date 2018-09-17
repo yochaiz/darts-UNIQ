@@ -1,4 +1,4 @@
-2018-09-12 13:07:20,546 - INFO - TinyNet(
+2018-09-16 18:21:31,328 - INFO - TinyNet(
   (features): Sequential(
     (0): MixedConvWithReLU(
       (ops): ModuleList(
@@ -53,24 +53,16 @@
       )
     )
   )
-  (fc): MixedLinear(
-    (ops): ModuleList(
-      (0): QuantizedOp(
-        (op): Linear(in_features=512, out_features=10, bias=True)
-      )
-    )
-  )
+  (fc): Linear(in_features=512, out_features=10, bias=True)
   (_criterion): UniqLoss(
     (search_loss): CrossEntropyLoss()
-    (bops_base_func): Tanh()
   )
 )
-2018-09-12 13:07:20,548 - INFO - =============================================
-2018-09-12 13:07:20,549 - INFO - Top [2] quantizations per layer:
-2018-09-12 13:07:20,551 - INFO - =============================================
-2018-09-12 13:07:20,552 - INFO - Layer:[0]  Idx:[0]  w:[1.00000]  alpha:[1.00000]  bitwidth:[2]  act_bitwidth:[2]  ||  
-2018-09-12 13:07:20,553 - INFO - Layer:[1]  Idx:[0]  w:[1.00000]  alpha:[1.00000]  bitwidth:[2]  act_bitwidth:[2]  ||  
-2018-09-12 13:07:20,554 - INFO - Layer:[2]  Idx:[0]  w:[1.00000]  alpha:[1.00000]  bitwidth:[2]  act_bitwidth:[2]  ||  
-2018-09-12 13:07:20,555 - INFO - Layer:[3]  Idx:[0]  w:[1.00000]  alpha:[1.00000]  bitwidth:[2]  act_bitwidth:[2]  ||  
-2018-09-12 13:07:20,556 - INFO - Layer:[4]  Idx:[0]  w:[1.00000]  alpha:[1.00000]  bitwidth:[2]  ||  
-2018-09-12 13:07:20,557 - INFO - =============================================
+2018-09-16 18:21:31,330 - INFO - =============================================
+2018-09-16 18:21:31,331 - INFO - Top [2] quantizations per layer:
+2018-09-16 18:21:31,332 - INFO - =============================================
+2018-09-16 18:21:31,332 - INFO - Layer:[0]  Idx:[0]  w:[1.00000]  alpha:[1.00000]  bitwidth:[2]  act_bitwidth:[2]  ||  
+2018-09-16 18:21:31,333 - INFO - Layer:[1]  Idx:[0]  w:[1.00000]  alpha:[1.00000]  bitwidth:[2]  act_bitwidth:[2]  ||  
+2018-09-16 18:21:31,334 - INFO - Layer:[2]  Idx:[0]  w:[1.00000]  alpha:[1.00000]  bitwidth:[2]  act_bitwidth:[2]  ||  
+2018-09-16 18:21:31,335 - INFO - Layer:[3]  Idx:[0]  w:[1.00000]  alpha:[1.00000]  bitwidth:[2]  act_bitwidth:[2]  ||  
+2018-09-16 18:21:31,335 - INFO - =============================================
