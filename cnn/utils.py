@@ -114,6 +114,17 @@ def saveArgsToJSON(args):
         dump(vars(args), f)
 
 
+def zipFolder(p, zipf):
+    # get p folder relative path
+    folderName = path.relpath(p)
+    for base, dirs, files in walk(p):
+        if base.endswith('__pycache__'):
+            continue
+        for file in files:
+            fn = path.join(base, file)
+            zipf.write(fn, fn[fn.index(folderName):])
+
+
 def sendEmail(model, args, trainFolderPath):
     saveFolder = args.save
     # init files to zip
@@ -125,12 +136,7 @@ def sendEmail(model, args, trainFolderPath):
     zipf = ZipFile(zipPath, 'w', ZIP_DEFLATED)
     for p in attachPaths:
         if path.isdir(p):
-            # get p folder relative path
-            folderName = path.relpath(p)
-            for base, dirs, files in walk(p):
-                for file in files:
-                    fn = path.join(base, file)
-                    zipf.write(fn, fn[fn.index(folderName):])
+            zipFolder(p, zipf)
         else:
             zipf.write(p)
     zipf.close()
@@ -166,30 +172,33 @@ def sendEmail(model, args, trainFolderPath):
 
 
 def create_exp_dir(resultFolderPath):
-    # init code folder path
-    codeFolderPath = '{}/code'.format(resultFolderPath)
     # create folders
     if not os.path.exists(resultFolderPath):
         os.makedirs(resultFolderPath)
-        os.makedirs(codeFolderPath)
+
+    zipPath = '{}/code.zip'.format(resultFolderPath)
+    zipf = ZipFile(zipPath, 'w', ZIP_DEFLATED)
 
     # init project base folder
     baseFolder = path.dirname(path.abspath(getfile(currentframe())))  # script directory
     baseFolder += '/../'
-    # init folders we want to save
-    foldersToSave = ['cnn', 'cnn/models', 'UNIQ']
+    # init folders we want to zip
+    foldersToZip = ['cnn/models', 'cnn/trainRegime', 'UNIQ']
     # save folders files
-    for folder in foldersToSave:
-        # create folder in result folder
-        os.makedirs('{}/{}'.format(codeFolderPath, folder))
-        # init project folder full path
+    for folder in foldersToZip:
         folderFullPath = baseFolder + folder
-        # copy project folder files
+        zipFolder(folderFullPath, zipf)
+
+    # save cnn folder files
+    foldersToZip = ['cnn']
+    for folder in foldersToZip:
+        folderFullPath = baseFolder + folder
         for file in listdir(folderFullPath):
-            if file.endswith('.py'):
-                srcFile = '{}/{}'.format(folderFullPath, file)
-                dstFile = '{}/code/{}/{}'.format(resultFolderPath, folder, file)
-                copyfile(srcFile, dstFile)
+            if path.isfile(file):
+                zipf.write(file)
+
+    # close zip file
+    zipf.close()
 
 
 checkpointFileType = 'pth.tar'
