@@ -137,7 +137,7 @@ class TrainRegime:
 
         # init email time
         self.lastMailTime = time()
-        self.secondsBetweenMails = 5 * 3600
+        self.secondsBetweenMails = 1 * 3600
 
         self.trainFolderPath = '{}/{}'.format(args.save, args.trainFolder)
 
@@ -218,22 +218,23 @@ class TrainRegime:
         model = self.model
         args = self.args
 
-        # copy args
-        opt_args = Namespace(**vars(args))
-        # set bitwidth
-        bopsRatio1 = model.evalMode()
-        opt_args.bitwidth = [layer.ops[layer.curr_alpha_idx].bitwidth for layer in model.layersList]
-        # create optimal model
-        optModel = self.modelClass(opt_args)
-        optModel = optModel.cuda()
-        #
-        bopsRatio2 = optModel.calcBopsRatio()
-        # load full-precision pre-trained model weights
-        loadedOpsWithDiffWeights = load_pre_trained(args.opt_pre_trained, optModel, logger, args.gpu[0])
-        assert (loadedOpsWithDiffWeights is False)
-        # train model
-        with Pool(processes=1, maxtasksperchild=1) as pool:
-            pool.apply(self.gwow, args=(optModel, opt_args, '{}_opt'.format(epoch), 'optModel'))
+        if args.opt_pre_trained:
+            # copy args
+            opt_args = Namespace(**vars(args))
+            # set bitwidth
+            bopsRatio1 = model.evalMode()
+            opt_args.bitwidth = [layer.ops[layer.curr_alpha_idx].bitwidth for layer in model.layersList]
+            # create optimal model
+            optModel = self.modelClass(opt_args)
+            optModel = optModel.cuda()
+            #
+            bopsRatio2 = optModel.calcBopsRatio()
+            # load full-precision pre-trained model weights
+            loadedOpsWithDiffWeights = load_pre_trained(args.opt_pre_trained, optModel, logger, args.gpu[0])
+            assert (loadedOpsWithDiffWeights is False)
+            # train model
+            with Pool(processes=1, maxtasksperchild=1) as pool:
+                pool.apply(self.gwow, args=(optModel, opt_args, '{}_opt'.format(epoch), 'optModel'))
 
     def gwow(self, model, args, trainFolderName, filename=None):
         nEpochs = self.nEpochs
@@ -325,18 +326,20 @@ class TrainRegime:
             endTime = time()
 
             # send email
-            if (endTime - self.lastMailTime > self.secondsBetweenMails) or (step % 100 == 0):
+            if (endTime - self.lastMailTime > self.secondsBetweenMails) or ((step + 1) % (nBatches / 2) == 0):
                 self.sendEmail()
                 # update last email time
                 self.lastMailTime = time()
+                # from now on we send every 5 hours
+                self.secondsBetweenMails = 5 * 3600
 
-                if trainLogger:
-                    trainLogger.info('train [{}/{}] arch_loss:[{:.5f}] OptBopsRatio:[{:.3f}] time:[{:.5f}]'
-                                     .format(step, nBatches, loss_container.avg, optBopsRatio, endTime - startTime))
+            if trainLogger:
+                trainLogger.info('train [{}/{}] arch_loss:[{:.5f}] OptBopsRatio:[{:.3f}] time:[{:.5f}]'
+                                 .format(step, nBatches, loss_container.avg, optBopsRatio, endTime - startTime))
 
-            # log accuracy, loss, etc.
-            message = 'Epoch:[{}] , arch loss:[{:.3f}] , OptBopsRatio:[{:.3f}] , lr:[{:.5f}]' \
-                .format(nEpoch, loss_container.avg, optBopsRatio, architect.lr)
+        # log accuracy, loss, etc.
+        message = 'Epoch:[{}] , arch loss:[{:.3f}] , OptBopsRatio:[{:.3f}] , lr:[{:.5f}]' \
+            .format(nEpoch, loss_container.avg, optBopsRatio, architect.lr)
 
-            for _, logger in loggers.items():
-                logger.info(message)
+        for _, logger in loggers.items():
+            logger.info(message)
