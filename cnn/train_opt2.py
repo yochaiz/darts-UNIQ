@@ -2,6 +2,8 @@ from argparse import ArgumentParser, Namespace
 from json import loads
 from os import path, remove
 
+from torch import load as loadModel
+
 import cnn.trainRegime as trainRegimes
 from cnn.utils import load_pre_trained, initLogger, printModelToFile, models, create_exp_dir
 
@@ -12,6 +14,7 @@ modelsRefs = {
     'resnet': '/home/yochaiz/DropDarts/cnn/pre_trained/resnet_cifar10_trained_32_bit_deeper/model_best.pth.tar',
     'resnet_[2]': '/home/yochaiz/DropDarts/cnn/uniform/resnet_[2]/train/model_opt.pth.tar'
 }
+
 
 parser = ArgumentParser()
 parser.add_argument('--data', type=str, required=True, help='JSON file path')
@@ -34,39 +37,57 @@ with open(scriptArgs.data, 'r') as f:
     args.learning_rate = scriptArgs.learning_rate
     # extract args JSON folder path
     folderName = path.dirname(scriptArgs.data)
+    # convert model bitwidths to string
+    modelFolderName = ''
+    for bitwidth in args.optModel_bitwidth:
+        # for b in bitwidth:
+        modelFolderName += '{},'.format(bitwidth)
+    modelFolderName = modelFolderName[:-1]
     # set results folder path
-    args.save = '{}/{}'.format(folderName, args.folderName)
-    create_exp_dir(args.save)
-    # init logger
-    logger = initLogger(args.save, args.propagate)
-    # select model constructor
-    modelClass = models.__dict__.get(args.model)
-    if modelClass:
-        # set bitwidth to optimal model bitwidth
-        args.bitwidth = args.optModel_bitwidth
-        # build optimal model
-        model = modelClass(args)
-        model = model.cuda()
-        # select pre-trained key
-        pre_trained_path = modelsRefs.get(args.model)
-        if pre_trained_path:
-            args.loadedOpsWithDiffWeights = load_pre_trained(pre_trained_path, model, logger, args.gpu[0])
-            if args.loadedOpsWithDiffWeights is False:
-                # print some attributes
-                print(args)
-                printModelToFile(model, args.save)
-                logger.info('GPU:{}'.format(args.gpu))
-                logger.info("args = %s", args)
-                logger.info('Ops per layer:{}'.format([len(layer.ops) for layer in model.layersList]))
-                logger.info('nPerms:[{}]'.format(model.nPerms))
+    args.save = '{}/{}'.format(folderName, modelFolderName)
+    if not path.exists(args.save):
+        create_exp_dir(args.save)
+        # init logger
+        logger = initLogger(args.save, args.propagate)
+        # select model constructor
+        modelClass = models.__dict__.get(args.model)
+        if modelClass:
+            # set bitwidth to optimal model bitwidth
+            args.bitwidth = args.optModel_bitwidth
+            # build optimal model
+            model = modelClass(args)
+            model = model.cuda()
+            # select pre-trained key
+            pre_trained_path = modelsRefs.get(args.model)
+            if pre_trained_path:
+                args.loadedOpsWithDiffWeights = load_pre_trained(pre_trained_path, model, logger, args.gpu[0])
+                if args.loadedOpsWithDiffWeights is False:
+                    # print some attributes
+                    print(args)
+                    printModelToFile(model, args.save)
+                    logger.info('GPU:{}'.format(args.gpu))
+                    logger.info("args = %s", args)
+                    logger.info('Ops per layer:{}'.format([len(layer.ops) for layer in model.layersList]))
+                    logger.info('nPerms:[{}]'.format(model.nPerms))
 
-                # build regime for alphas optimization
-                alphasRegimeClass = trainRegimes.__dict__.get(args.alphas_regime)
-                if alphasRegimeClass:
-                    # create train regime instance, it performs initial weights training
-                    alphasRegimeClass(args, model, modelClass, logger)
+                    # load uniform model
+                    uniformKey = '{}_[{}]'.format(args.model, args.MaxBopsBits)
+                    uniformPath = modelsRefs.get(uniformKey)
+                    best_prec1 = 'Not found'
+                    if uniformPath and path.exists(uniformPath):
+                        uniform_checkpoint = loadModel(uniformPath,
+                                                       map_location=lambda storage, loc: storage.cuda(args.gpu[0]))
+                        best_prec1 = uniform_checkpoint.get('best_prec1')
+                    # print result
+                    logger.info('Uniform {} validation accuracy:[{:.5f}]'.format(uniformKey, best_prec1))
 
-                    logger.info('Done !')
+                    # build regime for alphas optimization
+                    alphasRegimeClass = trainRegimes.__dict__.get(args.alphas_regime)
+                    if alphasRegimeClass:
+                        # create train regime instance, it performs initial weights training
+                        alphasRegimeClass(args, model, modelClass, logger)
+
+                        logger.info('Done !')
 
 # remove the JSON file
 if path.exists(scriptArgs.data):
