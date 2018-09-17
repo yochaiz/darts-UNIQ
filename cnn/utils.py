@@ -4,7 +4,14 @@ import torch
 from shutil import copyfile
 import logging
 from inspect import getfile, currentframe
-from os import path, listdir
+from os import path, listdir, makedirs, walk
+from smtplib import SMTP
+from email import encoders
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from email.mime.base import MIMEBase
+from base64 import b64decode
+from zipfile import ZipFile, ZIP_DEFLATED
 
 from torch.autograd import Variable
 from torch import save as saveModel
@@ -94,6 +101,57 @@ def drop_path(x, drop_prob):
     return x
 
 
+def sendEmail(model, args, trainFolderPath):
+    saveFolder = args.save
+    # init files to zip
+    attachPaths = [trainFolderPath, model.alphasCsvFileName, model.stats.saveFolder,
+                   model._criterion.bopsLossImgPath]
+    # zip files
+    zipFname = 'attach.zip'
+    zipPath = '{}/{}'.format(saveFolder, zipFname)
+    zipf = ZipFile(zipPath, 'w', ZIP_DEFLATED)
+    for p in attachPaths:
+        if path.isdir(p):
+            # get p folder relative path
+            folderName = path.relpath(p)
+            for base, dirs, files in walk(p):
+                for file in files:
+                    fn = path.join(base, file)
+                    zipf.write(fn, fn[fn.index(folderName):])
+        else:
+            zipf.write(p)
+    zipf.close()
+    # init email addresses
+    fromAddr = "yochaiz@campus.technion.ac.il"
+    toAddr = ['evron.itay@gmail.com', 'chaimbaskin@cs.technion.ac.il']
+    # init connection
+    server = SMTP('smtp.office365.com', 587)
+    server.ehlo()
+    server.starttls()
+    server.ehlo()
+    passwd = b'WXo4Nzk1NzE='
+    server.login(fromAddr, b64decode(passwd).decode('utf-8'))
+    # init message
+    msg = MIMEMultipart()
+    body = 'Hi,\nFiles are attached'
+    msg['From'] = fromAddr
+    msg['Subject'] = 'Results - Model:[{}] Bitwidth:{}'.format(args.model, args.bitwidth)
+    msg.attach(MIMEText(body, 'plain'))
+    with open(zipPath, 'rb') as z:
+        # attach zip file
+        part = MIMEBase('application', 'octet-stream')
+        part.set_payload(z.read())
+        encoders.encode_base64(part)
+        part.add_header('Content-Disposition', "attachment; filename= %s" % zipFname)
+        msg.attach(part)
+        # send message
+        for dst in toAddr:
+            msg['To'] = dst
+            text = msg.as_string()
+            server.sendmail(fromAddr, dst, text)
+    server.close()
+
+
 def create_exp_dir(resultFolderPath):
     # init code folder path
     codeFolderPath = '{}/code'.format(resultFolderPath)
@@ -157,7 +215,7 @@ def load_pre_trained(path, model, logger, gpu):
             # compare dictionaries
             dictDiff = modelStateDictKeys.symmetric_difference(set(chckpntStateDict.keys()))
             # # update flag value
-            # loadOpsWithDifferentWeights = True
+            loadOpsWithDifferentWeights = True
             # for v in dictDiff:
             #     if v.endswith('.num_batches_tracked') is False:
             #         loadOpsWithDifferentWeights = False
@@ -283,8 +341,8 @@ def load_data(args):
     valid_data = get_dataset(args.dataset, train=False, transform=transform['eval'], datasets_path=args.data)
 
     ### narrow data for debug purposes
-    # train_data.train_data = train_data.train_data[0:640]
-    # train_data.train_labels = train_data.train_labels[0:640]
+    # train_data.train_data = train_data.train_data[0:100]
+    # train_data.train_labels = train_data.train_labels[0:100]
     # valid_data.test_data = valid_data.test_data[0:320]
     # valid_data.test_labels = valid_data.test_labels[0:320]
     ####
