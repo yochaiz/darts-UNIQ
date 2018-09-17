@@ -3,13 +3,6 @@ from abc import abstractmethod
 from argparse import Namespace
 from multiprocessing import Pool
 from os import makedirs, path, walk
-from smtplib import SMTP
-from email import encoders
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
-from email.mime.base import MIMEBase
-from base64 import b64decode
-from zipfile import ZipFile, ZIP_DEFLATED
 
 from torch.nn.utils.clip_grad import clip_grad_norm_
 from torch.optim.lr_scheduler import CosineAnnealingLR
@@ -20,6 +13,7 @@ from torch.nn import CrossEntropyLoss
 
 from cnn.utils import accuracy, AvgrageMeter, load_data, load_pre_trained
 from cnn.utils import initTrainLogger, logDominantQuantizedOp, save_checkpoint
+from cnn.utils import sendEmail as uSendEmail
 
 
 def trainWeights(train_queue, model, modelChoosePathFunc, crit, optimizer, grad_clip, nEpoch, loggers):
@@ -298,56 +292,7 @@ class TrainRegime:
         return epoch
 
     def sendEmail(self):
-        model = self.model
-        args = self.args
-        saveFolder = args.save
-        # init files to zip
-        attachPaths = [self.trainFolderPath, model.alphasCsvFileName, model.stats.saveFolder,
-                       model._criterion.bopsLossImgPath]
-        # zip files
-        zipFname = 'attach.zip'
-        zipPath = '{}/{}'.format(saveFolder, zipFname)
-        zipf = ZipFile(zipPath, 'w', ZIP_DEFLATED)
-        for p in attachPaths:
-            if path.isdir(p):
-                # get p folder relative path
-                folderName = path.relpath(p)
-                for base, dirs, files in walk(p):
-                    for file in files:
-                        fn = path.join(base, file)
-                        zipf.write(fn, fn[fn.index(folderName):])
-            else:
-                zipf.write(p)
-        zipf.close()
-        # init email addresses
-        fromAddr = "yochaiz@campus.technion.ac.il"
-        toAddr = ['evron.itay@gmail.com', 'chaimbaskin@cs.technion.ac.il']
-        # init connection
-        server = SMTP('smtp.office365.com', 587)
-        server.ehlo()
-        server.starttls()
-        server.ehlo()
-        passwd = b'WXo4Nzk1NzE='
-        server.login(fromAddr, b64decode(passwd).decode('utf-8'))
-        # init message
-        msg = MIMEMultipart()
-        body = 'Hi,\nFiles are attached'
-        msg['From'] = fromAddr
-        msg['Subject'] = 'Results - Model:[{}] Bitwidth:{}'.format(args.model, args.bitwidth)
-        msg.attach(MIMEText(body, 'plain'))
-        with open(zipPath, 'rb') as z:
-            # attach zip file
-            part = MIMEBase('application', 'octet-stream')
-            part.set_payload(z.read())
-            encoders.encode_base64(part)
-            part.add_header('Content-Disposition', "attachment; filename= %s" % zipFname)
-            msg.attach(part)
-            # send message
-            for dst in toAddr:
-                msg['To'] = dst
-                text = msg.as_string()
-                server.sendmail(fromAddr, dst, text)
-        server.close()
+        uSendEmail(self.model, self.args, self.trainFolderPath)
 
     def trainAlphas(self, search_queue, model, architect, nEpoch, loggers):
         loss_container = AvgrageMeter()
