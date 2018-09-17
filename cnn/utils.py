@@ -3,8 +3,8 @@ import numpy as np
 import torch
 from shutil import copyfile
 import logging
-from inspect import getfile, currentframe
-from os import path, listdir, makedirs, walk
+from inspect import getfile, currentframe, isclass
+from os import path, listdir, walk
 from smtplib import SMTP
 from email import encoders
 from email.mime.multipart import MIMEMultipart
@@ -12,6 +12,7 @@ from email.mime.text import MIMEText
 from email.mime.base import MIMEBase
 from base64 import b64decode
 from zipfile import ZipFile, ZIP_DEFLATED
+from json import dump
 
 from torch.autograd import Variable
 from torch import save as saveModel
@@ -22,13 +23,18 @@ from torch.utils.data.sampler import SubsetRandomSampler
 from UNIQ.preprocess import get_transform
 from UNIQ.data import get_dataset
 
+import cnn.models as models
+
 
 # import torchvision.transforms as transforms
 # import torchvision.transforms as transforms
+
+# collect possible models names
+def loadModelNames():
+    return [name for (name, obj) in models.__dict__.items() if isclass(obj) and name.islower()]
 
 
 class AvgrageMeter(object):
-
     def __init__(self):
         self.reset()
 
@@ -99,6 +105,13 @@ def drop_path(x, drop_prob):
         x.div_(keep_prob)
         x.mul_(mask)
     return x
+
+
+def saveArgsToJSON(args):
+    # save args to JSON
+    args.jsonPath = '{}/args.json'.format(args.save)
+    with open(args.jsonPath, 'w') as f:
+        dump(vars(args), f)
 
 
 def sendEmail(model, args, trainFolderPath):
