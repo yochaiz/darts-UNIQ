@@ -125,7 +125,7 @@ def zipFolder(p, zipf):
             zipf.write(fn, fn[fn.index(folderName):])
 
 
-def sendEmail(model, args, trainFolderPath):
+def sendEmail(model, args, trainFolderPath, content):
     saveFolder = args.save
     # init files to zip
     attachPaths = [trainFolderPath, model.alphasCsvFileName, model.stats.saveFolder,
@@ -142,7 +142,8 @@ def sendEmail(model, args, trainFolderPath):
     zipf.close()
     # init email addresses
     fromAddr = "yochaiz@campus.technion.ac.il"
-    toAddr = ['evron.itay@gmail.com', 'chaimbaskin@cs.technion.ac.il', 'yochaiz.cs@gmail.com']
+    toAddr = ['evron.itay@gmail.com', 'chaimbaskin@cs.technion.ac.il',
+              'yochaiz.cs@gmail.com', 'evgeniizh@campus.technion.ac.il']
     # init connection
     server = SMTP('smtp.office365.com', 587)
     server.ehlo()
@@ -152,10 +153,9 @@ def sendEmail(model, args, trainFolderPath):
     server.login(fromAddr, b64decode(passwd).decode('utf-8'))
     # init message
     msg = MIMEMultipart()
-    body = 'Hi,\nFiles are attached'
     msg['From'] = fromAddr
     msg['Subject'] = 'Results - Model:[{}] Bitwidth:{}'.format(args.model, args.bitwidth)
-    msg.attach(MIMEText(body, 'plain'))
+    msg.attach(MIMEText(content, 'plain'))
     with open(zipPath, 'rb') as z:
         # attach zip file
         part = MIMEBase('application', 'octet-stream')
