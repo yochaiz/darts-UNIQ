@@ -137,6 +137,9 @@ class TrainRegime:
         self.lastMailTime = time()
         self.secondsBetweenMails = 1 * 3600
 
+        # init train optimal model list, i.e. which structures we have send to train
+        self.optModelBitwidthList = []
+
         self.trainFolderPath = '{}/{}'.format(args.save, args.trainFolder)
 
         # init cross entropy loss
@@ -218,18 +221,21 @@ class TrainRegime:
         # set optimal model bitwidth per layer
         model.evalMode()
         args.optModel_bitwidth = [layer.ops[layer.curr_alpha_idx].bitwidth for layer in model.layersList]
-        # save args to JSON
-        saveArgsToJSON(args)
-        # init args JSON destination path on server
-        dstPath = '/home/yochaiz/DropDarts/cnn/optimal_models/{}/{}-[{}-{}].json' \
-            .format(args.model, args.folderName, nEpoch, nBatch)
-        # init copy command & train command
-        copyJSONcommand = 'scp {} yochaiz@132.68.39.32:{}'.format(args.jsonPath, dstPath)
-        trainOptCommand = 'ssh yochaiz@132.68.39.32 sbatch /home/yochaiz/DropDarts/cnn/sbatch_opt.sh --data {}' \
-            .format(dstPath)
-        # perform commands
-        j = system('{} && {}'.format(copyJSONcommand, trainOptCommand))
-        print(j)
+        # check if current bitwidth has already been sent for training
+        bitwidthKey = '{}'.format(args.optModel_bitwidth)
+        if bitwidthKey not in self.optModelBitwidthList:
+            self.optModelBitwidthList.append(bitwidthKey)
+            # save args to JSON
+            saveArgsToJSON(args)
+            # init args JSON destination path on server
+            dstPath = '/home/yochaiz/DropDarts/cnn/optimal_models/{}/{}-[{}-{}].json' \
+                .format(args.model, args.folderName, nEpoch, nBatch)
+            # init copy command & train command
+            copyJSONcommand = 'scp {} yochaiz@132.68.39.32:{}'.format(args.jsonPath, dstPath)
+            trainOptCommand = 'ssh yochaiz@132.68.39.32 sbatch /home/yochaiz/DropDarts/cnn/sbatch_opt.sh --data {}' \
+                .format(dstPath)
+            # perform commands
+            system('{} && {}'.format(copyJSONcommand, trainOptCommand))
 
     # def trainOptimalModel(self, epoch, logger):
     #     model = self.model
