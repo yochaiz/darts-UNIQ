@@ -139,6 +139,8 @@ class TrainRegime:
 
         # init train optimal model list, i.e. which structures we have send to train
         self.optModelBitwidthList = []
+        # init optimal model training queue, in case we send too many jobs to server
+        self.optModelTrainingQueue = []
 
         self.trainFolderPath = '{}/{}'.format(args.save, args.trainFolder)
 
@@ -235,29 +237,29 @@ class TrainRegime:
             trainOptCommand = 'ssh yochaiz@132.68.39.32 sbatch /home/yochaiz/DropDarts/cnn/sbatch_opt.sh --data {}' \
                 .format(dstPath)
             # perform commands
-            system('{} && {}'.format(copyJSONcommand, trainOptCommand))
+            command = '{} && {}'.format(copyJSONcommand, trainOptCommand)
+            retVal = system(command)
 
-    # def trainOptimalModel(self, epoch, logger):
-    #     model = self.model
-    #     args = self.args
-    #
-    #     if args.opt_pre_trained:
-    #         # copy args
-    #         opt_args = Namespace(**vars(args))
-    #         # set bitwidth
-    #         bopsRatio1 = model.evalMode()
-    #         opt_args.bitwidth = [layer.ops[layer.curr_alpha_idx].bitwidth for layer in model.layersList]
-    #         # create optimal model
-    #         optModel = self.modelClass(opt_args)
-    #         optModel = optModel.cuda()
-    #         #
-    #         bopsRatio2 = optModel.calcBopsRatio()
-    #         # load full-precision pre-trained model weights
-    #         loadedOpsWithDiffWeights = load_pre_trained(args.opt_pre_trained, optModel, logger, args.gpu[0])
-    #         assert (loadedOpsWithDiffWeights is False)
-    #         # train model
-    #         with Pool(processes=1, maxtasksperchild=1) as pool:
-    #             pool.apply(self.gwow, args=(optModel, opt_args, '{}_opt'.format(epoch), 'optModel'))
+            if retVal == 0:
+                # try to send more queued jobs to server
+                trySendJobs = len(self.optModelTrainingQueue) > 0
+                while trySendJobs:
+                    # take last job in queue
+                    command, optModel_bitwidth = self.optModelTrainingQueue[-1]
+                    # update optModel_bitwidth in args
+                    args.optModel_bitwidth = optModel_bitwidth
+                    # save args to JSON
+                    saveArgsToJSON(args)
+                    # send job
+                    retVal = system(command)
+                    if retVal == 0:
+                        # delete the job we sent from queue
+                        self.optModelTrainingQueue = self.optModelTrainingQueue[:-1]
+                    # update loop flag, keep sending if current job sent successfully & there are more jobs to send
+                    trySendJobs = (retVal == 0) and (len(self.optModelTrainingQueue) > 0)
+            else:
+                # server is full with jobs, add current job to queue
+                self.optModelTrainingQueue.append((command, args.optModel_bitwidth))
 
     def gwow(self, model, args, trainFolderName, filename=None):
         nEpochs = self.nEpochs
@@ -375,3 +377,27 @@ class TrainRegime:
 
         for _, logger in loggers.items():
             logger.info(message)
+
+
+
+    # def trainOptimalModel(self, epoch, logger):
+    #     model = self.model
+    #     args = self.args
+    #
+    #     if args.opt_pre_trained:
+    #         # copy args
+    #         opt_args = Namespace(**vars(args))
+    #         # set bitwidth
+    #         bopsRatio1 = model.evalMode()
+    #         opt_args.bitwidth = [layer.ops[layer.curr_alpha_idx].bitwidth for layer in model.layersList]
+    #         # create optimal model
+    #         optModel = self.modelClass(opt_args)
+    #         optModel = optModel.cuda()
+    #         #
+    #         bopsRatio2 = optModel.calcBopsRatio()
+    #         # load full-precision pre-trained model weights
+    #         loadedOpsWithDiffWeights = load_pre_trained(args.opt_pre_trained, optModel, logger, args.gpu[0])
+    #         assert (loadedOpsWithDiffWeights is False)
+    #         # train model
+    #         with Pool(processes=1, maxtasksperchild=1) as pool:
+    #             pool.apply(self.gwow, args=(optModel, opt_args, '{}_opt'.format(epoch), 'optModel'))
