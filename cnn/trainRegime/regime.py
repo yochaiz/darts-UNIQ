@@ -212,7 +212,7 @@ class TrainRegime:
     def train(self):
         raise NotImplementedError('subclasses must override train()!')
 
-    def trainOptimalModel(self):
+    def trainOptimalModel(self, nEpoch, nBatch):
         model = self.model
         args = self.args
         # set optimal model bitwidth per layer
@@ -221,13 +221,15 @@ class TrainRegime:
         # save args to JSON
         saveArgsToJSON(args)
         # init args JSON destination path on server
-        dstPath = '/home/yochaiz/DropDarts/cnn/optimal_models/{}/{}.json'.format(args.model, args.folderName)
+        dstPath = '/home/yochaiz/DropDarts/cnn/optimal_models/{}/{}-[{}-{}].json' \
+            .format(args.model, args.folderName, nEpoch, nBatch)
         # init copy command & train command
         copyJSONcommand = 'scp {} yochaiz@132.68.39.32:{}'.format(args.jsonPath, dstPath)
         trainOptCommand = 'ssh yochaiz@132.68.39.32 sbatch /home/yochaiz/DropDarts/cnn/sbatch_opt.sh --data {}' \
             .format(dstPath)
         # perform commands
-        system('{} && {}'.format(copyJSONcommand, trainOptCommand))
+        j = system('{} && {}'.format(copyJSONcommand, trainOptCommand))
+        print(j)
 
     # def trainOptimalModel(self, epoch, logger):
     #     model = self.model
@@ -335,7 +337,7 @@ class TrainRegime:
             loss = architect.step(model, input, target)
 
             # train optimal model
-            self.trainOptimalModel()
+            self.trainOptimalModel(nEpoch, step)
             # add alphas data to statistics
             optBopsRatio = model.stats.addBatchData(model, nEpoch, step)
             # log dominant QuantizedOp in each layer
