@@ -26,6 +26,10 @@ class Statistics:
     # set plot points style
     ptsStyle = 'o'
 
+    # set maxCols & minRows for multiplot
+    nColsMax = 7
+    nRowsDefault = 3
+
     def __init__(self, layersList, nLayers, saveFolder):
         self.nLayers = nLayers
         # create plot folder
@@ -98,7 +102,7 @@ class Statistics:
         ax.legend(loc='upper center', bbox_to_anchor=(0.5, 1.02), ncol=5, fancybox=True, shadow=True)
 
     def __setFigProperties(self, fig, fileName):
-        fig.set_size_inches((14, 10))
+        fig.set_size_inches((16, 12))
         fig.tight_layout()
         # save to file
         fig.savefig('{}/{}.png'.format(self.saveFolder, fileName))
@@ -140,6 +144,29 @@ class Statistics:
 
             self.__setPlotProperties(fig, ax, xLabel, yLabel, yMax, title, fileName)
 
+    # find optimal grid
+    def __findGrid(self, nPlots):
+        nRowsOpt, nColsOpt = 0, 0
+        optDiff = None
+
+        # iterate over options
+        for nRows in range(1, self.nRowsDefault + 1):
+            nCols = ceil(nPlots / nRows)
+            # calc how many empty plots will be in grid
+            diff = nRows * nCols - nPlots
+            # update if it is a better grid
+            if (nCols <= self.nColsMax) and ((optDiff is None) or (diff < optDiff)):
+                nRowsOpt = nRows
+                nColsOpt = nCols
+                optDiff = diff
+
+        # if we haven't found a valid grid, use nColsMax as number of cols and adjust number of rows accordingly
+        if optDiff is None:
+            nRowsOpt = ceil(nPlots, self.nColsMax)
+            nColsOpt = self.nColsMax
+
+        return nRowsOpt, nColsOpt
+
     def plotData(self):
         # set x axis values
         xValues = list(range(len(self.batchLabels)))
@@ -153,7 +180,7 @@ class Statistics:
             data = self.containers[fileName]
             # build subplot for all plots
             nPlots = len(data)
-            nRows, nCols = floor(sqrt(nPlots)), ceil(sqrt(nPlots))
+            nRows, nCols = self.__findGrid(nPlots)
             fig, ax = plt.subplots(nrows=nRows, ncols=nCols)
             axRow, axCol = 0, 0
             # add each layer alphas data to plot
