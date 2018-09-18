@@ -33,6 +33,7 @@ with open(scriptArgs.data, 'r') as f:
     args = Namespace(**args)
     # update values
     args.train_portion = 1.0
+    args.batch_size = 250
     args.epochs = scriptArgs.epochs
     args.learning_rate = scriptArgs.learning_rate
     # extract args JSON folder path
