@@ -102,7 +102,7 @@ class Statistics:
         ax.legend(loc='upper center', bbox_to_anchor=(0.5, 1.02), ncol=5, fancybox=True, shadow=True)
 
     def __setFigProperties(self, fig, fileName):
-        fig.set_size_inches((16, 12))
+        fig.set_size_inches((30, 20))
         fig.tight_layout()
         # save to file
         fig.savefig('{}/{}.png'.format(self.saveFolder, fileName))
