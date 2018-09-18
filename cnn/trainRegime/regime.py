@@ -313,6 +313,8 @@ class TrainRegime:
                 # save model checkpoint
                 save_checkpoint(self.trainFolderPath, model, epoch, best_prec1, is_best=False, filename=filename)
 
+        self.logger.info('Optimal validation accuracy: [{:.3f}]'.format(best_prec1))
+
         return epoch
 
     def sendEmail(self, nEpoch, batchNum, nBatches):
