@@ -1,8 +1,6 @@
 from time import time
 from abc import abstractmethod
-from argparse import Namespace
-from multiprocessing import Pool
-from os import makedirs, path, walk
+from os import makedirs, path, system
 
 from torch.nn.utils.clip_grad import clip_grad_norm_
 from torch.optim.lr_scheduler import CosineAnnealingLR
@@ -11,7 +9,7 @@ from torch.optim import SGD
 from torch.autograd.variable import Variable
 from torch.nn import CrossEntropyLoss
 
-from cnn.utils import accuracy, AvgrageMeter, load_data, load_pre_trained
+from cnn.utils import accuracy, AvgrageMeter, load_data, saveArgsToJSON
 from cnn.utils import initTrainLogger, logDominantQuantizedOp, save_checkpoint
 from cnn.utils import sendEmail as uSendEmail
 
@@ -214,27 +212,44 @@ class TrainRegime:
     def train(self):
         raise NotImplementedError('subclasses must override train()!')
 
-    def trainOptimalModel(self, epoch, logger):
+    def trainOptimalModel(self):
         model = self.model
         args = self.args
+        # set optimal model bitwidth per layer
+        model.evalMode()
+        args.optModel_bitwidth = [layer.ops[layer.curr_alpha_idx].bitwidth for layer in model.layersList]
+        # save args to JSON
+        saveArgsToJSON(args)
+        # init args JSON destination path on server
+        dstPath = '/home/yochaiz/DropDarts/cnn/optimal_models/{}/{}.json'.format(args.model, args.folderName)
+        # init copy command & train command
+        copyJSONcommand = 'scp {} yochaiz@132.68.39.32:{}'.format(args.jsonPath, dstPath)
+        trainOptCommand = 'ssh yochaiz@132.68.39.32 sbatch /home/yochaiz/DropDarts/cnn/sbatch_opt.sh --data {}' \
+            .format(dstPath)
+        # perform commands
+        system('{} && {}'.format(copyJSONcommand, trainOptCommand))
 
-        if args.opt_pre_trained:
-            # copy args
-            opt_args = Namespace(**vars(args))
-            # set bitwidth
-            bopsRatio1 = model.evalMode()
-            opt_args.bitwidth = [layer.ops[layer.curr_alpha_idx].bitwidth for layer in model.layersList]
-            # create optimal model
-            optModel = self.modelClass(opt_args)
-            optModel = optModel.cuda()
-            #
-            bopsRatio2 = optModel.calcBopsRatio()
-            # load full-precision pre-trained model weights
-            loadedOpsWithDiffWeights = load_pre_trained(args.opt_pre_trained, optModel, logger, args.gpu[0])
-            assert (loadedOpsWithDiffWeights is False)
-            # train model
-            with Pool(processes=1, maxtasksperchild=1) as pool:
-                pool.apply(self.gwow, args=(optModel, opt_args, '{}_opt'.format(epoch), 'optModel'))
+    # def trainOptimalModel(self, epoch, logger):
+    #     model = self.model
+    #     args = self.args
+    #
+    #     if args.opt_pre_trained:
+    #         # copy args
+    #         opt_args = Namespace(**vars(args))
+    #         # set bitwidth
+    #         bopsRatio1 = model.evalMode()
+    #         opt_args.bitwidth = [layer.ops[layer.curr_alpha_idx].bitwidth for layer in model.layersList]
+    #         # create optimal model
+    #         optModel = self.modelClass(opt_args)
+    #         optModel = optModel.cuda()
+    #         #
+    #         bopsRatio2 = optModel.calcBopsRatio()
+    #         # load full-precision pre-trained model weights
+    #         loadedOpsWithDiffWeights = load_pre_trained(args.opt_pre_trained, optModel, logger, args.gpu[0])
+    #         assert (loadedOpsWithDiffWeights is False)
+    #         # train model
+    #         with Pool(processes=1, maxtasksperchild=1) as pool:
+    #             pool.apply(self.gwow, args=(optModel, opt_args, '{}_opt'.format(epoch), 'optModel'))
 
     def gwow(self, model, args, trainFolderName, filename=None):
         nEpochs = self.nEpochs
@@ -292,8 +307,13 @@ class TrainRegime:
 
         return epoch
 
-    def sendEmail(self):
-        uSendEmail(self.model, self.args, self.trainFolderPath)
+    def sendEmail(self, nEpoch, batchNum, nBatches):
+        body = ['Hi', 'Files are attached.', 'Epoch:[{}]  Batch:[{}/{}]'.format(nEpoch, batchNum, nBatches)]
+        content = ''
+        for line in body:
+            content += line + '\n'
+
+        uSendEmail(self.model, self.args, self.trainFolderPath, content)
 
     def trainAlphas(self, search_queue, model, architect, nEpoch, loggers):
         loss_container = AvgrageMeter()
@@ -314,6 +334,8 @@ class TrainRegime:
             model.trainMode()
             loss = architect.step(model, input, target)
 
+            # train optimal model
+            self.trainOptimalModel()
             # add alphas data to statistics
             optBopsRatio = model.stats.addBatchData(model, nEpoch, step)
             # log dominant QuantizedOp in each layer
@@ -327,7 +349,7 @@ class TrainRegime:
 
             # send email
             if (endTime - self.lastMailTime > self.secondsBetweenMails) or ((step + 1) % int(nBatches / 2) == 0):
-                self.sendEmail()
+                self.sendEmail(nEpoch, step, nBatches)
                 # update last email time
                 self.lastMailTime = time()
                 # from now on we send every 5 hours
