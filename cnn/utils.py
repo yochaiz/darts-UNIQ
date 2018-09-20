@@ -172,7 +172,10 @@ def sendEmail(model, args, trainFolderPath, content):
         for dst in toAddr:
             msg['To'] = dst
             text = msg.as_string()
-            server.sendmail(fromAddr, dst, text)
+            try:
+                server.sendmail(fromAddr, dst, text)
+            except Exception as e:
+                print('Sending email failed, error:[{}]'.format(e))
     server.close()
 
 
