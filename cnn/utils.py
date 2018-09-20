@@ -120,7 +120,11 @@ def zipFolder(p, zipf):
     for base, dirs, files in walk(p):
         if base.endswith('__pycache__'):
             continue
+
         for file in files:
+            if file.endswith('.tar'):
+                continue
+
             fn = path.join(base, file)
             zipf.write(fn, fn[fn.index(folderName):])
 
@@ -135,10 +139,11 @@ def sendEmail(model, args, trainFolderPath, content):
     zipPath = '{}/{}'.format(saveFolder, zipFname)
     zipf = ZipFile(zipPath, 'w', ZIP_DEFLATED)
     for p in attachPaths:
-        if path.isdir(p):
-            zipFolder(p, zipf)
-        else:
-            zipf.write(p)
+        if path.exists(p):
+            if path.isdir(p):
+                zipFolder(p, zipf)
+            else:
+                zipf.write(p)
     zipf.close()
     # init email addresses
     fromAddr = "yochaiz@campus.technion.ac.il"
