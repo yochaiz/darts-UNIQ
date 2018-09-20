@@ -248,8 +248,8 @@ class MixedConvWithReLU(MixedOp):
                                stride=stride, padding=floor(ker_sz / 2), bias=False),
                         BatchNorm2d(out_planes)
                     ),
-                    # ActQuant(quant=True, noise=False, bitwidth=act_bitwidth)
-                    ReLU(inplace=True)
+                    ActQuant(quant=True, noise=False, bitwidth=act_bitwidth)
+                    # ReLU(inplace=True)
                 )
                 op = QuantizedOp(op, bitwidth=[bitwidth], act_bitwidth=[act_bitwidth], useResidual=useResidual)
                 ops.append(op)
