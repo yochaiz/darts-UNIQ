@@ -159,7 +159,7 @@ def sendEmail(model, args, trainFolderPath, content):
     # init message
     msg = MIMEMultipart()
     msg['From'] = fromAddr
-    msg['Subject'] = 'Results - Model:[{}] Bitwidth:{}'.format(args.model, args.bitwidth)
+    msg['Subject'] = 'Results [{}] - Model:[{}] Bitwidth:{}'.format(args.folderName, args.model, args.bitwidth)
     msg.attach(MIMEText(content, 'plain'))
     with open(zipPath, 'rb') as z:
         # attach zip file
