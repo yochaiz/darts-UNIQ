@@ -137,6 +137,10 @@ class Statistics:
 
             # axOther doesn't scale
             if axOther:
+                if yLabel == self.alphaDistributionKey:
+                    yMax = 1.1
+
+                axOther.grid()
                 self.__setAxesProperties(axOther, xLabel, yLabel, yMax, title)
 
             if scale:
