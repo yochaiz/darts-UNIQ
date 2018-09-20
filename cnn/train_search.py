@@ -1,7 +1,6 @@
 from torch.multiprocessing import set_start_method
 from sys import exit
 from time import strftime
-from json import dump
 import numpy as np
 import argparse
 from inspect import isclass
@@ -11,20 +10,14 @@ from torch.cuda import is_available, set_device
 from torch.cuda import manual_seed as cuda_manual_seed
 from torch import manual_seed as torch_manual_seed
 
-import cnn.models as models
-from cnn.utils import create_exp_dir, count_parameters_in_MB, load_pre_trained
-from cnn.utils import initLogger, printModelToFile
-import cnn.trainRegime as trainRegime
-
-
-# collect possible models names
-def loadModelNames():
-    return [name for (name, obj) in models.__dict__.items() if isclass(obj) and name.islower()]
+import cnn.trainRegime as trainRegimes
+from cnn.utils import create_exp_dir, count_parameters_in_MB, load_pre_trained, saveArgsToJSON
+from cnn.utils import initLogger, printModelToFile, loadModelNames, models
 
 
 # collect possible alphas optimization
 def loadAlphasRegimeNames():
-    return [name for (name, obj) in trainRegime.__dict__.items() if isclass(obj) and name.islower()]
+    return [name for (name, obj) in trainRegimes.__dict__.items() if isclass(obj) and name.islower()]
 
 
 def parseArgs(lossFuncsLambda):
@@ -113,12 +106,12 @@ def parseArgs(lossFuncsLambda):
     # set train folder name
     args.trainFolder = 'train'
 
-    args.save = 'results/search-{}-{}'.format(args.save, strftime("%Y%m%d-%H%M%S"))
+    args.folderName = 'search-{}-{}'.format(args.save, strftime("%Y%m%d-%H%M%S"))
+    args.save = 'results/{}'.format(args.folderName)
     create_exp_dir(args.save)
 
     # save args to JSON
-    with open('{}/args.json'.format(args.save), 'w') as f:
-        dump(vars(args), f)
+    saveArgsToJSON(args)
 
     return args
 
@@ -159,6 +152,43 @@ if __name__ == '__main__':
     # load pre-trained full-precision model
     args.loadedOpsWithDiffWeights = load_pre_trained(args.pre_trained, model, logger, args.gpu[0])
 
+    ## ======================================
+    # # set optimal model bitwidth per layer
+    # model.evalMode()
+    # args.optModel_bitwidth = [layer.ops[layer.curr_alpha_idx].bitwidth for layer in model.layersList]
+    # # save args to JSON
+    # saveArgsToJSON(args)
+    # # init args JSON destination path on server
+    # dstPath = '/home/yochaiz/DropDarts/cnn/optimal_models/{}/{}.json'.format(args.model, args.folderName)
+    # # init copy command & train command
+    # copyJSONcommand = 'scp {} yochaiz@132.68.39.32:{}'.format(args.jsonPath, dstPath)
+    # trainOptCommand = 'ssh yochaiz@132.68.39.32 sbatch /home/yochaiz/DropDarts/cnn/sbatch_opt.sh --data {}'.format(dstPath)
+    # # perform commands
+    # from os import system
+    #
+    # system('{} && {}'.format(copyJSONcommand, trainOptCommand))
+    # exit(0)
+
+    # # set optimal model bitwidth per layer
+    # model.evalMode()
+    # args.optModel_bitwidth = [layer.ops[layer.curr_alpha_idx].bitwidth for layer in model.layersList]
+    # # save args to JSON
+    # saveArgsToJSON(args)
+    # # init args JSON destination path on server
+    # dstPath = '/home/vista/Desktop/Architecture_Search/DropDarts/cnn/optimal_models/{}/{}.json' \
+    #     .format(args.model, args.folderName)
+    # from shutil import copyfile
+    #
+    # copyfile(args.jsonPath, dstPath)
+    # from cnn.train_opt2 import G
+    #
+    # t = {'data': dstPath, 'epochs': [10], 'learning_rate': 0.1}
+    # from argparse import Namespace
+    #
+    # t = Namespace(**t)
+    # G(t)
+    ## ======================================
+
     # print some attributes
     print(args)
     printModelToFile(model, args.save)
@@ -172,11 +202,11 @@ if __name__ == '__main__':
     # optimize(args, model, modelClass, logger)
 
     # build regime for alphas optimization
-    alphasRegClass = trainRegime.__dict__[args.alphas_regime]
-    alphasReg = alphasRegClass(args, model, modelClass, logger)
+    alphasRegimeClass = trainRegimes.__dict__[args.alphas_regime]
+    alphasRegime = alphasRegimeClass(args, model, modelClass, logger)
     # train according to chosen regime
-    alphasReg.train()
+    alphasRegime.train()
     # send final email
-    alphasReg.sendEmail()
+    alphasRegime.sendEmail('Final', 0, 0)
 
     logger.info('Done !')
