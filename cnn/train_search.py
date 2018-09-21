@@ -41,9 +41,6 @@ def parseArgs(lossFuncsLambda):
                         help='num of training epochs per layer, as list, e.g. 5,4,3,8,6.'
                              'If len(epochs)<len(layers) then last value is used for rest of the layers')
     parser.add_argument('--workers', type=int, default=1, choices=range(1, 32), help='num of workers')
-    # parser.add_argument('--init_channels', type=int, default=16, help='num of init channels')
-    # parser.add_argument('--layers', type=int, default=8, help='total number of layers')
-    # parser.add_argument('--model_path', type=str, default='saved_models', help='path to save the model')
     parser.add_argument('--cutout', action='store_true', default=False, help='use cutout')
     parser.add_argument('--cutout_length', type=int, default=16, help='cutout length')
     parser.add_argument('--drop_path_prob', type=float, default=0.3, help='drop path probability')
