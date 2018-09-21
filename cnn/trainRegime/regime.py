@@ -275,7 +275,8 @@ class TrainRegime:
             print('sent model with allocation:{}, queue size:[{}]'
                   .format(bitwidthKey, len(self.optModelTrainingQueue)))
             command = '{} && {}'.format(copyJSONcommand, trainOptCommand)
-            retVal = system(command)
+            # retVal = system(command)
+            retVal = 1
 
             if retVal == 0:
                 self.trySendQueuedJobs()
@@ -409,25 +410,3 @@ class TrainRegime:
 
         for _, logger in loggers.items():
             logger.info(message)
-
-    # def trainOptimalModel(self, epoch, logger):
-    #     model = self.model
-    #     args = self.args
-    #
-    #     if args.opt_pre_trained:
-    #         # copy args
-    #         opt_args = Namespace(**vars(args))
-    #         # set bitwidth
-    #         bopsRatio1 = model.evalMode()
-    #         opt_args.bitwidth = [layer.ops[layer.curr_alpha_idx].bitwidth for layer in model.layersList]
-    #         # create optimal model
-    #         optModel = self.modelClass(opt_args)
-    #         optModel = optModel.cuda()
-    #         #
-    #         bopsRatio2 = optModel.calcBopsRatio()
-    #         # load full-precision pre-trained model weights
-    #         loadedOpsWithDiffWeights = load_pre_trained(args.opt_pre_trained, optModel, logger, args.gpu[0])
-    #         assert (loadedOpsWithDiffWeights is False)
-    #         # train model
-    #         with Pool(processes=1, maxtasksperchild=1) as pool:
-    #             pool.apply(self.gwow, args=(optModel, opt_args, '{}_opt'.format(epoch), 'optModel'))
