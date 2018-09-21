@@ -287,7 +287,6 @@ class TrainRegime:
 
     def trainOptimalModel(self, nEpoch, nBatch):
         model = self.model
-        args = self.args
         # set optimal model bitwidth per layer
         model.evalMode()
         bitwidthKey = self.setOptModelBitwidth()
