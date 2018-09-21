@@ -10,15 +10,22 @@ from cnn.utils import load_pre_trained, initLogger, printModelToFile, models, cr
 # references to models pre-trained
 modelsRefs = {
     'thin_resnet': '/home/yochaiz/DropDarts/cnn/pre_trained/thin_resnet/train/model_opt.pth.tar',
-    'thin_resnet_[2]': '/home/yochaiz/DropDarts/cnn/uniform/thin_resnet_[2]/train/model_opt.pth.tar',
+    'thin_resnet_w:[2]_a:[32]': '/home/yochaiz/DropDarts/cnn/uniform/thin_resnet_w:[2]_a:[32]/train/model_opt.pth.tar',
     'resnet': '/home/yochaiz/DropDarts/cnn/pre_trained/resnet_cifar10_trained_32_bit_deeper/model_best.pth.tar',
-    'resnet_[2]': '/home/yochaiz/DropDarts/cnn/uniform/resnet_[2]/train/model_opt.pth.tar'
+    'resnet_w:[1]_a:[32]': '/home/yochaiz/DropDarts/cnn/uniform/resnet_w:[1]_a:[32]/train/model_opt.pth.tar',
+    'resnet_w:[2]_a:[32]': '/home/yochaiz/DropDarts/cnn/uniform/resnet_w:[2]_a:[32]/train/model_opt.pth.tar',
+    'resnet_w:[2]_a:[4]': '/home/yochaiz/DropDarts/cnn/uniform/resnet_w:[2]_a:[4]/train/model_opt.pth.tar',
+    'resnet_w:[3]_a:[3]': '/home/yochaiz/DropDarts/cnn/uniform/resnet_w:[3]_a:[3]/train/model_opt.pth.tar',
+    'resnet_w:[3]_a:[32]': '/home/yochaiz/DropDarts/cnn/uniform/resnet_w:[3]_a:[32]/train/model_opt.pth.tar',
+    'resnet_w:[4]_a:[4]': '/home/yochaiz/DropDarts/cnn/uniform/resnet_w:[4]_a:[4]/train/model_opt.pth.tar',
+    'resnet_w:[4]_a:[32]': '/home/yochaiz/DropDarts/cnn/uniform/resnet_w:[4]_a:[32]/train/model_opt.pth.tar',
+    'resnet_w:[5]_a:[5]': '/home/yochaiz/DropDarts/cnn/uniform/resnet_w:[5]_a:[5]/train/model_opt.pth.tar',
+    'resnet_w:[8]_a:[32]': '/home/yochaiz/DropDarts/cnn/uniform/resnet_w:[8]_a:[32]/train/model_checkpoint.pth.tar',
 }
-
 
 parser = ArgumentParser()
 parser.add_argument('--data', type=str, required=True, help='JSON file path')
-parser.add_argument('--epochs', type=str, default='10',
+parser.add_argument('--epochs', type=str, default='5',
                     help='num of training epochs per layer, as list, e.g. 5,4,3,8,6.'
                          'If len(epochs)<len(layers) then last value is used for rest of the layers')
 parser.add_argument('--learning_rate', type=float, default=0.1, help='init learning rate')
@@ -41,7 +48,6 @@ with open(scriptArgs.data, 'r') as f:
     # convert model bitwidths to string
     modelFolderName = ''
     for bitwidth in args.optModel_bitwidth:
-        # for b in bitwidth:
         modelFolderName += '{},'.format(bitwidth)
     modelFolderName = modelFolderName[:-1]
     # set results folder path
@@ -72,15 +78,15 @@ with open(scriptArgs.data, 'r') as f:
                     logger.info('nPerms:[{}]'.format(model.nPerms))
 
                     # load uniform model
-                    uniformKey = '{}_[{}]'.format(args.model, args.MaxBopsBits)
+                    uniformKey = '{}_w:[{}]_a:[{}]'.format(args.model, args.MaxBopsBits, args.MaxBopsBits)
                     uniformPath = modelsRefs.get(uniformKey)
                     best_prec1 = 'Not found'
                     if uniformPath and path.exists(uniformPath):
                         uniform_checkpoint = loadModel(uniformPath,
                                                        map_location=lambda storage, loc: storage.cuda(args.gpu[0]))
-                        best_prec1 = uniform_checkpoint.get('best_prec1')
+                        best_prec1 = uniform_checkpoint.get('best_prec1', best_prec1)
                     # print result
-                    logger.info('Uniform {} validation accuracy:[{:.5f}]'.format(uniformKey, best_prec1))
+                    logger.info('Uniform {} validation accuracy:[{}]'.format(uniformKey, best_prec1))
 
                     # build regime for alphas optimization
                     alphasRegimeClass = trainRegimes.__dict__.get(args.alphas_regime)
