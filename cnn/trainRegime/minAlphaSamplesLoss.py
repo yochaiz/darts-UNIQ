@@ -160,7 +160,7 @@ class MinimalAlphaSamplesLoss(TrainRegime):
             logger.info(message)
 
         # log dominant QuantizedOp in each layer
-        logDominantQuantizedOp(model, k=3, logger=trainLogger)
+        logDominantQuantizedOp(model, k=2, logger=trainLogger)
 
     # calc average samples loss for each alpha on given batch
     def calcBatchAlphaAvgLoss(self, input, target):
