@@ -373,8 +373,8 @@ def load_data(args):
     ### narrow data for debug purposes
     # train_data.train_data = train_data.train_data[0:100]
     # train_data.train_labels = train_data.train_labels[0:100]
-    # valid_data.test_data = valid_data.test_data[0:320]
-    # valid_data.test_labels = valid_data.test_labels[0:320]
+    # valid_data.test_data = valid_data.test_data[0:100]
+    # valid_data.test_labels = valid_data.test_labels[0:100]
     ####
 
     num_train = len(train_data)
