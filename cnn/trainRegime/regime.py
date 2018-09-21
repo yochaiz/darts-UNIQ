@@ -66,7 +66,7 @@ def trainWeights(train_queue, model, modelChoosePathFunc, crit, optimizer, grad_
         logger.info(message)
 
     # log dominant QuantizedOp in each layer
-    logDominantQuantizedOp(model, k=3, logger=trainLogger)
+    logDominantQuantizedOp(model, k=2, logger=trainLogger)
 
 
 def infer(valid_queue, model, modelInferMode, crit, nEpoch, loggers):
@@ -384,7 +384,7 @@ class TrainRegime:
             # add alphas data to statistics
             optBopsRatio = model.stats.addBatchData(model, nEpoch, step)
             # log dominant QuantizedOp in each layer
-            logDominantQuantizedOp(model, k=3, logger=trainLogger)
+            logDominantQuantizedOp(model, k=2, logger=trainLogger)
             # save alphas to csv
             model.save_alphas_to_csv(data=[nEpoch, step])
             # save loss to container
