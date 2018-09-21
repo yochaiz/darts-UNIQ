@@ -1,4 +1,4 @@
-from .regime import TrainRegime, trainAlphas, infer
+from .regime import TrainRegime, infer
 from cnn.utils import initTrainLogger, save_checkpoint
 from cnn.architect import Architect
 from .alphasWeightsLoop import Replicator
@@ -28,7 +28,7 @@ class AlphasOnly(TrainRegime):
             # set loggers dictionary
             loggersDict = dict(train=trainLogger, main=self.logger)
             # train alphas
-            trainAlphas(self.search_queue, self.model, self.architect, epoch, loggersDict)
+            self.trainAlphas(self.search_queue, self.model, self.architect, epoch, loggersDict)
             # validation on current optimal model
             valid_acc = infer(self.valid_queue, self.model, self.model.evalMode, self.cross_entropy, epoch, loggersDict)
 
