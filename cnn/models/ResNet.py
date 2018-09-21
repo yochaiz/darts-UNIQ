@@ -192,14 +192,14 @@ class ResNet(BaseNet):
             map['layer{}.{}.conv2'.format(n1, n2)] = 'block{}.block2.ops.0.op.0.0'.format(m)
             map['layer{}.{}.bn2'.format(n1, n2)] = 'block{}.block2.ops.0.op.0.1'.format(m)
 
-        downsampleLayersMap = [(2, 5), (3, 8)]
-        for n, m in downsampleLayersMap:
-            map['layer{}.0.conv1'.format(n)] = 'block{}.block1.ops.0.op.0.0'.format(m)
-            map['layer{}.0.bn1'.format(n)] = 'block{}.block1.ops.0.op.0.1'.format(m)
-            map['layer{}.0.conv2'.format(n)] = 'block{}.block2.ops.0.op.0.0'.format(m)
-            map['layer{}.0.bn2'.format(n)] = 'block{}.block2.ops.0.op.0.1'.format(m)
-            map['layer{}.0.downsample.0'.format(n)] = 'block{}.downsample.ops.0.op.0'.format(m)
-            map['layer{}.0.downsample.1'.format(n)] = 'block{}.downsample.ops.0.op.1'.format(m)
+        downsampleLayersMap = [(2, 0, 5), (3, 0, 8)]
+        for n1, n2, m in downsampleLayersMap:
+            map['layer{}.{}.conv1'.format(n1, n2)] = 'block{}.block1.ops.0.op.0.0'.format(m)
+            map['layer{}.{}.bn1'.format(n1, n2)] = 'block{}.block1.ops.0.op.0.1'.format(m)
+            map['layer{}.{}.conv2'.format(n1, n2)] = 'block{}.block2.ops.0.op.0.0'.format(m)
+            map['layer{}.{}.bn2'.format(n1, n2)] = 'block{}.block2.ops.0.op.0.1'.format(m)
+            map['layer{}.{}.downsample.0'.format(n1, n2)] = 'block{}.downsample.ops.0.op.0'.format(m)
+            map['layer{}.{}.downsample.1'.format(n1, n2)] = 'block{}.downsample.ops.0.op.1'.format(m)
 
         map['fc'] = 'fc'
 
