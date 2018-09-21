@@ -2,7 +2,7 @@ from torch import zeros
 from torch.optim import SGD
 from torch.nn import functional as F
 
-from .regime import TrainRegime, trainAlphas, infer, trainWeights, initTrainLogger, save_checkpoint
+from .regime import TrainRegime, infer, trainWeights, initTrainLogger, save_checkpoint
 from cnn.architect import Architect
 from cnn.model_replicator import ModelReplicator
 
@@ -147,7 +147,7 @@ class AlphasWeightsLoop(TrainRegime):
             # set loggers dictionary
             loggersDict = dict(train=trainLogger, main=self.logger)
             # train alphas
-            trainAlphas(self.search_queue, model, self.architect, epoch, loggersDict)
+            self.trainAlphas(self.search_queue, model, self.architect, epoch, loggersDict)
 
             # self.trainOptimalModel(epoch, trainLogger)
 
