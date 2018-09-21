@@ -71,19 +71,18 @@ def quantize(modules, bitwidth=32):
                         mean_p, std_p).to(d)
 
 
-
 class act_quantize(Function):
     chosen = None
 
     @staticmethod
     def forward(ctx, x, bitwidth=32):
         ctx.save_for_backward(x)
-        #ctx.needs_input_grad = (True, False)
+        # ctx.needs_input_grad = (True, False)
         if bitwidth > 16:
             return F.relu(x)  # No quantization for high bitwidths
 
         mean = torch.mean(x.data)
-        std = torch.std(x.data)
+        std = 3 * torch.std(x.data)
         cdf = norm_cdf(x.data, mean, std)
         low_bound = norm_cdf(torch.cuda.FloatTensor([0]), mean, std)[0]
         indexes_of_zero = cdf < low_bound
@@ -106,6 +105,7 @@ class act_quantize(Function):
         grad_input = grad_output.clone()
         grad_input[input < 0] = 0
         return grad_input, None
+
 
 # def act_quantize(x, bitwidth=32):
 #     if bitwidth > 16:
@@ -158,6 +158,7 @@ class act_noise(Function):
         grad_input = grad_output.clone()
         grad_input[input < 0] = 0
         return grad_input, None, None, None, None
+
 
 # def act_noise(x, training=False, bitwidth=32, noise=True, high_noise=False):
 #     act_mean = torch.mean(x.data)
