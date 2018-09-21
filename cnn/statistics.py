@@ -24,7 +24,7 @@ class Statistics:
     batchOptModelBopsRatioKey = 'optimal_model_bops_ratio'
 
     # set plot points style
-    ptsStyle = 'o'
+    ptsStyle = '-'
 
     # set maxCols & minRows for multiplot
     nColsMax = 7
