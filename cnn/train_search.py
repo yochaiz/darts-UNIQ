@@ -67,7 +67,7 @@ def parseArgs(lossFuncsLambda):
 
     parser.add_argument('--alphas_regime', default='alphas_weights_loop', choices=alphasRegimeNames,
                         help='alphas optimization method')
-    parser.add_argument('--nSamplesPerAlpha', type=int, default=50,
+    parser.add_argument('--nSamplesPerAlpha', type=int, default=20,
                         help='How many paths to sample in order to calculate average alpha loss')
 
     parser.add_argument('--loss', type=str, default='UniqLoss', choices=[key for key in lossFuncsLambda.keys()])
