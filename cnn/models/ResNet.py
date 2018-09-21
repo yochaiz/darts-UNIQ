@@ -15,12 +15,12 @@ class BasicBlock(Module):
 
         stride1 = stride if in_planes == out_planes else (stride + 1)
 
-        self.block1 = MixedConvWithReLU(bitwidths if isinstance(bitwidths[0], int) else bitwidths[0],
+        self.block1 = MixedConvWithReLU(bitwidths[0] if isinstance(bitwidths[0], list) else bitwidths,
                                         in_planes, out_planes, kernel_size, stride1, input_size[0], useResidual=False)
-        self.block2 = MixedConvWithReLU(bitwidths if isinstance(bitwidths[0], int) else bitwidths[1],
+        self.block2 = MixedConvWithReLU(bitwidths[1] if isinstance(bitwidths[0], list) else bitwidths,
                                         out_planes, out_planes, kernel_size, stride, input_size[-1], useResidual=True)
 
-        self.downsample = MixedConv(bitwidths if isinstance(bitwidths[0], int) else bitwidths[2],
+        self.downsample = MixedConv(bitwidths[2] if isinstance(bitwidths[0], list) else bitwidths,
                                     in_planes, out_planes, [1], stride1, input_size[0]) \
             if in_planes != out_planes else None
 

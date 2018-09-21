@@ -203,7 +203,7 @@ class MixedConv(MixedOp):
         in_planes, out_planes, kernel_size, stride = params
 
         ops = ModuleList()
-        for bitwidth in bitwidths:
+        for bitwidth, _ in bitwidths:
             for ker_sz in kernel_size:
                 op = Sequential(
                     Conv2d(in_planes, out_planes, kernel_size=ker_sz,
@@ -238,9 +238,7 @@ class MixedConvWithReLU(MixedOp):
         in_planes, out_planes, kernel_size, stride, useResidual = params
 
         ops = ModuleList()
-        for bitwidth in bitwidths:
-            act_bitwidth = bitwidth
-            # for act_bitwidth in self.bitwidths:
+        for bitwidth, act_bitwidth in bitwidths:
             for ker_sz in kernel_size:
                 op = Sequential(
                     Sequential(
