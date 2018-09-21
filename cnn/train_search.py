@@ -69,8 +69,7 @@ def parseArgs(lossFuncsLambda):
 
     parser.add_argument('--loss', type=str, default='UniqLoss', choices=[key for key in lossFuncsLambda.keys()])
     parser.add_argument('--lmbda', type=float, default=1.0, help='Lambda value for UniqLoss')
-    parser.add_argument('--MaxBopsBits', type=int, default=3, choices=range(1, 32),
-                        help='maximum bits for uniform division')
+    parser.add_argument('--MaxBopsBits', type=str, default='3,3', help='bits budget')
     # select bops counter function
     bopsCounterKeys = list(models.BaseNet.countBopsFuncs.keys())
     parser.add_argument('--bopsCounter', type=str, default=bopsCounterKeys[0], choices=bopsCounterKeys)
@@ -84,11 +83,14 @@ def parseArgs(lossFuncsLambda):
     # convert epochs to list
     args.epochs = [int(i) for i in args.epochs.split(',')]
 
-    # convert bitwidth to list or range
+    # convert bitwidth to list
     if args.bitwidth:
         args.bitwidth = [(int(x[0]), int(x[-1])) for x in [y.split(',') for y in args.bitwidth.split(';')]]
     else:
         args.bitwidth = [(x, x) for x in list(range(args.nBitsMin, args.nBitsMax + 1))]
+
+    # convert MaxBopsBits to tuple
+    args.MaxBopsBits = [(int(x[0]), int(x[-1])) for x in args.MaxBopsBits.split(',')]
 
     # convert kernel sizes to list, sorted ascending
     args.kernel = [int(i) for i in args.kernel.split(',')]
@@ -133,7 +135,7 @@ if __name__ == '__main__':
     # build model for uniform distribution of bits
     modelClass = models.__dict__[args.model]
     uniform_args = argparse.Namespace(**vars(args))
-    uniform_args.bitwidth = [args.MaxBopsBits]
+    uniform_args.bitwidth = args.MaxBopsBits
     uniform_model = modelClass(uniform_args)
     # init maxBops
     args.maxBops = uniform_model.countBops()

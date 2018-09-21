@@ -191,8 +191,8 @@ class AlphasWeightsLoop(TrainRegime):
                          args.grad_clip, epochName, loggersDict)
             # validation on optimal model
             valid_acc = infer(self.valid_queue, model, model.evalMode, self.cross_entropy, epochName, loggersDict)
-            # calc validation accuracy & loss on uniform model
-            infer(self.valid_queue, model, model.uniformMode, self.cross_entropy, 'Uniform', dict(main=self.logger))
+            # # calc validation accuracy & loss on uniform model
+            # infer(self.valid_queue, model, model.uniformMode, self.cross_entropy, 'Uniform', dict(main=self.logger))
 
             # save model checkpoint
             is_best = valid_acc > best_prec1

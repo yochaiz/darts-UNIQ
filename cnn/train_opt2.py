@@ -78,7 +78,7 @@ with open(scriptArgs.data, 'r') as f:
                     logger.info('nPerms:[{}]'.format(model.nPerms))
 
                     # load uniform model
-                    uniformKey = '{}_w:[{}]_a:[{}]'.format(args.model, args.MaxBopsBits, args.MaxBopsBits)
+                    uniformKey = '{}_w:[{}]_a:[{}]'.format(args.model, args.MaxBopsBits[0], args.MaxBopsBits[-1])
                     uniformPath = modelsRefs.get(uniformKey)
                     best_prec1 = 'Not found'
                     if uniformPath and path.exists(uniformPath):

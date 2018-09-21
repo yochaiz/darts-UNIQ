@@ -116,16 +116,6 @@ def infer(valid_queue, model, modelInferMode, crit, nEpoch, loggers):
     return top1.avg
 
 
-def inferUniformModel(model, uniform_model, valid_queue, cross_entropy, MaxBopsBits, bitwidth, loggers):
-    uniform_model.loadBitwidthWeigths(model.state_dict(), MaxBopsBits, bitwidth)
-    # calc validation on uniform model
-    trainLogger = loggers.get('train')
-    if trainLogger:
-        trainLogger.info('== Validation uniform model ==')
-
-    infer(valid_queue, uniform_model, cross_entropy, trainLogger.name, loggers)
-
-
 class TrainRegime:
     def __init__(self, args, model, modelClass, logger):
         self.args = args
