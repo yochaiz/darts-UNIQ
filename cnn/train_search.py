@@ -86,9 +86,9 @@ def parseArgs(lossFuncsLambda):
 
     # convert bitwidth to list or range
     if args.bitwidth:
-        args.bitwidth = [int(i) for i in args.bitwidth.split(',')]
+        args.bitwidth = [(int(x[0]), int(x[-1])) for x in [y.split(',') for y in args.bitwidth.split(';')]]
     else:
-        args.bitwidth = list(range(args.nBitsMin, args.nBitsMax + 1))
+        args.bitwidth = [(x, x) for x in list(range(args.nBitsMin, args.nBitsMax + 1))]
 
     # convert kernel sizes to list, sorted ascending
     args.kernel = [int(i) for i in args.kernel.split(',')]
