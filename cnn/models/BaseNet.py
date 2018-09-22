@@ -164,7 +164,6 @@ class BaseNet(Module):
                 # op.register_forward_hook(restore_quant_state)
 
     # def loadBitwidthWeigths(self, stateDict, MaxBopsBits, bitwidth):
-    #     # TODO: get model and assure the selected index bitwidth
     #     # check idx of MaxBopsBits inside bitwidths
     #     maxBopsBitsIdx = bitwidth.index(MaxBopsBits)
     #     maxBopsStateDict = OrderedDict()
