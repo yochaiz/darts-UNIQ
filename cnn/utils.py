@@ -147,8 +147,7 @@ def sendEmail(model, args, trainFolderPath, content):
     zipf.close()
     # init email addresses
     fromAddr = "yochaiz@campus.technion.ac.il"
-    toAddr = ['evron.itay@gmail.com', 'chaimbaskin@cs.technion.ac.il',
-              'yochaiz.cs@gmail.com', 'evgeniizh@campus.technion.ac.il']
+    toAddr = ['evron.itay@gmail.com', 'chaimbaskin@cs.technion.ac.il', 'yochaiz.cs@gmail.com']
     # init connection
     server = SMTP('smtp.office365.com', 587)
     server.ehlo()
