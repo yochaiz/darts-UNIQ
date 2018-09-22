@@ -10,9 +10,7 @@ from cnn.MixedOp import MixedOp
 from cnn.uniq_loss import UniqLoss
 from cnn.statistics import Statistics
 
-from UNIQ.actquant import ActQuant
 from UNIQ.quantize import quantize, restore_weights, backup_weights
-from collections import OrderedDict
 
 
 def save_quant_state(self, _):
