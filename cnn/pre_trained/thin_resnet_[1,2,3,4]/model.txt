@@ -1,4 +1,4 @@
-2018-09-10 18:04:38,371 - INFO - ThinResNet(
+2018-09-21 11:21:00,877 - INFO - ThinResNet(
   (block1): MixedConvWithReLU(
     (ops): ModuleList(
       (0): QuantizedOp(
@@ -7,7 +7,7 @@
             (0): Conv2d(3, 16, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
             (1): BatchNorm2d(16, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
           )
-          (1): ReLU(inplace)
+          (1): ActQuant()
         )
       )
       (1): QuantizedOp(
@@ -16,7 +16,7 @@
             (0): Conv2d(3, 16, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
             (1): BatchNorm2d(16, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
           )
-          (1): ReLU(inplace)
+          (1): ActQuant()
         )
       )
       (2): QuantizedOp(
@@ -25,7 +25,7 @@
             (0): Conv2d(3, 16, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
             (1): BatchNorm2d(16, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
           )
-          (1): ReLU(inplace)
+          (1): ActQuant()
         )
       )
       (3): QuantizedOp(
@@ -34,7 +34,7 @@
             (0): Conv2d(3, 16, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
             (1): BatchNorm2d(16, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
           )
-          (1): ReLU(inplace)
+          (1): ActQuant()
         )
       )
     )
@@ -48,7 +48,7 @@
               (0): Conv2d(16, 16, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
               (1): BatchNorm2d(16, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
             )
-            (1): ReLU(inplace)
+            (1): ActQuant()
           )
         )
         (1): QuantizedOp(
@@ -57,7 +57,7 @@
               (0): Conv2d(16, 16, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
               (1): BatchNorm2d(16, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
             )
-            (1): ReLU(inplace)
+            (1): ActQuant()
           )
         )
         (2): QuantizedOp(
@@ -66,7 +66,7 @@
               (0): Conv2d(16, 16, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
               (1): BatchNorm2d(16, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
             )
-            (1): ReLU(inplace)
+            (1): ActQuant()
           )
         )
         (3): QuantizedOp(
@@ -75,7 +75,7 @@
               (0): Conv2d(16, 16, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
               (1): BatchNorm2d(16, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
             )
-            (1): ReLU(inplace)
+            (1): ActQuant()
           )
         )
       )
@@ -88,7 +88,7 @@
               (0): Conv2d(16, 16, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
               (1): BatchNorm2d(16, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
             )
-            (1): ReLU(inplace)
+            (1): ActQuant()
           )
         )
         (1): QuantizedOp(
@@ -97,7 +97,7 @@
               (0): Conv2d(16, 16, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
               (1): BatchNorm2d(16, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
             )
-            (1): ReLU(inplace)
+            (1): ActQuant()
           )
         )
         (2): QuantizedOp(
@@ -106,7 +106,7 @@
               (0): Conv2d(16, 16, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
               (1): BatchNorm2d(16, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
             )
-            (1): ReLU(inplace)
+            (1): ActQuant()
           )
         )
         (3): QuantizedOp(
@@ -115,7 +115,7 @@
               (0): Conv2d(16, 16, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
               (1): BatchNorm2d(16, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
             )
-            (1): ReLU(inplace)
+            (1): ActQuant()
           )
         )
       )
@@ -130,7 +130,7 @@
               (0): Conv2d(16, 32, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1), bias=False)
               (1): BatchNorm2d(32, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
             )
-            (1): ReLU(inplace)
+            (1): ActQuant()
           )
         )
         (1): QuantizedOp(
@@ -139,7 +139,7 @@
               (0): Conv2d(16, 32, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1), bias=False)
               (1): BatchNorm2d(32, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
             )
-            (1): ReLU(inplace)
+            (1): ActQuant()
           )
         )
         (2): QuantizedOp(
@@ -148,7 +148,7 @@
               (0): Conv2d(16, 32, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1), bias=False)
               (1): BatchNorm2d(32, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
             )
-            (1): ReLU(inplace)
+            (1): ActQuant()
           )
         )
         (3): QuantizedOp(
@@ -157,7 +157,7 @@
               (0): Conv2d(16, 32, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1), bias=False)
               (1): BatchNorm2d(32, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
             )
-            (1): ReLU(inplace)
+            (1): ActQuant()
           )
         )
       )
@@ -170,7 +170,7 @@
               (0): Conv2d(32, 32, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
               (1): BatchNorm2d(32, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
             )
-            (1): ReLU(inplace)
+            (1): ActQuant()
           )
         )
         (1): QuantizedOp(
@@ -179,7 +179,7 @@
               (0): Conv2d(32, 32, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
               (1): BatchNorm2d(32, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
             )
-            (1): ReLU(inplace)
+            (1): ActQuant()
           )
         )
         (2): QuantizedOp(
@@ -188,7 +188,7 @@
               (0): Conv2d(32, 32, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
               (1): BatchNorm2d(32, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
             )
-            (1): ReLU(inplace)
+            (1): ActQuant()
           )
         )
         (3): QuantizedOp(
@@ -197,7 +197,7 @@
               (0): Conv2d(32, 32, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
               (1): BatchNorm2d(32, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
             )
-            (1): ReLU(inplace)
+            (1): ActQuant()
           )
         )
       )
@@ -240,7 +240,7 @@
               (0): Conv2d(32, 64, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1), bias=False)
               (1): BatchNorm2d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
             )
-            (1): ReLU(inplace)
+            (1): ActQuant()
           )
         )
         (1): QuantizedOp(
@@ -249,7 +249,7 @@
               (0): Conv2d(32, 64, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1), bias=False)
               (1): BatchNorm2d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
             )
-            (1): ReLU(inplace)
+            (1): ActQuant()
           )
         )
         (2): QuantizedOp(
@@ -258,7 +258,7 @@
               (0): Conv2d(32, 64, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1), bias=False)
               (1): BatchNorm2d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
             )
-            (1): ReLU(inplace)
+            (1): ActQuant()
           )
         )
         (3): QuantizedOp(
@@ -267,7 +267,7 @@
               (0): Conv2d(32, 64, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1), bias=False)
               (1): BatchNorm2d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
             )
-            (1): ReLU(inplace)
+            (1): ActQuant()
           )
         )
       )
@@ -280,7 +280,7 @@
               (0): Conv2d(64, 64, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
               (1): BatchNorm2d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
             )
-            (1): ReLU(inplace)
+            (1): ActQuant()
           )
         )
         (1): QuantizedOp(
@@ -289,7 +289,7 @@
               (0): Conv2d(64, 64, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
               (1): BatchNorm2d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
             )
-            (1): ReLU(inplace)
+            (1): ActQuant()
           )
         )
         (2): QuantizedOp(
@@ -298,7 +298,7 @@
               (0): Conv2d(64, 64, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
               (1): BatchNorm2d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
             )
-            (1): ReLU(inplace)
+            (1): ActQuant()
           )
         )
         (3): QuantizedOp(
@@ -307,7 +307,7 @@
               (0): Conv2d(64, 64, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
               (1): BatchNorm2d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
             )
-            (1): ReLU(inplace)
+            (1): ActQuant()
           )
         )
       )
@@ -345,19 +345,18 @@
   (fc): Linear(in_features=64, out_features=10, bias=True)
   (_criterion): UniqLoss(
     (search_loss): CrossEntropyLoss()
-    (bops_base_func): Tanh()
   )
 )
-2018-09-10 18:04:38,374 - INFO - =============================================
-2018-09-10 18:04:38,374 - INFO - Top [2] quantizations per layer:
-2018-09-10 18:04:38,374 - INFO - =============================================
-2018-09-10 18:04:38,374 - INFO - Layer:[0]  Idx:[1]  w:[0.25000]  alpha:[0.25000]  bitwidth:[2]  act_bitwidth:[2]  ||  Idx:[0]  w:[0.25000]  alpha:[0.25000]  bitwidth:[1]  act_bitwidth:[1]  ||  
-2018-09-10 18:04:38,374 - INFO - Layer:[1]  Idx:[1]  w:[0.25000]  alpha:[0.25000]  bitwidth:[2]  act_bitwidth:[2]  ||  Idx:[0]  w:[0.25000]  alpha:[0.25000]  bitwidth:[1]  act_bitwidth:[1]  ||  
-2018-09-10 18:04:38,375 - INFO - Layer:[2]  Idx:[1]  w:[0.25000]  alpha:[0.25000]  bitwidth:[2]  act_bitwidth:[2]  ||  Idx:[0]  w:[0.25000]  alpha:[0.25000]  bitwidth:[1]  act_bitwidth:[1]  ||  
-2018-09-10 18:04:38,375 - INFO - Layer:[3]  Idx:[1]  w:[0.25000]  alpha:[0.25000]  bitwidth:[2]  act_bitwidth:[2]  ||  Idx:[0]  w:[0.25000]  alpha:[0.25000]  bitwidth:[1]  act_bitwidth:[1]  ||  
-2018-09-10 18:04:38,375 - INFO - Layer:[4]  Idx:[1]  w:[0.25000]  alpha:[0.25000]  bitwidth:[2]  act_bitwidth:[2]  ||  Idx:[0]  w:[0.25000]  alpha:[0.25000]  bitwidth:[1]  act_bitwidth:[1]  ||  
-2018-09-10 18:04:38,375 - INFO - Layer:[5]  Idx:[1]  w:[0.25000]  alpha:[0.25000]  bitwidth:[2]  ||  Idx:[0]  w:[0.25000]  alpha:[0.25000]  bitwidth:[1]  ||  
-2018-09-10 18:04:38,375 - INFO - Layer:[6]  Idx:[1]  w:[0.25000]  alpha:[0.25000]  bitwidth:[2]  act_bitwidth:[2]  ||  Idx:[0]  w:[0.25000]  alpha:[0.25000]  bitwidth:[1]  act_bitwidth:[1]  ||  
-2018-09-10 18:04:38,375 - INFO - Layer:[7]  Idx:[1]  w:[0.25000]  alpha:[0.25000]  bitwidth:[2]  act_bitwidth:[2]  ||  Idx:[0]  w:[0.25000]  alpha:[0.25000]  bitwidth:[1]  act_bitwidth:[1]  ||  
-2018-09-10 18:04:38,376 - INFO - Layer:[8]  Idx:[1]  w:[0.25000]  alpha:[0.25000]  bitwidth:[2]  ||  Idx:[0]  w:[0.25000]  alpha:[0.25000]  bitwidth:[1]  ||  
-2018-09-10 18:04:38,376 - INFO - =============================================
+2018-09-21 11:21:00,881 - INFO - =============================================
+2018-09-21 11:21:00,881 - INFO - Top [2] quantizations per layer:
+2018-09-21 11:21:00,881 - INFO - =============================================
+2018-09-21 11:21:00,881 - INFO - Layer:[0]  Idx:[1]  w:[0.25000]  alpha:[0.25000]  bitwidth:[2]  act_bitwidth:[2]  ||  Idx:[0]  w:[0.25000]  alpha:[0.25000]  bitwidth:[1]  act_bitwidth:[1]  ||  
+2018-09-21 11:21:00,881 - INFO - Layer:[1]  Idx:[1]  w:[0.25000]  alpha:[0.25000]  bitwidth:[2]  act_bitwidth:[2]  ||  Idx:[0]  w:[0.25000]  alpha:[0.25000]  bitwidth:[1]  act_bitwidth:[1]  ||  
+2018-09-21 11:21:00,882 - INFO - Layer:[2]  Idx:[1]  w:[0.25000]  alpha:[0.25000]  bitwidth:[2]  act_bitwidth:[2]  ||  Idx:[0]  w:[0.25000]  alpha:[0.25000]  bitwidth:[1]  act_bitwidth:[1]  ||  
+2018-09-21 11:21:00,882 - INFO - Layer:[3]  Idx:[1]  w:[0.25000]  alpha:[0.25000]  bitwidth:[2]  act_bitwidth:[2]  ||  Idx:[0]  w:[0.25000]  alpha:[0.25000]  bitwidth:[1]  act_bitwidth:[1]  ||  
+2018-09-21 11:21:00,882 - INFO - Layer:[4]  Idx:[1]  w:[0.25000]  alpha:[0.25000]  bitwidth:[2]  act_bitwidth:[2]  ||  Idx:[0]  w:[0.25000]  alpha:[0.25000]  bitwidth:[1]  act_bitwidth:[1]  ||  
+2018-09-21 11:21:00,882 - INFO - Layer:[5]  Idx:[1]  w:[0.25000]  alpha:[0.25000]  bitwidth:[2]  ||  Idx:[0]  w:[0.25000]  alpha:[0.25000]  bitwidth:[1]  ||  
+2018-09-21 11:21:00,882 - INFO - Layer:[6]  Idx:[1]  w:[0.25000]  alpha:[0.25000]  bitwidth:[2]  act_bitwidth:[2]  ||  Idx:[0]  w:[0.25000]  alpha:[0.25000]  bitwidth:[1]  act_bitwidth:[1]  ||  
+2018-09-21 11:21:00,882 - INFO - Layer:[7]  Idx:[1]  w:[0.25000]  alpha:[0.25000]  bitwidth:[2]  act_bitwidth:[2]  ||  Idx:[0]  w:[0.25000]  alpha:[0.25000]  bitwidth:[1]  act_bitwidth:[1]  ||  
+2018-09-21 11:21:00,883 - INFO - Layer:[8]  Idx:[1]  w:[0.25000]  alpha:[0.25000]  bitwidth:[2]  ||  Idx:[0]  w:[0.25000]  alpha:[0.25000]  bitwidth:[1]  ||  
+2018-09-21 11:21:00,883 - INFO - =============================================
