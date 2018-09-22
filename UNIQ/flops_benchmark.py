@@ -322,7 +322,6 @@ def count_flops(model, input_size, in_channels):
 
     flops, bops = net.compute_average_flops_cost() / 2, net.compute_average_bops_cost()
     net.stop_flops_count()
-    # TODO: bop==0 for Linear layer ???
 
     # return (flops, bops)  # Result in FLOPs
     return bops
