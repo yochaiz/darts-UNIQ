@@ -36,6 +36,7 @@ scriptArgs = parser.parse_args()
 # convert epochs to list
 scriptArgs.epochs = [int(i) for i in scriptArgs.epochs.split(',')]
 
+# def G(scriptArgs):
 with open(scriptArgs.data, 'r') as f:
     # read JSON data
     args = loads(f.read())
@@ -61,6 +62,10 @@ with open(scriptArgs.data, 'r') as f:
         # select model constructor
         modelClass = models.__dict__.get(args.model)
         if modelClass:
+            # sort bitwidths as list of tuples
+            args.optModel_bitwidth = [[(v[0], v[1])] for v in args.optModel_bitwidth]
+            args.MaxBopsBits = args.MaxBopsBits[0]
+            args.MaxBopsBits = (args.MaxBopsBits[0], args.MaxBopsBits[1])
             # set bitwidth to optimal model bitwidth
             args.bitwidth = args.optModel_bitwidth
             # build optimal model
