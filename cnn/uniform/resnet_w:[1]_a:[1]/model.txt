@@ -1,0 +1,317 @@
+2018-09-21 22:51:18,098 - INFO - ResNet(
+  (block1): MixedConvWithReLU(
+    (ops): ModuleList(
+      (0): QuantizedOp(
+        (op): Sequential(
+          (0): Sequential(
+            (0): Conv2d(3, 16, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+            (1): BatchNorm2d(16, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+          )
+          (1): ActQuant()
+        )
+      )
+    )
+  )
+  (block2): BasicBlock(
+    (block1): MixedConvWithReLU(
+      (ops): ModuleList(
+        (0): QuantizedOp(
+          (op): Sequential(
+            (0): Sequential(
+              (0): Conv2d(16, 16, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+              (1): BatchNorm2d(16, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+            )
+            (1): ActQuant()
+          )
+        )
+      )
+    )
+    (block2): MixedConvWithReLU(
+      (ops): ModuleList(
+        (0): QuantizedOp(
+          (op): Sequential(
+            (0): Sequential(
+              (0): Conv2d(16, 16, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+              (1): BatchNorm2d(16, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+            )
+            (1): ActQuant()
+          )
+        )
+      )
+    )
+  )
+  (block3): BasicBlock(
+    (block1): MixedConvWithReLU(
+      (ops): ModuleList(
+        (0): QuantizedOp(
+          (op): Sequential(
+            (0): Sequential(
+              (0): Conv2d(16, 16, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+              (1): BatchNorm2d(16, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+            )
+            (1): ActQuant()
+          )
+        )
+      )
+    )
+    (block2): MixedConvWithReLU(
+      (ops): ModuleList(
+        (0): QuantizedOp(
+          (op): Sequential(
+            (0): Sequential(
+              (0): Conv2d(16, 16, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+              (1): BatchNorm2d(16, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+            )
+            (1): ActQuant()
+          )
+        )
+      )
+    )
+  )
+  (block4): BasicBlock(
+    (block1): MixedConvWithReLU(
+      (ops): ModuleList(
+        (0): QuantizedOp(
+          (op): Sequential(
+            (0): Sequential(
+              (0): Conv2d(16, 16, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+              (1): BatchNorm2d(16, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+            )
+            (1): ActQuant()
+          )
+        )
+      )
+    )
+    (block2): MixedConvWithReLU(
+      (ops): ModuleList(
+        (0): QuantizedOp(
+          (op): Sequential(
+            (0): Sequential(
+              (0): Conv2d(16, 16, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+              (1): BatchNorm2d(16, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+            )
+            (1): ActQuant()
+          )
+        )
+      )
+    )
+  )
+  (block5): BasicBlock(
+    (block1): MixedConvWithReLU(
+      (ops): ModuleList(
+        (0): QuantizedOp(
+          (op): Sequential(
+            (0): Sequential(
+              (0): Conv2d(16, 32, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1), bias=False)
+              (1): BatchNorm2d(32, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+            )
+            (1): ActQuant()
+          )
+        )
+      )
+    )
+    (block2): MixedConvWithReLU(
+      (ops): ModuleList(
+        (0): QuantizedOp(
+          (op): Sequential(
+            (0): Sequential(
+              (0): Conv2d(32, 32, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+              (1): BatchNorm2d(32, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+            )
+            (1): ActQuant()
+          )
+        )
+      )
+    )
+    (downsample): MixedConv(
+      (ops): ModuleList(
+        (0): QuantizedOp(
+          (op): Sequential(
+            (0): Conv2d(16, 32, kernel_size=(1, 1), stride=(2, 2), bias=False)
+            (1): BatchNorm2d(32, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+          )
+        )
+      )
+    )
+  )
+  (block6): BasicBlock(
+    (block1): MixedConvWithReLU(
+      (ops): ModuleList(
+        (0): QuantizedOp(
+          (op): Sequential(
+            (0): Sequential(
+              (0): Conv2d(32, 32, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+              (1): BatchNorm2d(32, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+            )
+            (1): ActQuant()
+          )
+        )
+      )
+    )
+    (block2): MixedConvWithReLU(
+      (ops): ModuleList(
+        (0): QuantizedOp(
+          (op): Sequential(
+            (0): Sequential(
+              (0): Conv2d(32, 32, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+              (1): BatchNorm2d(32, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+            )
+            (1): ActQuant()
+          )
+        )
+      )
+    )
+  )
+  (block7): BasicBlock(
+    (block1): MixedConvWithReLU(
+      (ops): ModuleList(
+        (0): QuantizedOp(
+          (op): Sequential(
+            (0): Sequential(
+              (0): Conv2d(32, 32, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+              (1): BatchNorm2d(32, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+            )
+            (1): ActQuant()
+          )
+        )
+      )
+    )
+    (block2): MixedConvWithReLU(
+      (ops): ModuleList(
+        (0): QuantizedOp(
+          (op): Sequential(
+            (0): Sequential(
+              (0): Conv2d(32, 32, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+              (1): BatchNorm2d(32, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+            )
+            (1): ActQuant()
+          )
+        )
+      )
+    )
+  )
+  (block8): BasicBlock(
+    (block1): MixedConvWithReLU(
+      (ops): ModuleList(
+        (0): QuantizedOp(
+          (op): Sequential(
+            (0): Sequential(
+              (0): Conv2d(32, 64, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1), bias=False)
+              (1): BatchNorm2d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+            )
+            (1): ActQuant()
+          )
+        )
+      )
+    )
+    (block2): MixedConvWithReLU(
+      (ops): ModuleList(
+        (0): QuantizedOp(
+          (op): Sequential(
+            (0): Sequential(
+              (0): Conv2d(64, 64, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+              (1): BatchNorm2d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+            )
+            (1): ActQuant()
+          )
+        )
+      )
+    )
+    (downsample): MixedConv(
+      (ops): ModuleList(
+        (0): QuantizedOp(
+          (op): Sequential(
+            (0): Conv2d(32, 64, kernel_size=(1, 1), stride=(2, 2), bias=False)
+            (1): BatchNorm2d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+          )
+        )
+      )
+    )
+  )
+  (block9): BasicBlock(
+    (block1): MixedConvWithReLU(
+      (ops): ModuleList(
+        (0): QuantizedOp(
+          (op): Sequential(
+            (0): Sequential(
+              (0): Conv2d(64, 64, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+              (1): BatchNorm2d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+            )
+            (1): ActQuant()
+          )
+        )
+      )
+    )
+    (block2): MixedConvWithReLU(
+      (ops): ModuleList(
+        (0): QuantizedOp(
+          (op): Sequential(
+            (0): Sequential(
+              (0): Conv2d(64, 64, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+              (1): BatchNorm2d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+            )
+            (1): ActQuant()
+          )
+        )
+      )
+    )
+  )
+  (block10): BasicBlock(
+    (block1): MixedConvWithReLU(
+      (ops): ModuleList(
+        (0): QuantizedOp(
+          (op): Sequential(
+            (0): Sequential(
+              (0): Conv2d(64, 64, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+              (1): BatchNorm2d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+            )
+            (1): ActQuant()
+          )
+        )
+      )
+    )
+    (block2): MixedConvWithReLU(
+      (ops): ModuleList(
+        (0): QuantizedOp(
+          (op): Sequential(
+            (0): Sequential(
+              (0): Conv2d(64, 64, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+              (1): BatchNorm2d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+            )
+            (1): ActQuant()
+          )
+        )
+      )
+    )
+  )
+  (avgpool): AvgPool2d(kernel_size=8, stride=8, padding=0)
+  (fc): Linear(in_features=64, out_features=10, bias=True)
+  (_criterion): UniqLoss(
+    (search_loss): CrossEntropyLoss()
+  )
+)
+2018-09-21 22:51:18,107 - INFO - =============================================
+2018-09-21 22:51:18,108 - INFO - Top [2] quantizations per layer:
+2018-09-21 22:51:18,109 - INFO - =============================================
+2018-09-21 22:51:18,110 - INFO - Layer:[0]  Idx:[0]  w:[1.00000]  alpha:[1.00000]  bitwidth:[1]  act_bitwidth:[1]  ||  
+2018-09-21 22:51:18,112 - INFO - Layer:[1]  Idx:[0]  w:[1.00000]  alpha:[1.00000]  bitwidth:[1]  act_bitwidth:[1]  ||  
+2018-09-21 22:51:18,113 - INFO - Layer:[2]  Idx:[0]  w:[1.00000]  alpha:[1.00000]  bitwidth:[1]  act_bitwidth:[1]  ||  
+2018-09-21 22:51:18,114 - INFO - Layer:[3]  Idx:[0]  w:[1.00000]  alpha:[1.00000]  bitwidth:[1]  act_bitwidth:[1]  ||  
+2018-09-21 22:51:18,116 - INFO - Layer:[4]  Idx:[0]  w:[1.00000]  alpha:[1.00000]  bitwidth:[1]  act_bitwidth:[1]  ||  
+2018-09-21 22:51:18,117 - INFO - Layer:[5]  Idx:[0]  w:[1.00000]  alpha:[1.00000]  bitwidth:[1]  act_bitwidth:[1]  ||  
+2018-09-21 22:51:18,118 - INFO - Layer:[6]  Idx:[0]  w:[1.00000]  alpha:[1.00000]  bitwidth:[1]  act_bitwidth:[1]  ||  
+2018-09-21 22:51:18,119 - INFO - Layer:[7]  Idx:[0]  w:[1.00000]  alpha:[1.00000]  bitwidth:[1]  act_bitwidth:[1]  ||  
+2018-09-21 22:51:18,120 - INFO - Layer:[8]  Idx:[0]  w:[1.00000]  alpha:[1.00000]  bitwidth:[1]  act_bitwidth:[1]  ||  
+2018-09-21 22:51:18,122 - INFO - Layer:[9]  Idx:[0]  w:[1.00000]  alpha:[1.00000]  bitwidth:[1]  ||  
+2018-09-21 22:51:18,123 - INFO - Layer:[10]  Idx:[0]  w:[1.00000]  alpha:[1.00000]  bitwidth:[1]  act_bitwidth:[1]  ||  
+2018-09-21 22:51:18,124 - INFO - Layer:[11]  Idx:[0]  w:[1.00000]  alpha:[1.00000]  bitwidth:[1]  act_bitwidth:[1]  ||  
+2018-09-21 22:51:18,125 - INFO - Layer:[12]  Idx:[0]  w:[1.00000]  alpha:[1.00000]  bitwidth:[1]  act_bitwidth:[1]  ||  
+2018-09-21 22:51:18,127 - INFO - Layer:[13]  Idx:[0]  w:[1.00000]  alpha:[1.00000]  bitwidth:[1]  act_bitwidth:[1]  ||  
+2018-09-21 22:51:18,128 - INFO - Layer:[14]  Idx:[0]  w:[1.00000]  alpha:[1.00000]  bitwidth:[1]  act_bitwidth:[1]  ||  
+2018-09-21 22:51:18,132 - INFO - Layer:[15]  Idx:[0]  w:[1.00000]  alpha:[1.00000]  bitwidth:[1]  act_bitwidth:[1]  ||  
+2018-09-21 22:51:18,137 - INFO - Layer:[16]  Idx:[0]  w:[1.00000]  alpha:[1.00000]  bitwidth:[1]  ||  
+2018-09-21 22:51:18,143 - INFO - Layer:[17]  Idx:[0]  w:[1.00000]  alpha:[1.00000]  bitwidth:[1]  act_bitwidth:[1]  ||  
+2018-09-21 22:51:18,150 - INFO - Layer:[18]  Idx:[0]  w:[1.00000]  alpha:[1.00000]  bitwidth:[1]  act_bitwidth:[1]  ||  
+2018-09-21 22:51:18,152 - INFO - Layer:[19]  Idx:[0]  w:[1.00000]  alpha:[1.00000]  bitwidth:[1]  act_bitwidth:[1]  ||  
+2018-09-21 22:51:18,158 - INFO - Layer:[20]  Idx:[0]  w:[1.00000]  alpha:[1.00000]  bitwidth:[1]  act_bitwidth:[1]  ||  
+2018-09-21 22:51:18,162 - INFO - =============================================
