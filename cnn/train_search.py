@@ -85,12 +85,13 @@ def parseArgs(lossFuncsLambda):
 
     # convert bitwidth to list
     if args.bitwidth:
-        args.bitwidth = [(int(x[0]), int(x[-1])) for x in [y.split(',') for y in args.bitwidth.split(';')]]
+        args.bitwidth = [(int(x[0]), int(x[-1])) for x in [y.split(',') for y in args.bitwidth.split('#')]]
     else:
         args.bitwidth = [(x, x) for x in list(range(args.nBitsMin, args.nBitsMax + 1))]
 
     # convert MaxBopsBits to tuple
-    args.MaxBopsBits = [(int(x[0]), int(x[-1])) for x in args.MaxBopsBits.split(',')]
+    args.MaxBopsBits = args.MaxBopsBits.split(',')
+    args.MaxBopsBits = [(int(args.MaxBopsBits[0]), int(args.MaxBopsBits[-1]))]
 
     # convert kernel sizes to list, sorted ascending
     args.kernel = [int(i) for i in args.kernel.split(',')]
@@ -170,7 +171,7 @@ if __name__ == '__main__':
 
     # # set optimal model bitwidth per layer
     # model.evalMode()
-    # args.optModel_bitwidth = [layer.ops[layer.curr_alpha_idx].bitwidth for layer in model.layersList]
+    # args.optModel_bitwidth = [layer.getBitwidth() for layer in model.layersList]
     # # save args to JSON
     # saveArgsToJSON(args)
     # # init args JSON destination path on server
@@ -181,7 +182,7 @@ if __name__ == '__main__':
     # copyfile(args.jsonPath, dstPath)
     # from cnn.train_opt2 import G
     #
-    # t = {'data': dstPath, 'epochs': [10], 'learning_rate': 0.1}
+    # t = {'data': dstPath, 'epochs': [5], 'learning_rate': 0.1}
     # from argparse import Namespace
     #
     # t = Namespace(**t)
