@@ -58,8 +58,8 @@ class Statistics:
             self.gradNormKey: [[] for _ in range(nLayers)]
         }
         # map each list we plot for all layers on single plot to filename
-        self.plotAllLayersKeys = [self.entropyKey, self.weightedAvgKey, self.allSamplesLossVarianceKey,
-                                  self.allSamplesLossAvgKey, self.gradNormKey, self.batchOptModelBopsRatioKey]
+        self.plotAllLayersKeys = [self.entropyKey, self.allSamplesLossVarianceKey, self.allSamplesLossAvgKey,
+                                  self.gradNormKey, self.batchOptModelBopsRatioKey]
         self.plotLayersSeparateKeys = [self.alphaLossAvgKey, self.alphaLossVarianceKey, self.alphaDistributionKey]
 
     def addBatchData(self, model, nEpoch, nBatch):
@@ -78,13 +78,14 @@ class Statistics:
                 self.containers[self.alphaDistributionKey][i][j].append(p.item())
             # calc entropy
             self.containers[self.entropyKey][i].append(entropy(probs))
-            # collect weight bitwidth of each op in layer
-            weightBitwidth = self.layersBitwidths[i]
-            # calc weighted average of weights bitwidth
-            res = probs * weightBitwidth
-            res = res.sum().item()
-            # add layer weighted average
-            self.containers[self.weightedAvgKey][i].append(res)
+
+            # # collect weight bitwidth of each op in layer
+            # weightBitwidth = self.layersBitwidths[i]
+            # # calc weighted average of weights bitwidth
+            # res = probs * weightBitwidth
+            # res = res.sum().item()
+            # # add layer weighted average
+            # self.containers[self.weightedAvgKey][i].append(res)
 
         # plot data
         self.plotData()
@@ -99,10 +100,10 @@ class Statistics:
         ax.set_ylabel(yLabel)
         ax.set_ylim(ymax=yMax, ymin=0.0)
         ax.set_title(title)
-        ax.legend(loc='upper center', bbox_to_anchor=(0.5, 1.02), ncol=5, fancybox=True, shadow=True)
+        ax.legend(loc='upper center', bbox_to_anchor=(0.5, 1.005), ncol=5, fancybox=True, shadow=True)
 
     def __setFigProperties(self, fig, fileName):
-        fig.set_size_inches((30, 20))
+        fig.set_size_inches((20, 15))
         fig.tight_layout()
         # save to file
         fig.savefig('{}/{}.png'.format(self.saveFolder, fileName))
@@ -113,7 +114,8 @@ class Statistics:
         # close plot
         plt.close()
 
-    def __plotContainer(self, data, xValues, xLabel, yLabel, title, fileName, labelFunc, axOther=None, scale=True):
+    def __plotContainer(self, data, xValues, xLabel, yLabel, title, fileName, labelFunc, axOther=None, scale=True,
+                        annotate=None):
         # create plot
         fig, ax = plt.subplots(nrows=1, ncols=1)
         # init ylim values
@@ -132,6 +134,11 @@ class Statistics:
                 dataSum.append(sum(layerData) / len(layerData))
 
         if not isPlotEmpty:
+            # add annotations if exists
+            if annotate:
+                for txt, pt in annotate:
+                    ax.annotate(txt, pt)
+
             # set yMax
             yMax = dataMax * 1.1
 
@@ -201,12 +208,32 @@ class Statistics:
             self.__setFigProperties(fig, fileName)
 
     def plotBops(self, layersList):
-        xValues = list(range(len(layersList)))
-        data = [[] for _ in range(layersList[0].numOfOps())]
-        for layer in layersList:
-            for j, bops in enumerate(layer.bops):
-                data[j].append(bops / 1E6)
+        # create plot
+        fig, ax = plt.subplots(nrows=1, ncols=1)
+        # init axis values
+        xValues = [[[] for _ in range(layer.numOfOps())] for layer in layersList]
+        yValues = [[[] for _ in range(layer.numOfOps())] for layer in layersList]
+        # init y axis max value
+        yMax = 0
+        for i, layer in enumerate(layersList):
+            for input_bitwidth in layer.bops.keys():
+                for j, bops in enumerate(layer.bops[input_bitwidth]):
+                    v = bops / 1E6
+                    xValues[i][j].append(i)
+                    yValues[i][j].append(v)
+                    ax.annotate('input:[{}]'.format(input_bitwidth), (i, v))
+                    yMax = max(yMax, v)
 
-        self.__plotContainer(data, xValues, xLabel='Layer #', yLabel='M-bops', title='bops per op in layer',
-                             fileName=self.bopsKey, labelFunc=lambda x: int(self.layersBitwidths[0][x].item()),
-                             scale=False)
+        colors = {}
+        for i, (xLayerValues, yLayerValues) in enumerate(zip(xValues, yValues)):
+            for j, (x, y) in enumerate(zip(xLayerValues, yLayerValues)):
+                label = int(self.layersBitwidths[i][j].item())
+                if label in colors.keys():
+                    ax.plot(x, y, 'o', label=label, color=colors[label])
+                else:
+                    info = ax.plot(x, y, 'o', label=label)
+                    colors[label] = info[0].get_color()
+
+        yMax *= 1.1
+        self.__setPlotProperties(fig, ax, xLabel='Layer #', yLabel='M-bops', yMax=yMax, title='bops per op in layer',
+                                 fileName=self.bopsKey)
