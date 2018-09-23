@@ -152,8 +152,8 @@ class UNIQNet(nn.Module):
         if (self.quant is False) or (len(self.bitwidth) == 0):
             self.bitwidth = [32] * len(self.layers_steps)
 
-        if (self.act_quant is False) or (len(self.act_bitwidth) == 0):
-            self.act_bitwidth = [32] * len(self.act_list)
+        # if (self.act_quant is False) or (len(self.act_bitwidth) == 0):
+        #     self.act_bitwidth = [32] * len(self.act_list)
 
         # set qunatization bitwidth for layers we want to quantize
         for index, step in enumerate(self.layers_steps):
