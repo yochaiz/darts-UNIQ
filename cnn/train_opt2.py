@@ -81,7 +81,7 @@ with open(scriptArgs.data, 'r') as f:
                     printModelToFile(model, args.save)
                     logger.info('GPU:{}'.format(args.gpu))
                     logger.info("args = %s", args)
-                    logger.info('Ops per layer:{}'.format([len(layer.ops) for layer in model.layersList]))
+                    logger.info('Ops per layer:{}'.format([layer.numOfOps() for layer in model.layersList]))
                     logger.info('nPerms:[{}]'.format(model.nPerms))
 
                     # load uniform model
