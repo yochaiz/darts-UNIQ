@@ -10,18 +10,21 @@ from cnn.models.BaseNet import save_quant_state, restore_quant_state
 
 
 class BasicBlock(Module):
-    def __init__(self, bitwidths, in_planes, out_planes, kernel_size, stride, input_size):
+    def __init__(self, bitwidths, in_planes, out_planes, kernel_size, stride, input_size, input_bitwidth):
         super(BasicBlock, self).__init__()
 
         stride1 = stride if in_planes == out_planes else (stride + 1)
 
-        self.block1 = MixedConvWithReLU(bitwidths[0] if isinstance(bitwidths[0], list) else bitwidths,
-                                        in_planes, out_planes, kernel_size, stride1, input_size[0], useResidual=False)
-        self.block2 = MixedConvWithReLU(bitwidths[1] if isinstance(bitwidths[0], list) else bitwidths,
-                                        out_planes, out_planes, kernel_size, stride, input_size[-1], useResidual=True)
+        self.block1 = MixedConvWithReLU(bitwidths[0] if isinstance(bitwidths[0], list) else bitwidths, in_planes,
+                                        out_planes, kernel_size, stride1, input_size[0], input_bitwidth,
+                                        useResidual=False)
+
+        self.block2 = MixedConvWithReLU(bitwidths[1] if isinstance(bitwidths[0], list) else bitwidths, out_planes,
+                                        out_planes, kernel_size, stride, input_size[-1],
+                                        self.block1.getOutputBitwidthList(), useResidual=True)
 
         self.downsample = MixedConv(bitwidths[2] if isinstance(bitwidths[0], list) else bitwidths,
-                                    in_planes, out_planes, [1], stride1, input_size[0]) \
+                                    in_planes, out_planes, [1], stride1, input_size[0], input_bitwidth) \
             if in_planes != out_planes else None
 
     def forward(self, x):
@@ -31,6 +34,22 @@ class BasicBlock(Module):
         out = self.block2(out, residual)
 
         return out
+
+    def countBopsa(self, input_bitwidth):
+        bops = self.block1.countBopsa(input_bitwidth)
+        if self.downsample:
+            bops += self.downsample.countBopsa(input_bitwidth)
+
+        input_bitwidth = self.block1.getCurrentOutputBitwidth()
+        bops += self.block2.countBopsa(input_bitwidth)
+
+        return bops
+
+    def getCurrentOutputBitwidth(self):
+        return self.block2.getCurrentOutputBitwidth()
+
+    def getOutputBitwidthList(self):
+        return self.block2.getOutputBitwidthList()
 
 
 class ResNet(BaseNet):
@@ -57,19 +76,24 @@ class ResNet(BaseNet):
 
         layersPlanes = self.initLayersPlanes()
 
+        # init 1st layer input bitwidth which is 8-bits
+        input_bitwidth = [8]
+
         # create list of layers from layersPlanes
         # supports bitwidth as list of ints, i.e. same bitwidths to all layers
         # supports bitwidth as list of lists, i.e. specific bitwidths to each layer
         layers = []
         for i, (layerType, in_planes, out_planes, input_size) in enumerate(layersPlanes):
             # build layer
-            l = layerType(bitwidths, in_planes, out_planes, kernel_sizes, 1, input_size)
+            l = layerType(bitwidths, in_planes, out_planes, kernel_sizes, 1, input_size, input_bitwidth)
             # add layer to layers list
             layers.append(l)
             # remove layer specific bitwidths, in case of different bitwidths to layers
             if isinstance(bitwidths[0], list):
                 nMixedOpLayers = sum(1 for m in l.modules() if isinstance(m, MixedOp))
                 del bitwidths[:nMixedOpLayers]
+            # update input_bitwidth for next layer
+            input_bitwidth = l.getOutputBitwidthList()
 
         i = 1
         for l in layers:
