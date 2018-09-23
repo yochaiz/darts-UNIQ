@@ -132,7 +132,7 @@ class MixedOp(Module):
 
         return bops
 
-    def countBopsa(self, input_bitwidth):
+    def getBops(self, input_bitwidth):
         return self.bops[input_bitwidth][self.curr_alpha_idx]
 
     # select random alpha
@@ -182,9 +182,6 @@ class MixedOp(Module):
 
     def numOfOps(self):
         return len(self.ops)
-
-    def getBops(self):
-        return self.bops
 
 
 class MixedLinear(MixedOp):

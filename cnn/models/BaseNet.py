@@ -44,7 +44,7 @@ class BaseNet(Module):
         blockNum = 1
         b = getattr(self, 'block{}'.format(blockNum))
         while b is not None:
-            totalBops += b.countBopsa(input_bitwidth)
+            totalBops += b.getBops(input_bitwidth)
             input_bitwidth = b.getCurrentOutputBitwidth()
 
             # move to next block

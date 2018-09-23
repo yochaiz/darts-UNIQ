@@ -35,13 +35,13 @@ class BasicBlock(Module):
 
         return out
 
-    def countBopsa(self, input_bitwidth):
-        bops = self.block1.countBopsa(input_bitwidth)
+    def getBops(self, input_bitwidth):
+        bops = self.block1.getBops(input_bitwidth)
         if self.downsample:
-            bops += self.downsample.countBopsa(input_bitwidth)
+            bops += self.downsample.getBops(input_bitwidth)
 
         input_bitwidth = self.block1.getCurrentOutputBitwidth()
-        bops += self.block2.countBopsa(input_bitwidth)
+        bops += self.block2.getBops(input_bitwidth)
 
         return bops
 
