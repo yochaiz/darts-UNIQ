@@ -88,7 +88,7 @@ class Chooser(Function):
 
 
 class MixedOp(Module):
-    def __init__(self, bitwidths, params, coutBopsParams):
+    def __init__(self, bitwidths, input_bitwidth, params, coutBopsParams):
         super(MixedOp, self).__init__()
 
         # assure bitwidths is a list of integers
@@ -105,16 +105,35 @@ class MixedOp(Module):
         self.forward = self.trainForward
 
         # init bops for operation
-        self.bops = self.countBops(coutBopsParams)
+        self.bops = self.buildBopsMap(bitwidths, input_bitwidth, params, coutBopsParams)
         self.countBops = None
 
     @abstractmethod
-    def initOps(self):
+    def initOps(self, bitwidths, params):
         raise NotImplementedError('subclasses must override initOps()!')
 
     @abstractmethod
-    def countBops(self, params):
+    def countOpsBops(self, ops, coutBopsParams):
         raise NotImplementedError('subclasses must override countBops()!')
+
+    @abstractmethod
+    def getBitwidth(self):
+        raise NotImplementedError('subclasses must override getBitwidth()!')
+
+    def buildBopsMap(self, bitwidths, input_bitwidth, initOpsParams, coutBopsParams):
+        # init bops map
+        bops = {}
+
+        # build ops
+        for in_bitwidth in input_bitwidth:
+            bops_bitwidth = [(b, in_bitwidth) for b, _ in bitwidths]
+            ops = self.initOps(bops_bitwidth, initOpsParams)
+            bops[in_bitwidth] = self.countOpsBops(ops, coutBopsParams)
+
+        return bops
+
+    def countBopsa(self, input_bitwidth):
+        return self.bops[input_bitwidth][self.curr_alpha_idx]
 
     # select random alpha
     def chooseRandomPath(self):
@@ -169,10 +188,10 @@ class MixedOp(Module):
 
 
 class MixedLinear(MixedOp):
-    def __init__(self, bitwidths, in_features, out_features):
+    def __init__(self, bitwidths, in_features, out_features, input_bitwidth):
         params = in_features, out_features
 
-        super(MixedLinear, self).__init__(bitwidths, params, coutBopsParams=in_features)
+        super(MixedLinear, self).__init__(bitwidths, input_bitwidth, params, coutBopsParams=in_features)
 
     def initOps(self, bitwidths, params):
         in_features, out_features = params
@@ -185,17 +204,17 @@ class MixedLinear(MixedOp):
 
         return ops
 
-    def countBops(self, input_size):
-        return [count_flops(op, input_size, 1) for op in self.ops]
+    def countOpsBops(self, ops, input_size):
+        return [count_flops(op, input_size, 1) for op in ops]
 
 
 class MixedConv(MixedOp):
-    def __init__(self, bitwidths, in_planes, out_planes, kernel_size, stride, input_size):
+    def __init__(self, bitwidths, in_planes, out_planes, kernel_size, stride, input_size, input_bitwidth):
         assert (isinstance(kernel_size, list))
         params = in_planes, out_planes, kernel_size, stride
         coutBopsParams = input_size, in_planes
 
-        super(MixedConv, self).__init__(bitwidths, params, coutBopsParams)
+        super(MixedConv, self).__init__(bitwidths, input_bitwidth, params, coutBopsParams)
 
         self.in_planes = in_planes
 
@@ -203,36 +222,45 @@ class MixedConv(MixedOp):
         in_planes, out_planes, kernel_size, stride = params
 
         ops = ModuleList()
-        for bitwidth, _ in bitwidths:
+        for bitwidth, act_bitwidth in bitwidths:
             for ker_sz in kernel_size:
                 op = Sequential(
                     Conv2d(in_planes, out_planes, kernel_size=ker_sz,
                            stride=stride, padding=floor(ker_sz / 2), bias=False),
                     BatchNorm2d(out_planes)
                 )
-                op = QuantizedOp(op, bitwidth=[bitwidth], act_bitwidth=[])
+                op = QuantizedOp(op, bitwidth=[bitwidth], act_bitwidth=[] if act_bitwidth is None else [act_bitwidth])
                 ops.append(op)
 
         return ops
 
-    def countBops(self, coutBopsParams):
+    def countOpsBops(self, ops, coutBopsParams):
         input_size, in_planes = coutBopsParams
-        return [count_flops(op, input_size, in_planes) for op in self.ops]
+        return [count_flops(op, input_size, in_planes) for op in ops]
+
+    def getBitwidth(self):
+        return self.ops[self.curr_alpha_idx].bitwidth[0], None
 
 
 class MixedConvWithReLU(MixedOp):
-    def __init__(self, bitwidths, in_planes, out_planes, kernel_size, stride, input_size, useResidual=False):
+    def __init__(self, bitwidths, in_planes, out_planes, kernel_size, stride,
+                 input_size, input_bitwidth, useResidual=False):
         assert (isinstance(kernel_size, list))
         params = in_planes, out_planes, kernel_size, stride, useResidual
-        coutBopsParams = input_size, in_planes
+        coutBopsParams = in_planes, input_size
 
         if useResidual:
             self.trainForward = self.trainResidualForward
             self.evalForward = self.evalResidualForward
 
-        super(MixedConvWithReLU, self).__init__(bitwidths, params, coutBopsParams)
+        super(MixedConvWithReLU, self).__init__(bitwidths, input_bitwidth, params, coutBopsParams)
 
         self.in_planes = in_planes
+
+        # init output bitwidths list
+        self.outputBitwidth = []
+        for op in self.ops:
+            self.outputBitwidth.extend(op.act_bitwidth)
 
     def initOps(self, bitwidths, params):
         in_planes, out_planes, kernel_size, stride, useResidual = params
@@ -254,9 +282,19 @@ class MixedConvWithReLU(MixedOp):
 
         return ops
 
-    def countBops(self, coutBopsParams):
-        input_size, in_planes = coutBopsParams
-        return [count_flops(op, input_size, in_planes) for op in self.ops]
+    def countOpsBops(self, ops, coutBopsParams):
+        in_planes, input_size = coutBopsParams
+        return [count_flops(op, input_size, in_planes) for op in ops]
+
+    def getBitwidth(self):
+        op = self.ops[self.curr_alpha_idx]
+        return op.bitwidth[0], op.act_bitwidth[0]
+
+    def getCurrentOutputBitwidth(self):
+        return self.outputBitwidth[self.curr_alpha_idx]
+
+    def getOutputBitwidthList(self):
+        return self.outputBitwidth
 
     def trainResidualForward(self, x, residual):
         if self.alphas.requires_grad:
