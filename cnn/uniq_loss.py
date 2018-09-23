@@ -30,8 +30,8 @@ class UniqLoss(Module):
         self.maxBopsBits = args.MaxBopsBits
 
         # init bops loss function and plot it
-        # self.bopsLoss = BopsLoss(LeakyReLU(inplace=True), 1, 1, 0, 1).calcLoss
-        self.bopsLoss = self._tanh_bops_loss(xDst=1, yDst=0.02, yMin=0, yMax=0.5)
+        self.bopsLoss = BopsLoss(LeakyReLU(inplace=True), 1, 1, 0, 1).calcLoss
+        # self.bopsLoss = self._tanh_bops_loss(xDst=1, yDst=0.02, yMin=0, yMax=0.5)
         self.bopsLossImgPath = '{}/bops_loss_func.png'.format(args.save)
         self.plotFunction(self.bopsLoss)
 
@@ -50,9 +50,7 @@ class UniqLoss(Module):
         self.bopsRatio = self.calcBopsRatio(modelBops)
         self.quant_loss = self.calcBopsLoss(self.bopsRatio)
 
-        return self.search_loss(input, target) + (self.lmdba * self.quant_loss.cuda(input.device.index))
-        # return self.search_loss(input, target)
-        # TODO: sort all the GPU stuff in this class
+        return self.search_loss(input, target) + (self.lmdba * self.quant_loss.cuda())
 
     # given the 4 values, generate the appropriate tanh() function, s.t. t(xDst)=yDst & max{t}=yMax & min{t}=yMin
     def _tanh_bops_loss(self, xDst, yDst, yMin, yMax):
