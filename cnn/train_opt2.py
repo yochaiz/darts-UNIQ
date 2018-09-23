@@ -94,6 +94,8 @@ with open(scriptArgs.data, 'r') as f:
                         best_prec1 = uniform_checkpoint.get('best_prec1', best_prec1)
                     # print result
                     logger.info('Uniform {} validation accuracy:[{:.5f}]'.format(uniformKey, best_prec1))
+                    # log bops ratio
+                    logger.info('Bops ratio:[{:.5f}]'.format(model.calcBopsRatio()))
 
                     # build regime for alphas optimization
                     alphasRegimeClass = trainRegimes.__dict__.get(args.alphas_regime)
