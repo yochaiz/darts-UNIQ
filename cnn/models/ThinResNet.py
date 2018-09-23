@@ -109,7 +109,7 @@ class ThinResNet(ResNet):
             for p in layerPath:
                 layer = getattr(layer, p)
             # update layer ops
-            for i in range(len(layer.ops)):
+            for i in range(layer.numOfOps()):
                 newStateDict[newKey + suffix] = chckpntDict[key]
                 newKey = newKey.replace(newKeyOp + token + '{}.'.format(i), newKeyOp + token + '{}.'.format(i + 1))
 

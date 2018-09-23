@@ -14,7 +14,7 @@ class TinyNet(BaseNet):
 
         for layer in self.layersList:
             # turn on noise
-            for op in layer.ops:
+            for op in layer.getOps():
                 op.noise = op.quant
 
     def initLayers(self, params):
@@ -59,7 +59,7 @@ class TinyNet(BaseNet):
             layer.alphas.requires_grad = True
             self.learnable_alphas.append(layer.alphas)
 
-            for op in layer.ops:
+            for op in layer.getOps():
                 # turn off noise in op
                 assert (op.noise is True)
                 op.noise = False
@@ -82,7 +82,7 @@ class TinyNet(BaseNet):
 
     def turnOnWeights(self):
         for layer in self.layersList:
-            for op in layer.ops:
+            for op in layer.getOps():
                 assert (op.noise is False)
                 # turn on operations noise
                 op.noise = True
@@ -141,7 +141,7 @@ class TinyNet(BaseNet):
                 for p in layerPath:
                     layer = getattr(layer, p)
                 # update layer ops
-                for i in range(len(layer.ops)):
+                for i in range(layer.numOfOps()):
                     newStateDict[newKey + suffix] = chckpntDict[key]
                     newKey = newKey.replace(newKeyOp + token + '{}.'.format(i), newKeyOp + token + '{}.'.format(i + 1))
             else:
