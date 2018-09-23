@@ -131,7 +131,7 @@ class ResNet(BaseNet):
 
     def turnOnWeights(self):
         for layer in self.layersList:
-            for op in layer.ops:
+            for op in layer.getOps():
                 # turn off operations noise
                 op.noise = False
                 # remove hooks
@@ -164,7 +164,7 @@ class ResNet(BaseNet):
             layer = self.layersList[self.nLayersQuantCompleted]
             assert (layer.alphas.requires_grad is False)
 
-            for op in layer.ops:
+            for op in layer.getOps():
                 # turn off noise in op
                 assert (op.noise is True)
                 op.noise = False
@@ -191,7 +191,7 @@ class ResNet(BaseNet):
             if self.nLayersQuantCompleted < len(self.layersList):
                 layer = self.layersList[self.nLayersQuantCompleted]
                 # turn on noise in the new layer we want to quantize
-                for op in layer.ops:
+                for op in layer.getOps():
                     op.noise = True
 
             if logger:
@@ -244,7 +244,7 @@ class ResNet(BaseNet):
                     layer = getattr(layer, p)
                 # update layer ops
                 if isinstance(layer, MixedOp):
-                    for i in range(len(layer.ops)):
+                    for i in range(layer.numOfOps()):
                         newStateDict[newKey + suffix] = chckpntDict[key]
                         newKey = newKey.replace(newKeyOp + token + '{}.'.format(i),
                                                 newKeyOp + token + '{}.'.format(i + 1))
