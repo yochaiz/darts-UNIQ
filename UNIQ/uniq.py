@@ -128,7 +128,6 @@ class UNIQNet(nn.Module):
 
         # collect layers by steps
         self.layers_steps = self.get_layers_steps(self.layers_list)
-        # TODO: merge downsample with its conv to single step???
 
         # remove edge layers if we don't quantize edges
         if not self.quant_edges:
@@ -137,14 +136,13 @@ class UNIQNet(nn.Module):
         # set number of train steps
         self.step = len(self.layers_steps)
 
-        # collect activations layers
-        self.act_list = []
-        for step in self.layers_steps:
-            if len(step) > 1:
-                for ind in range(len(step) - 1):
-                    if (not isinstance(step[ind], ActQuant)) and (isinstance(step[ind + 1], ActQuant)):
-                        self.act_list.append(step[ind])
-                        # TODO: act_bitwidth is only if we have ReLU ??? it must go together ???
+        # # collect activations layers
+        # self.act_list = []
+        # for step in self.layers_steps:
+        #     if len(step) > 1:
+        #         for ind in range(len(step) - 1):
+        #             if (not isinstance(step[ind], ActQuant)) and (isinstance(step[ind + 1], ActQuant)):
+        #                 self.act_list.append(step[ind])
 
         if self.act_noise:
             for layer in self.layers_steps[0]:  # Turn on noise for first stage
@@ -161,8 +159,9 @@ class UNIQNet(nn.Module):
         for index, step in enumerate(self.layers_steps):
             for layer in step:
                 layer.__param_bitwidth__ = self.bitwidth[index]
-                layer.__act_bitwidth__ = 32
+                act_bitwidth = self.act_bitwidth[index] if len(self.act_bitwidth) > index else 32
+                layer.__act_bitwidth__ = act_bitwidth
 
-        # set qunatization bitwidth for activations we want to quantize
-        for index, layer in enumerate(self.act_list):
-            layer.__act_bitwidth__ = self.act_bitwidth[index]
+        # # set qunatization bitwidth for activations we want to quantize
+        # for index, layer in enumerate(self.act_list):
+        #     layer.__act_bitwidth__ = self.act_bitwidth[index]
