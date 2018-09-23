@@ -3,7 +3,9 @@ from collections import OrderedDict
 from torch.nn import Sequential, Conv2d, Linear
 
 from cnn.MixedOp import MixedConvWithReLU, MixedLinear
-from cnn.models.BaseNet import BaseNet, save_quant_state, restore_quant_state, ActQuant
+from cnn.models.BaseNet import BaseNet, save_quant_state, restore_quant_state
+
+from UNIQ.actquant import ActQuant
 
 
 class TinyNet(BaseNet):
