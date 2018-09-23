@@ -151,7 +151,7 @@ class BaseNet(Module):
             layer.alphas.requires_grad = True
             self.learnable_alphas.append(layer.alphas)
 
-            for op in layer.ops:
+            for op in layer.getOps():
                 # turn off noise in op
                 op.noise = False
 
@@ -279,7 +279,7 @@ class BaseNet(Module):
             wSorted = wSorted[:k]
             wIndices = wIndices[:k]
             # add to top
-            top.append([(i, w.item(), layer.alphas[i], layer.ops[i]) for w, i in zip(wSorted, wIndices)])
+            top.append([(i, w.item(), layer.alphas[i], layer.ops[0][i]) for w, i in zip(wSorted, wIndices)])
 
         return top
 
