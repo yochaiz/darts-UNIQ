@@ -93,7 +93,7 @@ with open(scriptArgs.data, 'r') as f:
                                                        map_location=lambda storage, loc: storage.cuda(args.gpu[0]))
                         best_prec1 = uniform_checkpoint.get('best_prec1', best_prec1)
                     # print result
-                    logger.info('Uniform {} validation accuracy:[{}]'.format(uniformKey, best_prec1))
+                    logger.info('Uniform {} validation accuracy:[{:.5f}]'.format(uniformKey, best_prec1))
 
                     # build regime for alphas optimization
                     alphasRegimeClass = trainRegimes.__dict__.get(args.alphas_regime)
