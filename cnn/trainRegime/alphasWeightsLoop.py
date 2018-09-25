@@ -11,6 +11,9 @@ class Replicator(ModelReplicator):
     def __init__(self, model, modelClass, args):
         super(Replicator, self).__init__(model, modelClass, args)
 
+    def getModel(self, args):
+        return args[0]
+
     def buildArgs(self, inputPerGPU, targetPerGPU, layersIndicesPerModel):
         args = ((cModel, inputPerGPU[gpu], targetPerGPU[gpu], layersIndices)
                 for layersIndices, (cModel, gpu) in zip(layersIndicesPerModel, self.replications))
@@ -33,20 +36,23 @@ class Replicator(ModelReplicator):
         alphaLossVariance = []
         for layerIdx in layersIndices:
             layer = cModel.layersList[layerIdx]
-            # turn off coin toss for this layer
-            layer.alphas.requires_grad = False
+            # # turn off coin toss for this layer
+            # layer.alphas.requires_grad = False
             # init layer alphas gradient
             layerAlphasGrad = zeros(len(layer.alphas)).cuda()
             # calc layer alphas softmax
             probs = F.softmax(layer.alphas, dim=-1)
 
             for i, alpha in enumerate(layer.alphas):
-                # select the specific alpha in this layer
-                layer.curr_alpha_idx = i
+                # # select the specific alpha in this layer
+                # layer.curr_alpha_idx = i
 
                 # init loss samples list
                 alphaLossSamples = []
                 for _ in range(nSamplesPerAlpha):
+                    # choose path in model based on alphas distribution, while current layer alpha is [i]
+                    cModel.choosePathByAlphas(layerIdx=layerIdx, alphaIdx=i)
+                    # forward input in model
                     logits = cModel.forward(input)
                     # alphaLoss += cModel._criterion(logits, target, cModel.countBops()).detach()
                     alphaLossSamples.append(cModel._criterion(logits, target, cModel.countBops()).detach())
@@ -65,8 +71,8 @@ class Replicator(ModelReplicator):
                 # add alpha loss variance to statistics
                 alphaLossVariance.append((layerIdx, i, alphaAvgLoss.item(), lossVariance.item()))
 
-            # turn in coin toss for this layer
-            layer.alphas.requires_grad = True
+            # # turn in coin toss for this layer
+            # layer.alphas.requires_grad = True
             # add layer alphas grad to container
             alphasGrad.append(layerAlphasGrad)
             # add gradNorm to statistics
