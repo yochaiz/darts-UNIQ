@@ -155,22 +155,6 @@ if __name__ == '__main__':
     ## ======================================
     # # set optimal model bitwidth per layer
     # model.evalMode()
-    # args.optModel_bitwidth = [layer.ops[layer.curr_alpha_idx].bitwidth for layer in model.layersList]
-    # # save args to JSON
-    # saveArgsToJSON(args)
-    # # init args JSON destination path on server
-    # dstPath = '/home/yochaiz/DropDarts/cnn/optimal_models/{}/{}.json'.format(args.model, args.folderName)
-    # # init copy command & train command
-    # copyJSONcommand = 'scp {} yochaiz@132.68.39.32:{}'.format(args.jsonPath, dstPath)
-    # trainOptCommand = 'ssh yochaiz@132.68.39.32 sbatch /home/yochaiz/DropDarts/cnn/sbatch_opt.sh --data {}'.format(dstPath)
-    # # perform commands
-    # from os import system
-    #
-    # system('{} && {}'.format(copyJSONcommand, trainOptCommand))
-    # exit(0)
-
-    # # set optimal model bitwidth per layer
-    # model.evalMode()
     # args.optModel_bitwidth = [layer.getBitwidth() for layer in model.layersList]
     # # save args to JSON
     # saveArgsToJSON(args)
@@ -196,7 +180,7 @@ if __name__ == '__main__':
     logger.info("args = %s", args)
     logger.info("param size = %fMB", count_parameters_in_MB(model))
     logger.info('Learnable params:[{}]'.format(len(model.learnable_params)))
-    logger.info('Ops per layer:{}'.format([len(layer.ops) for layer in model.layersList]))
+    logger.info('Ops per layer:{}'.format([layer.numOfOps() for layer in model.layersList]))
     logger.info('nPerms:[{}]'.format(model.nPerms))
 
     # optimize(args, model, modelClass, logger)
