@@ -54,55 +54,101 @@ class QuantizedOp(UNIQNet):
         return out
 
 
-class Chooser(Function):
-    chosen = None
+class Block(Module):
+    @abstractmethod
+    def getBops(self, input_bitwidth):
+        raise NotImplementedError('subclasses must override getBops()!')
 
-    @staticmethod
-    def forward(ctx, results, alpha):
-        # choose alphas based on alphas distribution
-        dist = Categorical(probs=alpha)
-        chosen = dist.sample()
+    @abstractmethod
+    def getCurrentOutputBitwidth(self):
+        raise NotImplementedError('subclasses must override getCurrentOutputBitwidth()!')
 
-        # # choose alphas randomly, i.e. uniform distribution
-        # chosen = tensor(randint(0, len(alpha) - 1))
+    @abstractmethod
+    def getOutputBitwidthList(self):
+        raise NotImplementedError('subclasses must override getOutputBitwidthList()!')
 
-        result = results.select(1, chosen)
-        ctx.save_for_backward(LongTensor([results.shape]), result, chosen)
-        Chooser.chosen = chosen
-        return result
+    @abstractmethod
+    def chooseRandomPath(self, prev_alpha_idx):
+        raise NotImplementedError('subclasses must override chooseRandomPath()!')
 
-    @staticmethod
-    def backward(ctx, grad_output):
-        #  print('inside', grad_output.shape)
-        assert (False)  # assure we do not use this backward
-        results_shape, result, chosen = ctx.saved_tensors
-        results_shape = tuple(results_shape.numpy().squeeze())
-        grads_x = zeros(results_shape, device=grad_output.device, dtype=grad_output.dtype)
-        grads_x.select(1, chosen).copy_(grad_output)
-        grads_alpha = zeros((results_shape[1],), device=grad_output.device, dtype=grad_output.dtype)
-        grads_alpha[chosen] = sum(grad_output * result)
-        # print(chosen)
-        # print('grads_inside', grads_alpha)
-        # print('grad x: ', grads_x)
-        return grads_x, grads_alpha
+    @abstractmethod
+    def choosePathByAlphas(self, prev_alpha_idx):
+        raise NotImplementedError('subclasses must override choosePathByAlphas()!')
+
+    @abstractmethod
+    def evalMode(self, prev_alpha_idx):
+        raise NotImplementedError('subclasses must override evalMode()!')
+
+    @abstractmethod
+    def numOfOps(self):
+        raise NotImplementedError('subclasses must override numOfOps()!')
+
+
+# class Chooser(Function):
+#     chosen = None
+#
+#     @staticmethod
+#     def forward(ctx, results, alpha):
+#         # choose alphas based on alphas distribution
+#         dist = Categorical(probs=alpha)
+#         chosen = dist.sample()
+#
+#         # # choose alphas randomly, i.e. uniform distribution
+#         # chosen = tensor(randint(0, len(alpha) - 1))
+#
+#         result = results.select(1, chosen)
+#         ctx.save_for_backward(LongTensor([results.shape]), result, chosen)
+#         Chooser.chosen = chosen
+#         return result
+#
+#     @staticmethod
+#     def backward(ctx, grad_output):
+#         #  print('inside', grad_output.shape)
+#         assert (False)  # assure we do not use this backward
+#         results_shape, result, chosen = ctx.saved_tensors
+#         results_shape = tuple(results_shape.numpy().squeeze())
+#         grads_x = zeros(results_shape, device=grad_output.device, dtype=grad_output.dtype)
+#         grads_x.select(1, chosen).copy_(grad_output)
+#         grads_alpha = zeros((results_shape[1],), device=grad_output.device, dtype=grad_output.dtype)
+#         grads_alpha[chosen] = sum(grad_output * result)
+#         # print(chosen)
+#         # print('grads_inside', grads_alpha)
+#         # print('grad x: ', grads_x)
+#         return grads_x, grads_alpha
 
 
 class MixedOp(Module):
-    def __init__(self, bitwidths, input_bitwidth, params, coutBopsParams):
+    def __init__(self, bitwidths, input_bitwidth, params, coutBopsParams, nOpsCopies=1):
         super(MixedOp, self).__init__()
 
         # assure bitwidths is a list of integers
         if isinstance(bitwidths[0], list):
             bitwidths = bitwidths[0]
         # init operations mixture
-        self.ops = self.initOps(bitwidths, params)
+        self.ops = ModuleList()
+        for _ in range(nOpsCopies):
+            self.ops.append(self.initOps(bitwidths, params))
+        # self.ops = self.initOps(bitwidths, params)
+
+        # init list of all operations (including copies) as single long list
+        # for cases we have to modify all ops
+        self.opsList = []
+        for ops in self.ops:
+            for op in ops:
+                self.opsList.append(op)
+
+        # init ops forward counters
+        self.opsForwardCounters = self.buildOpsForwardCounters()
+
         # init operations alphas (weights)
         value = 1.0 / self.numOfOps()
         self.alphas = tensor((ones(self.numOfOps()) * value).cuda(), requires_grad=False)
 
-        # self.curr_alpha_idx = 0 if self.numOfOps() == 1 else None
         self.curr_alpha_idx = 0
-        self.forward = self.trainForward
+        # previous layer selected alpha index, in order to select the corresponding operation copy
+        self.prev_alpha_idx = 0
+        # # init forward() function
+        # self.forward = self.trainForward
 
         # init bops for operation
         self.bops = self.buildBopsMap(bitwidths, input_bitwidth, params, coutBopsParams)
@@ -120,6 +166,20 @@ class MixedOp(Module):
     def getBitwidth(self):
         raise NotImplementedError('subclasses must override getBitwidth()!')
 
+    @abstractmethod
+    def getCurrentOutputBitwidth(self):
+        raise NotImplementedError('subclasses must override getCurrentOutputBitwidth()!')
+
+    @abstractmethod
+    def getOutputBitwidthList(self):
+        raise NotImplementedError('subclasses must override getOutputBitwidthList()!')
+
+    def buildOpsForwardCounters(self):
+        return [[0] * len(ops) for ops in self.ops]
+
+    def resetOpsForwardCounters(self):
+        self.opsForwardCounters = self.buildOpsForwardCounters()
+
     def buildBopsMap(self, bitwidths, input_bitwidth, initOpsParams, coutBopsParams):
         # init bops map
         bops = {}
@@ -136,52 +196,80 @@ class MixedOp(Module):
         return self.bops[input_bitwidth][self.curr_alpha_idx]
 
     # select random alpha
-    def chooseRandomPath(self):
+    def chooseRandomPath(self, prev_alpha_idx):
         self.curr_alpha_idx = randint(0, len(self.alphas) - 1)
+        self.prev_alpha_idx = prev_alpha_idx
+
+        return self.curr_alpha_idx
 
     # select alpha based on alphas distribution
-    def choosePathByAlphas(self):
+    def choosePathByAlphas(self, prev_alpha_idx):
         dist = Categorical(logits=self.alphas)
         chosen = dist.sample()
         self.curr_alpha_idx = chosen.item()
+        self.prev_alpha_idx = prev_alpha_idx
 
-    def trainMode(self):
-        self.forward = self.trainForward
+        return self.curr_alpha_idx
 
-    def evalMode(self):
+    # def trainMode(self):
+    #     self.forward = self.trainForward
+
+    def evalMode(self, prev_alpha_idx):
         # update current alpha to max alpha value
         dist = F.softmax(self.alphas, dim=-1)
         self.curr_alpha_idx = dist.argmax().item()
-        # update forward function
-        self.forward = self.evalForward
+        self.prev_alpha_idx = prev_alpha_idx
+        # # update forward function
+        # self.forward = self.evalForward
+
+        return self.curr_alpha_idx
 
     # select op index based on desired bitwidth
     def uniformMode(self, bitwidth):
-        for i, op in enumerate(self.ops):
+        # it doesn't matter which copy of ops we take, the attributes are the same in all copies
+        for i, op in enumerate(self.ops[0]):
             if bitwidth in op.bitwidth:
                 self.curr_alpha_idx = i
                 break
 
-        # update forward function
-        self.forward = self.evalForward
+        # # update forward function
+        # self.forward = self.evalForward
 
-    def trainForward(self, x):
-        if self.alphas.requires_grad:
-            results = [op(x).unsqueeze(1) for op in self.ops]
-            probs = F.softmax(self.alphas, 0)
-            # print('alpha: ', self.alphas)
-            result = Chooser.apply(cat(results, 1), probs)
-            self.curr_alpha_idx = Chooser.chosen.item()
-            # print(self.ops[self.curr_alpha_idx])
-        else:
-            result = self.ops[self.curr_alpha_idx](x)
-        return result
+    def forward(self, x):
+        self.opsForwardCounters[self.prev_alpha_idx][self.curr_alpha_idx] += 1
+        return self.ops[self.prev_alpha_idx][self.curr_alpha_idx](x)
 
-    def evalForward(self, x):
-        return self.ops[self.curr_alpha_idx](x)
+    # def trainForward(self, x):
+    #     if self.alphas.requires_grad:
+    #         probs = F.softmax(self.alphas, 0)
+    #         # choose alphas based on alphas distribution
+    #         dist = Categorical(probs=probs)
+    #         self.curr_alpha_idx = dist.sample().item()
+    #         result = self.ops[self.prev_alpha_idx][self.curr_alpha_idx](x)
+    #
+    #         # results = [op(x).unsqueeze(1) for op in self.ops]
+    #         # probs = F.softmax(self.alphas, 0)
+    #         # # print('alpha: ', self.alphas)
+    #
+    #         # result = Chooser.apply(cat(results, 1), probs)
+    #         # self.curr_alpha_idx = Chooser.chosen.item()
+    #         # print(self.ops[self.curr_alpha_idx])
+    #     else:
+    #         result = self.ops[self.prev_alpha_idx][self.curr_alpha_idx](x)
+    #     return result
+    #
+    # def evalForward(self, x):
+    #     return self.ops[self.prev_alpha_idx][self.curr_alpha_idx](x)
 
     def numOfOps(self):
+        # it doesn't matter which copy of ops we take, length is the same in all copies
+        return len(self.ops[0])
+
+    def nOpsCopies(self):
         return len(self.ops)
+
+    def getOps(self):
+        return self.opsList
 
 
 class MixedLinear(MixedOp):
@@ -206,12 +294,12 @@ class MixedLinear(MixedOp):
 
 
 class MixedConv(MixedOp):
-    def __init__(self, bitwidths, in_planes, out_planes, kernel_size, stride, input_size, input_bitwidth):
+    def __init__(self, bitwidths, in_planes, out_planes, kernel_size, stride, input_size, input_bitwidth, nOpsCopies=1):
         assert (isinstance(kernel_size, list))
         params = in_planes, out_planes, kernel_size, stride
         coutBopsParams = input_size, in_planes
 
-        super(MixedConv, self).__init__(bitwidths, input_bitwidth, params, coutBopsParams)
+        super(MixedConv, self).__init__(bitwidths, input_bitwidth, params, coutBopsParams, nOpsCopies)
 
         self.in_planes = in_planes
 
@@ -236,27 +324,30 @@ class MixedConv(MixedOp):
         return [count_flops(op, input_size, in_planes) for op in ops]
 
     def getBitwidth(self):
-        return self.ops[self.curr_alpha_idx].bitwidth[0], None
+        # it doesn't matter which copy of ops we take, the attributes are the same in all copies
+        return self.ops[0][self.curr_alpha_idx].bitwidth[0], None
 
 
 class MixedConvWithReLU(MixedOp):
     def __init__(self, bitwidths, in_planes, out_planes, kernel_size, stride,
-                 input_size, input_bitwidth, useResidual=False):
+                 input_size, input_bitwidth, nOpsCopies=1, useResidual=False):
         assert (isinstance(kernel_size, list))
         params = in_planes, out_planes, kernel_size, stride, useResidual
         coutBopsParams = in_planes, input_size
 
         if useResidual:
-            self.trainForward = self.trainResidualForward
-            self.evalForward = self.evalResidualForward
+            self.forward = self.residualForward
+            # self.trainForward = self.trainResidualForward
+            # self.evalForward = self.evalResidualForward
 
-        super(MixedConvWithReLU, self).__init__(bitwidths, input_bitwidth, params, coutBopsParams)
+        super(MixedConvWithReLU, self).__init__(bitwidths, input_bitwidth, params, coutBopsParams, nOpsCopies)
 
         self.in_planes = in_planes
 
         # init output bitwidths list
         self.outputBitwidth = []
-        for op in self.ops:
+        # it doesn't matter which copy of ops we take, the attributes are the same in all copies
+        for op in self.ops[0]:
             self.outputBitwidth.extend(op.act_bitwidth)
 
     def initOps(self, bitwidths, params):
@@ -284,7 +375,8 @@ class MixedConvWithReLU(MixedOp):
         return [count_flops(op, input_size, in_planes) for op in ops]
 
     def getBitwidth(self):
-        op = self.ops[self.curr_alpha_idx]
+        # it doesn't matter which copy of ops we take, the attributes are the same in all copies
+        op = self.ops[0][self.curr_alpha_idx]
         return op.bitwidth[0], op.act_bitwidth[0]
 
     def getCurrentOutputBitwidth(self):
@@ -293,15 +385,25 @@ class MixedConvWithReLU(MixedOp):
     def getOutputBitwidthList(self):
         return self.outputBitwidth
 
-    def trainResidualForward(self, x, residual):
-        if self.alphas.requires_grad:
-            results = [op(x, residual).unsqueeze(1) for op in self.ops]
-            probs = F.softmax(self.alphas, 0)
-            result = Chooser.apply(cat(results, 1), probs)
-            self.curr_alpha_idx = Chooser.chosen.item()
-        else:
-            result = self.ops[self.curr_alpha_idx](x, residual)
-        return result
+    def residualForward(self, x, residual):
+        self.opsForwardCounters[self.prev_alpha_idx][self.curr_alpha_idx] += 1
+        return self.ops[self.prev_alpha_idx][self.curr_alpha_idx](x, residual)
 
-    def evalResidualForward(self, x, residual):
-        return self.ops[self.curr_alpha_idx](x, residual)
+    # def trainResidualForward(self, x, residual):
+    #     if self.alphas.requires_grad:
+    #         probs = F.softmax(self.alphas, 0)
+    #         # choose alphas based on alphas distribution
+    #         dist = Categorical(probs=probs)
+    #         self.curr_alpha_idx = dist.sample().item()
+    #         result = self.ops[self.prev_alpha_idx][self.curr_alpha_idx](x, residual)
+    #
+    #         # results = [op(x, residual).unsqueeze(1) for op in self.ops]
+    #         # probs = F.softmax(self.alphas, 0)
+    #         # result = Chooser.apply(cat(results, 1), probs)
+    #         # self.curr_alpha_idx = Chooser.chosen.item()
+    #     else:
+    #         result = self.ops[self.prev_alpha_idx][self.curr_alpha_idx](x, residual)
+    #     return result
+    #
+    # def evalResidualForward(self, x, residual):
+    #     return self.ops[self.prev_alpha_idx][self.curr_alpha_idx](x, residual)
