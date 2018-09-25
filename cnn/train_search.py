@@ -205,3 +205,6 @@ if __name__ == '__main__':
         # send e-mail with error details
         subject = '[{}] stopped'.format(args.folderName)
         sendEmail(['yochaiz.cs@gmail.com'], subject, messageContent)
+
+        # forward exception
+        raise e
