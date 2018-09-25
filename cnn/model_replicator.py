@@ -89,28 +89,27 @@ class ModelReplicator:
             print('built args')
 
             with Pool(processes=nCopies, maxtasksperchild=1) as pool:
-                # results = pool.map(self.replicationFunc, args)
-                results = pool.map(self.lossPerReplication, args)
+                results = pool.map(self.replicationFunc, args)
 
-            # # separate cModel forward counters from results
-            # counters = []
-            # for i, result in enumerate(results):
-            #     counters.append(result[-1])
-            #     results[i] = results[i][0]
+            # separate cModel forward counters from results
+            counters = []
+            for i, result in enumerate(results):
+                counters.append(result[-1])
+                results[i] = results[i][0]
 
             print('pool ended, pre processResults()')
             res = self.processResults(model, results)
             print('post processResults()')
             print ('===================')
 
-            # # reset model layers forward counters
-            # for layer in model.layersList:
-            #     layer.resetOpsForwardCounters()
-            # # sum forward counters
-            # for modelCounters in counters:
-            #     for layerCounters, mLayer in zip(modelCounters, model.layersList):
-            #         for i in range(len(mLayer.opsForwardCounters)):
-            #             for j in range(len(mLayer.opsForwardCounters[i])):
-            #                 mLayer.opsForwardCounters[i][j] += layerCounters[i][j]
+            # reset model layers forward counters
+            for layer in model.layersList:
+                layer.resetOpsForwardCounters()
+            # sum forward counters
+            for modelCounters in counters:
+                for layerCounters, mLayer in zip(modelCounters, model.layersList):
+                    for i in range(len(mLayer.opsForwardCounters)):
+                        for j in range(len(mLayer.opsForwardCounters[i])):
+                            mLayer.opsForwardCounters[i][j] += layerCounters[i][j]
 
             return res
