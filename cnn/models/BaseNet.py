@@ -41,15 +41,9 @@ class BaseNet(Module):
         totalBops = 0
         input_bitwidth = 8
 
-        blockNum = 1
-        b = getattr(self, 'block{}'.format(blockNum))
-        while b is not None:
-            totalBops += b.getBops(input_bitwidth)
-            input_bitwidth = b.getCurrentOutputBitwidth()
-
-            # move to next block
-            blockNum += 1
-            b = getattr(self, 'block{}'.format(blockNum), None)
+        for layer in self.layers:
+            totalBops += layer.getBops(input_bitwidth)
+            input_bitwidth = layer.getCurrentOutputBitwidth()
 
         return totalBops
 
@@ -66,7 +60,7 @@ class BaseNet(Module):
         # init save folder
         saveFolder = args.save
         # init layers
-        self.initLayers(initLayersParams)
+        self.layers = self.initLayers(initLayersParams)
         # build mixture layers list
         self.layersList = [m for m in self.modules() if isinstance(m, MixedOp)]
         # set bops counter function
@@ -237,26 +231,38 @@ class BaseNet(Module):
 
     # select random alpha
     def chooseRandomPath(self):
-        for l in self.layersList:
-            l.chooseRandomPath()
+        # 1st layer has only 1 copy
+        prev_alpha_idx = 0
+        for l in self.layers:
+            prev_alpha_idx = l.chooseRandomPath(prev_alpha_idx)
 
         # calc bops ratio
         return self.calcBopsRatio()
 
-    def choosePathByAlphas(self):
-        for l in self.layersList:
-            l.choosePathByAlphas()
+    # layerIdx, alphaIdx meaning: self.layersList[layerIdx].curr_alpha_idx = alphaIdx
+    def choosePathByAlphas(self, layerIdx=None, alphaIdx=None):
+        # 1st layer has only 1 copy
+        prev_alpha_idx = 0
+        for l in self.layers:
+            prev_alpha_idx = l.choosePathByAlphas(prev_alpha_idx)
+
+        if (layerIdx is not None) and (alphaIdx is not None):
+            layer = self.layersList[layerIdx]
+            layer.curr_alpha_idx = alphaIdx
+            # update following layer prev_alpha_idx
+            layerIdx += 1
+            if layerIdx < self.nLayers():
+                layer = self.layersList[layerIdx]
+                layer.prev_alpha_idx = alphaIdx
 
         # calc bops ratio
         return self.calcBopsRatio()
-
-    def trainMode(self):
-        for l in self.layersList:
-            l.trainMode()
 
     def evalMode(self):
-        for l in self.layersList:
-            l.evalMode()
+        # 1st layer has only 1 copy
+        prev_alpha_idx = 0
+        for l in self.layers:
+            prev_alpha_idx = l.evalMode(prev_alpha_idx)
 
         # calc bops ratio
         return self.calcBopsRatio()
@@ -331,66 +337,66 @@ class BaseNet(Module):
     #             del layer.bops[w]
 
 # def loadBitwidthWeigths(self, stateDict, MaxBopsBits, bitwidth):
-    #     # check idx of MaxBopsBits inside bitwidths
-    #     maxBopsBitsIdx = bitwidth.index(MaxBopsBits)
-    #     maxBopsStateDict = OrderedDict()
-    #     opsKey = 'ops.'
-    #     for key in stateDict.keys():
-    #         # if operation is for max bops bits idx
-    #         if opsKey in key:
-    #             keyOp_num = key.split(opsKey)[1][0]
-    #             if int(keyOp_num) == maxBopsBitsIdx:
-    #                 maxBopsKey = key.replace(opsKey + keyOp_num, opsKey + '0')
-    #                 maxBopsStateDict[maxBopsKey] = stateDict[key]
-    #         else:
-    #             maxBopsStateDict[key] = stateDict[key]
-    #
-    #     self.load_state_dict(maxBopsStateDict)
+#     # check idx of MaxBopsBits inside bitwidths
+#     maxBopsBitsIdx = bitwidth.index(MaxBopsBits)
+#     maxBopsStateDict = OrderedDict()
+#     opsKey = 'ops.'
+#     for key in stateDict.keys():
+#         # if operation is for max bops bits idx
+#         if opsKey in key:
+#             keyOp_num = key.split(opsKey)[1][0]
+#             if int(keyOp_num) == maxBopsBitsIdx:
+#                 maxBopsKey = key.replace(opsKey + keyOp_num, opsKey + '0')
+#                 maxBopsStateDict[maxBopsKey] = stateDict[key]
+#         else:
+#             maxBopsStateDict[key] = stateDict[key]
+#
+#     self.load_state_dict(maxBopsStateDict)
 
-    # def _loss(self, input, target):
-    #     totalLoss = 0.0
-    #     nIter = min(self.nPerms, 1000)
-    #     for _ in range(nIter):
-    #         logits = self.forward(input)
-    #
-    #         # calc alphas product
-    #         alphasProduct = 1.0
-    #         for layer in self.layersList:
-    #             probs = F.softmax(layer.alphas)
-    #             alphasProduct *= probs[layer.curr_alpha_idx]
-    #
-    #         permLoss = alphasProduct * self._criterion(logits, target, self.countBops())
-    #         # permLoss = self._criterion(logits, target, self.countBops()) / nIter
-    #         permLoss.backward(retain_graph=True)
-    #
-    #         totalLoss += permLoss.item()
-    #
-    #     return totalLoss
+# def _loss(self, input, target):
+#     totalLoss = 0.0
+#     nIter = min(self.nPerms, 1000)
+#     for _ in range(nIter):
+#         logits = self.forward(input)
+#
+#         # calc alphas product
+#         alphasProduct = 1.0
+#         for layer in self.layersList:
+#             probs = F.softmax(layer.alphas)
+#             alphasProduct *= probs[layer.curr_alpha_idx]
+#
+#         permLoss = alphasProduct * self._criterion(logits, target, self.countBops())
+#         # permLoss = self._criterion(logits, target, self.countBops()) / nIter
+#         permLoss.backward(retain_graph=True)
+#
+#         totalLoss += permLoss.item()
+#
+#     return totalLoss
 
-    # def _loss(self, input, target):
-    #     # sum all paths losses * the path alphas multiplication
-    #     totalLoss = 0.0
-    #     nIter = min(self.nPerms, 1000)
-    #     for _ in range(nIter):
-    #         # for perm in product(*self.layersPerm):
-    #         perm = [randint(0, len(layer.alphas) - 1) for layer in self.layersList]
-    #         alphasProduct = 1.0
-    #         # set perm index in each layer
-    #         for i, p in enumerate(perm):
-    #             layer = self.layersList[i]
-    #             layer.curr_alpha_idx = p
-    #             probs = F.softmax(layer.alphas)
-    #             alphasProduct *= probs[p]
-    #
-    #         logits = self.forward(input)
-    #         # only the alphas are changing...
-    #         permLoss = (alphasProduct * self._criterion(logits, target, self.countBops()))
-    #         permLoss.backward(retain_graph=True)
-    #         totalLoss += permLoss.item()
-    #
-    #     # print('totalLoss:[{:.5f}]'.format(totalLoss))
-    #     return totalLoss
+# def _loss(self, input, target):
+#     # sum all paths losses * the path alphas multiplication
+#     totalLoss = 0.0
+#     nIter = min(self.nPerms, 1000)
+#     for _ in range(nIter):
+#         # for perm in product(*self.layersPerm):
+#         perm = [randint(0, len(layer.alphas) - 1) for layer in self.layersList]
+#         alphasProduct = 1.0
+#         # set perm index in each layer
+#         for i, p in enumerate(perm):
+#             layer = self.layersList[i]
+#             layer.curr_alpha_idx = p
+#             probs = F.softmax(layer.alphas)
+#             alphasProduct *= probs[p]
+#
+#         logits = self.forward(input)
+#         # only the alphas are changing...
+#         permLoss = (alphasProduct * self._criterion(logits, target, self.countBops()))
+#         permLoss.backward(retain_graph=True)
+#         totalLoss += permLoss.item()
+#
+#     # print('totalLoss:[{:.5f}]'.format(totalLoss))
+#     return totalLoss
 
-    #
-    #     # logits = self.forward(input)
-    #     # return self._criterion(logits, target, self.countBops())
+#
+#     # logits = self.forward(input)
+#     # return self._criterion(logits, target, self.countBops())
