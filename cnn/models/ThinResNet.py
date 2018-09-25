@@ -54,7 +54,7 @@ class ThinResNet(ResNet):
             keyIdx = 0
             key = '{}.{}.{}'.format(key1, key2, keyIdx)
             while '{}.weight'.format(key) in chckpntDict:
-                map[key] = dstKey.format(key1, key2, keyIdx)
+                map[key] = dstKey.format(key2, keyIdx)
                 keyIdx += 1
                 key = '{}.{}.{}'.format(key1, key2, keyIdx)
 
@@ -64,32 +64,28 @@ class ThinResNet(ResNet):
 
         # =============================================================================
         map = {
-            'block1.0': 'block1.ops.0.op.0.0',
-            'block1.1': 'block1.ops.0.op.0.1'
+            'block1.0': 'layers.0.ops.0.0.op.0.0',
+            'block1.1': 'layers.0.ops.0.0.op.0.1'
         }
 
         newStateDict = OrderedDict()
 
-        blockNum = 2
-        key1 = 'block{}'.format(blockNum)
-        b, blockNum = getNextblock(self, key1, blockNum)
-        while b:
+        for i, layer in enumerate(self.layers[1:]):
+            dstPrefix = 'layers.{}.'.format(i + 1)
+            key1 = 'block{}'.format(i + 2)
             innerBlockNum = 1
             key2 = 'block{}'.format(innerBlockNum)
-            c, innerBlockNum = getNextblock(b, key2, innerBlockNum)
+            c, innerBlockNum = getNextblock(layer, key2, innerBlockNum)
             while c:
-                iterateKey(chckpntDict, map, key1, key2, '{}.{}.ops.0.op.0.{}')
+                iterateKey(chckpntDict, map, key1, key2, dstPrefix + '{}.ops.0.0.op.0.{}')
                 key2 = 'block{}'.format(innerBlockNum)
-                c, innerBlockNum = getNextblock(b, key2, innerBlockNum)
+                c, innerBlockNum = getNextblock(layer, key2, innerBlockNum)
 
             # copy downsample
             key2 = 'downsample'
-            c, innerBlockNum = getNextblock(b, key2, innerBlockNum)
+            c, innerBlockNum = getNextblock(layer, key2, innerBlockNum)
             if c:
-                iterateKey(chckpntDict, map, key1, key2, '{}.{}.ops.0.op.{}')
-
-            key1 = 'block{}'.format(blockNum)
-            b, blockNum = getNextblock(self, key1, blockNum)
+                iterateKey(chckpntDict, map, key1, key2, dstPrefix + '{}.ops.0.0.op.{}')
 
         token = '.ops.'
         for key in chckpntDict.keys():
@@ -109,9 +105,10 @@ class ThinResNet(ResNet):
             for p in layerPath:
                 layer = getattr(layer, p)
             # update layer ops
-            for i in range(layer.numOfOps()):
-                newStateDict[newKey + suffix] = chckpntDict[key]
-                newKey = newKey.replace(newKeyOp + token + '{}.'.format(i), newKeyOp + token + '{}.'.format(i + 1))
+            for j in range(layer.nOpsCopies()):
+                for i in range(layer.numOfOps()):
+                    newKey = map[prefix].replace(newKeyOp + token + '0.0.', newKeyOp + token + '{}.{}.'.format(j, i))
+                    newStateDict[newKey + suffix] = chckpntDict[key]
 
         # load model weights
         self.load_state_dict(newStateDict)
