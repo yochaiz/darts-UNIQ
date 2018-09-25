@@ -11,7 +11,7 @@ from torch.nn import CrossEntropyLoss
 
 from cnn.utils import accuracy, AvgrageMeter, load_data, saveArgsToJSON
 from cnn.utils import initTrainLogger, logDominantQuantizedOp, save_checkpoint
-from cnn.utils import sendDataEmail
+from cnn.utils import sendDataEmail, logForwardCounters
 
 
 def trainWeights(train_queue, model, modelChoosePathFunc, crit, optimizer, grad_clip, nEpoch, loggers):
