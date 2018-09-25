@@ -13,6 +13,9 @@ class Replicator(ModelReplicator):
     def __init__(self, model, modelClass, args):
         super(Replicator, self).__init__(model, modelClass, args)
 
+    def getModel(self, args):
+        return args[0]
+
     def buildArgs(self, inputPerGPU, targetPerGPU, layersIndicesPerModel):
         args = ((cModel, inputPerGPU[gpu], targetPerGPU[gpu], layersIndices)
                 for layersIndices, (cModel, gpu) in zip(layersIndicesPerModel, self.replications))
@@ -105,7 +108,7 @@ class MinimalAlphaSamplesLoss(TrainRegime):
             input = Variable(input, requires_grad=False).cuda()
             target = Variable(target, requires_grad=False).cuda(async=True)
 
-            model.trainMode()
+            # model.trainMode()
             res = self.calcBatchAlphaAvgLoss(input, target)
             # res = self.replicator.loss(model, input, target)
             batchLoss, batchAlphasLoss = res
