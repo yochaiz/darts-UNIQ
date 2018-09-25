@@ -1,5 +1,6 @@
 import os
 import numpy as np
+from numpy import argmax
 import torch
 from shutil import copyfile
 import logging
@@ -244,7 +245,7 @@ def load_pre_trained(path, model, logger, gpu):
             # compare dictionaries
             dictDiff = modelStateDictKeys.symmetric_difference(set(chckpntStateDict.keys()))
             # # update flag value
-            loadOpsWithDifferentWeights = True
+            # loadOpsWithDifferentWeights = True
             # for v in dictDiff:
             #     if v.endswith('.num_batches_tracked') is False:
             #         loadOpsWithDifferentWeights = False
@@ -302,6 +303,43 @@ def initTrainLogger(logger_file_name, folder_path, propagate=False):
     logger = setup_logging(log_file_path, logger_file_name, propagate)
 
     return logger
+
+
+def logForwardCounters(model, trainLogger):
+    if not trainLogger:
+        return
+
+    trainLogger.info('=============================================')
+    trainLogger.info('=========== Ops forward counters ============')
+    trainLogger.info('=============================================')
+    for layerIdx, layer in enumerate(model.layersList):
+        trainLogger.info('Layer:[{}]  '.format(layerIdx))
+        # collect layer counters to 2 arrays:
+        # counters holds the counters values
+        # indices holds the corresponding counter value indices
+        counters, indices = [], []
+        for i, counterList in enumerate(layer.opsForwardCounters):
+            for j, counter in enumerate(counterList):
+                counters.append(counter)
+                indices.append((i, j))
+
+        # for each layer, sort counters in descending order
+        msg = ''
+        while len(counters) > 0:
+            # find max counter and print it
+            maxIdx = argmax(counters)
+            i, j = indices[maxIdx]
+            msg += '[{}][{}]: [{}] || '.format(i, j, counters[maxIdx])
+            # remove max counter from lists
+            del counters[maxIdx]
+            del indices[maxIdx]
+
+        trainLogger.info(msg)
+
+        # reset layer counters
+        layer.resetOpsForwardCounters()
+
+    trainLogger.info('=============================================')
 
 
 def logDominantQuantizedOp(model, k, logger):
@@ -370,8 +408,8 @@ def load_data(args):
     valid_data = get_dataset(args.dataset, train=False, transform=transform['eval'], datasets_path=args.data)
 
     ### narrow data for debug purposes
-    # train_data.train_data = train_data.train_data[0:100]
-    # train_data.train_labels = train_data.train_labels[0:100]
+    # train_data.train_data = train_data.train_data[0:50]
+    # train_data.train_labels = train_data.train_labels[0:50]
     # valid_data.test_data = valid_data.test_data[0:100]
     # valid_data.test_labels = valid_data.test_labels[0:100]
     ####
