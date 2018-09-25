@@ -11,7 +11,7 @@ from torch.nn import CrossEntropyLoss
 
 from cnn.utils import accuracy, AvgrageMeter, load_data, saveArgsToJSON
 from cnn.utils import initTrainLogger, logDominantQuantizedOp, save_checkpoint
-from cnn.utils import sendEmail as uSendEmail
+from cnn.utils import sendEmail as uSendEmail, logForwardCounters
 
 
 def trainWeights(train_queue, model, modelChoosePathFunc, crit, optimizer, grad_clip, nEpoch, loggers):
@@ -22,7 +22,6 @@ def trainWeights(train_queue, model, modelChoosePathFunc, crit, optimizer, grad_
     trainLogger = loggers.get('train')
 
     model.train()
-    model.trainMode()
 
     nBatches = len(train_queue)
 
@@ -67,6 +66,9 @@ def trainWeights(train_queue, model, modelChoosePathFunc, crit, optimizer, grad_
 
     # log dominant QuantizedOp in each layer
     logDominantQuantizedOp(model, k=2, logger=trainLogger)
+
+    # log forward counters
+    logForwardCounters(model, trainLogger)
 
 
 def infer(valid_queue, model, modelInferMode, crit, nEpoch, loggers):
@@ -127,8 +129,9 @@ class TrainRegime:
         self.lastMailTime = time()
         self.secondsBetweenMails = 1 * 3600
 
-        # init train optimal model list, i.e. which structures we have send to train
-        self.optModelBitwidthList = []
+        # init train optimal model counter.
+        # each key is an allocation, and the map hold a counter per key, how many batches this allocation is optimal
+        self.optModelBitwidthCounter = {}
         # init optimal model training queue, in case we send too many jobs to server
         self.optModelTrainingQueue = []
 
@@ -164,39 +167,6 @@ class TrainRegime:
         # therefore we have to train the weights for each QuantizedOp
         if args.loadedOpsWithDiffWeights is False:
             self.epoch = self.gwow(model, args, trainFolderName='init_weights_train')
-
-            # for self.epoch in range(1, nEpochs + 1):
-            #     trainLogger = initTrainLogger(str(self.epoch), self.trainFolderPath, args.propagate)
-            #     # set loggers dictionary
-            #     loggersDict = dict(train=trainLogger, main=logger)
-            #
-            #     scheduler.step()
-            #     lr = scheduler.get_lr()[0]
-            #
-            #     trainLogger.info(
-            #         'optimizer_lr:[{:.5f}], scheduler_lr:[{:.5f}]'.format(optimizer.param_groups[0]['lr'], lr))
-            #
-            #     # training
-            #     print('========== Epoch:[{}] =============='.format(self.epoch))
-            #     trainWeights(self.train_queue, model, model.chooseRandomPath, self.cross_entropy, optimizer, args.grad_clip,
-            #                  self.epoch,
-            #                  loggersDict)
-            #
-            #     # switch stage, i.e. freeze one more layer
-            #     if (self.epoch in epochsSwitchStage) or (self.epoch == nEpochs):
-            #         # validation
-            #         infer(self.valid_queue, model, model.evalMode, self.cross_entropy, self.epoch, loggersDict)
-            #
-            #         # switch stage
-            #         model.switch_stage(trainLogger)
-            #         # update optimizer & scheduler due to update in learnable params
-            #         optimizer = SGD(model.parameters(), scheduler.get_lr()[0],
-            #                         momentum=args.momentum, weight_decay=args.weight_decay)
-            #         scheduler = CosineAnnealingLR(optimizer, float(nEpochs), eta_min=args.learning_rate_min)
-            #         scheduler.step()
-            #
-            #     # save model checkpoint
-            #     save_checkpoint(self.trainFolderPath, model, self.epoch, best_prec1, is_best=False)
         else:
             # we loaded ops in the same layer with different weights, therefore we just have to switch_stage
             switchStageFlag = True
@@ -214,7 +184,7 @@ class TrainRegime:
         model = self.model
         args = self.args
 
-        args.optModel_bitwidth = [layer.ops[layer.curr_alpha_idx].bitwidth for layer in model.layersList]
+        args.optModel_bitwidth = [layer.getBitwidth() for layer in model.layersList]
         # check if current bitwidth has already been sent for training
         bitwidthKey = self.__getBitwidthKey(args.optModel_bitwidth)
 
@@ -249,8 +219,15 @@ class TrainRegime:
     def sendOptModel(self, bitwidthKey, nEpoch, nBatch):
         args = self.args
 
-        if bitwidthKey not in self.optModelBitwidthList:
-            self.optModelBitwidthList.append(bitwidthKey)
+        # check if this is the 1st time this allocation is optimal
+        if bitwidthKey not in self.optModelBitwidthCounter:
+            self.optModelBitwidthCounter[bitwidthKey] = 0
+
+        # increase model allocation counter
+        self.optModelBitwidthCounter[bitwidthKey] += 1
+
+        # if this allocation has been optimal enough batches, let's check its accuracy
+        if self.optModelBitwidthCounter[bitwidthKey] >= 20:
             # save args to JSON
             saveArgsToJSON(args)
             # init args JSON destination path on server
@@ -265,8 +242,7 @@ class TrainRegime:
             print('sent model with allocation:{}, queue size:[{}]'
                   .format(bitwidthKey, len(self.optModelTrainingQueue)))
             command = '{} && {}'.format(copyJSONcommand, trainOptCommand)
-            # retVal = system(command)
-            retVal = 1
+            retVal = system(command)
 
             if retVal == 0:
                 self.trySendQueuedJobs()
@@ -275,6 +251,8 @@ class TrainRegime:
                 self.optModelTrainingQueue.append((command, args.optModel_bitwidth))
                 print('No available GPU, adding {} to queue, queue size:[{}]'
                       .format(bitwidthKey, len(self.optModelTrainingQueue)))
+                # remove args JSON
+                system('ssh yochaiz@132.68.39.32 rm {}'.format(dstPath))
 
     def trainOptimalModel(self, nEpoch, nBatch):
         model = self.model
@@ -352,10 +330,15 @@ class TrainRegime:
 
     def trainAlphas(self, search_queue, model, architect, nEpoch, loggers):
         loss_container = AvgrageMeter()
+        optBopsRatio = -1
 
         trainLogger = loggers.get('train')
 
         model.train()
+
+        # update model replications weights
+        architect.modelReplicator.updateModelWeights(model)
+        trainLogger.info('Model replications weights have been updated')
 
         nBatches = len(search_queue)
 
@@ -366,7 +349,6 @@ class TrainRegime:
             input = Variable(input, requires_grad=False).cuda()
             target = Variable(target, requires_grad=False).cuda(async=True)
 
-            model.trainMode()
             loss = architect.step(model, input, target)
 
             # train optimal model
@@ -375,6 +357,8 @@ class TrainRegime:
             optBopsRatio = model.stats.addBatchData(model, nEpoch, step)
             # log dominant QuantizedOp in each layer
             logDominantQuantizedOp(model, k=2, logger=trainLogger)
+            # log forward counters
+            logForwardCounters(model, trainLogger)
             # save alphas to csv
             model.save_alphas_to_csv(data=[nEpoch, step])
             # save loss to container
