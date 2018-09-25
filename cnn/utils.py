@@ -184,7 +184,7 @@ def sendEmail(toAddr, subject, content, zipPath=None, zipFname=None):
 def sendDataEmail(model, args, trainFolderPath, content):
     saveFolder = args.save
     # init files to zip
-    attachPaths = [trainFolderPath, model.alphasCsvFileName, model.stats.saveFolder,
+    attachPaths = [trainFolderPath, model.alphasCsvFileName, model.stats.saveFolder, args.jsonPath,
                    model._criterion.bopsLossImgPath]
     # zip files
     zipFname = 'attach.zip'
