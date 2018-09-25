@@ -1,6 +1,6 @@
 from collections import OrderedDict
 
-from torch.nn import Module, Conv2d, AvgPool2d, Linear
+from torch.nn import Module, Conv2d, AvgPool2d, Linear, ModuleList
 
 from UNIQ.actquant import ActQuant
 
@@ -10,21 +10,23 @@ from cnn.models.BaseNet import save_quant_state, restore_quant_state
 
 
 class BasicBlock(Module):
-    def __init__(self, bitwidths, in_planes, out_planes, kernel_size, stride, input_size, input_bitwidth):
+    def __init__(self, bitwidths, in_planes, out_planes, kernel_size, stride, input_size, input_bitwidth, nOpsCopies=1):
         super(BasicBlock, self).__init__()
 
         stride1 = stride if in_planes == out_planes else (stride + 1)
 
         self.block1 = MixedConvWithReLU(bitwidths[0] if isinstance(bitwidths[0], list) else bitwidths, in_planes,
                                         out_planes, kernel_size, stride1, input_size[0], input_bitwidth,
-                                        useResidual=False)
+                                        nOpsCopies=nOpsCopies, useResidual=False)
 
         self.block2 = MixedConvWithReLU(bitwidths[1] if isinstance(bitwidths[0], list) else bitwidths, out_planes,
                                         out_planes, kernel_size, stride, input_size[-1],
-                                        self.block1.getOutputBitwidthList(), useResidual=True)
+                                        self.block1.getOutputBitwidthList(), nOpsCopies=self.block1.numOfOps(),
+                                        useResidual=True)
 
-        self.downsample = MixedConv(bitwidths[2] if isinstance(bitwidths[0], list) else bitwidths,
-                                    in_planes, out_planes, [1], stride1, input_size[0], input_bitwidth) \
+        downsampleBitwidth = [(b, None) for b, _ in (bitwidths[2] if isinstance(bitwidths[0], list) else bitwidths)]
+        self.downsample = MixedConv(downsampleBitwidth, in_planes, out_planes, [1], stride1, input_size[0],
+                                    input_bitwidth, nOpsCopies=self.block1.numOfOps()) \
             if in_planes != out_planes else None
 
     def forward(self, x):
@@ -51,6 +53,32 @@ class BasicBlock(Module):
     def getOutputBitwidthList(self):
         return self.block2.getOutputBitwidthList()
 
+    # select random alpha
+    def chooseRandomPath(self, prev_alpha_idx):
+        if self.downsample:
+            self.downsample.chooseRandomPath(prev_alpha_idx)
+
+        prev_alpha_idx = self.block1.chooseRandomPath(prev_alpha_idx)
+        return self.block2.chooseRandomPath(prev_alpha_idx)
+
+    # select alpha based on alphas distribution
+    def choosePathByAlphas(self, prev_alpha_idx):
+        if self.downsample:
+            self.downsample.choosePathByAlphas(prev_alpha_idx)
+
+        prev_alpha_idx = self.block1.choosePathByAlphas(prev_alpha_idx)
+        return self.block2.choosePathByAlphas(prev_alpha_idx)
+
+    def evalMode(self, prev_alpha_idx):
+        if self.downsample:
+            self.downsample.evalMode(prev_alpha_idx)
+
+        prev_alpha_idx = self.block1.evalMode(prev_alpha_idx)
+        return self.block2.evalMode(prev_alpha_idx)
+
+    def numOfOps(self):
+        return self.block2.numOfOps()
+
 
 class ResNet(BaseNet):
     def __init__(self, args):
@@ -58,7 +86,7 @@ class ResNet(BaseNet):
 
         # set noise=True for 1st layer
         if len(self.layersList) > 0:
-            for op in self.layersList[0].ops:
+            for op in self.layersList[0].getOps():
                 op.noise = op.quant
 
         # update model parameters() function
@@ -78,14 +106,16 @@ class ResNet(BaseNet):
 
         # init 1st layer input bitwidth which is 8-bits
         input_bitwidth = [8]
+        # init 1st layer ops nCopies
+        nCopies = 1
 
         # create list of layers from layersPlanes
         # supports bitwidth as list of ints, i.e. same bitwidths to all layers
         # supports bitwidth as list of lists, i.e. specific bitwidths to each layer
-        layers = []
+        layers = ModuleList()
         for i, (layerType, in_planes, out_planes, input_size) in enumerate(layersPlanes):
             # build layer
-            l = layerType(bitwidths, in_planes, out_planes, kernel_sizes, 1, input_size, input_bitwidth)
+            l = layerType(bitwidths, in_planes, out_planes, kernel_sizes, 1, input_size, input_bitwidth, nCopies)
             # add layer to layers list
             layers.append(l)
             # remove layer specific bitwidths, in case of different bitwidths to layers
@@ -94,27 +124,19 @@ class ResNet(BaseNet):
                 del bitwidths[:nMixedOpLayers]
             # update input_bitwidth for next layer
             input_bitwidth = l.getOutputBitwidthList()
-
-        i = 1
-        for l in layers:
-            setattr(self, 'block{}'.format(i), l)
-            i += 1
+            # update ops nCopies for next layer
+            nCopies = l.numOfOps()
 
         self.avgpool = AvgPool2d(8)
         # self.fc = MixedLinear(bitwidths, 64, 10)
         self.fc = Linear(64, 10).cuda()
 
+        return layers
+
     def forward(self, x):
-        out = self.block1(x)
-
-        blockNum = 2
-        b = getattr(self, 'block{}'.format(blockNum))
-        while b is not None:
-            out = b(out)
-
-            # move to next block
-            blockNum += 1
-            b = getattr(self, 'block{}'.format(blockNum), None)
+        out = x
+        for layer in self.layers:
+            out = layer(out)
 
         out = self.avgpool(out)
         out = out.view(out.size(0), -1)
@@ -131,7 +153,8 @@ class ResNet(BaseNet):
 
     def turnOnWeights(self):
         for layer in self.layersList:
-            for op in layer.getOps():
+            layerOps = layer.getOps()
+            for op in layerOps:
                 # turn off operations noise
                 op.noise = False
                 # remove hooks
@@ -149,8 +172,8 @@ class ResNet(BaseNet):
                         m.noise_during_training = True
 
         # set noise=True for 1st layer
-        if len(self.layersList) > 0:
-            for op in self.layersList[0].ops:
+        if len(layerOps) > 0:
+            for op in layerOps:
                 op.noise = op.quant
         # update learnable parameters
         self.learnable_params = [param for param in self.parameters() if param.requires_grad]
@@ -206,29 +229,33 @@ class ResNet(BaseNet):
         newStateDict = OrderedDict()
 
         map = {}
-        map['conv1'] = 'block1.ops.0.op.0.0'
-        map['bn1'] = 'block1.ops.0.op.0.1'
+        map['conv1'] = 'layers.0.ops.0.0.op.0.0'
+        map['bn1'] = 'layers.0.ops.0.0.op.0.1'
 
-        layersNumberMap = [(1, 0, 2), (1, 1, 3), (1, 2, 4), (2, 1, 6), (2, 2, 7), (3, 1, 9), (3, 2, 10)]
+        layersNumberMap = [(1, 0, 1), (1, 1, 2), (1, 2, 3), (2, 1, 5), (2, 2, 6), (3, 1, 8), (3, 2, 9)]
         for n1, n2, m in layersNumberMap:
-            map['layer{}.{}.conv1'.format(n1, n2)] = 'block{}.block1.ops.0.op.0.0'.format(m)
-            map['layer{}.{}.bn1'.format(n1, n2)] = 'block{}.block1.ops.0.op.0.1'.format(m)
-            map['layer{}.{}.conv2'.format(n1, n2)] = 'block{}.block2.ops.0.op.0.0'.format(m)
-            map['layer{}.{}.bn2'.format(n1, n2)] = 'block{}.block2.ops.0.op.0.1'.format(m)
+            map['layer{}.{}.conv1'.format(n1, n2)] = 'layers.{}.block1.ops.0.0.op.0.0'.format(m)
+            map['layer{}.{}.bn1'.format(n1, n2)] = 'layers.{}.block1.ops.0.0.op.0.1'.format(m)
+            map['layer{}.{}.conv2'.format(n1, n2)] = 'layers.{}.block2.ops.0.0.op.0.0'.format(m)
+            map['layer{}.{}.bn2'.format(n1, n2)] = 'layers.{}.block2.ops.0.0.op.0.1'.format(m)
 
-        downsampleLayersMap = [(2, 0, 5), (3, 0, 8)]
+        downsampleLayersMap = [(2, 0, 4), (3, 0, 7)]
         for n1, n2, m in downsampleLayersMap:
-            map['layer{}.{}.conv1'.format(n1, n2)] = 'block{}.block1.ops.0.op.0.0'.format(m)
-            map['layer{}.{}.bn1'.format(n1, n2)] = 'block{}.block1.ops.0.op.0.1'.format(m)
-            map['layer{}.{}.conv2'.format(n1, n2)] = 'block{}.block2.ops.0.op.0.0'.format(m)
-            map['layer{}.{}.bn2'.format(n1, n2)] = 'block{}.block2.ops.0.op.0.1'.format(m)
-            map['layer{}.{}.downsample.0'.format(n1, n2)] = 'block{}.downsample.ops.0.op.0'.format(m)
-            map['layer{}.{}.downsample.1'.format(n1, n2)] = 'block{}.downsample.ops.0.op.1'.format(m)
+            map['layer{}.{}.conv1'.format(n1, n2)] = 'layers.{}.block1.ops.0.0.op.0.0'.format(m)
+            map['layer{}.{}.bn1'.format(n1, n2)] = 'layers.{}.block1.ops.0.0.op.0.1'.format(m)
+            map['layer{}.{}.conv2'.format(n1, n2)] = 'layers.{}.block2.ops.0.0.op.0.0'.format(m)
+            map['layer{}.{}.bn2'.format(n1, n2)] = 'layers.{}.block2.ops.0.0.op.0.1'.format(m)
+            map['layer{}.{}.downsample.0'.format(n1, n2)] = 'layers.{}.downsample.ops.0.0.op.0'.format(m)
+            map['layer{}.{}.downsample.1'.format(n1, n2)] = 'layers.{}.downsample.ops.0.0.op.1'.format(m)
 
-        map['fc'] = 'fc'
+        # map['fc'] = 'fc'
 
         token = '.ops.'
         for key in chckpntDict.keys():
+            if key.startswith('fc.'):
+                newStateDict[key] = chckpntDict[key]
+                continue
+
             prefix = key[:key.rindex('.')]
             suffix = key[key.rindex('.'):]
             newKey = map[prefix]
@@ -243,13 +270,11 @@ class ResNet(BaseNet):
                 for p in layerPath:
                     layer = getattr(layer, p)
                 # update layer ops
-                if isinstance(layer, MixedOp):
+                for j in range(layer.nOpsCopies()):
                     for i in range(layer.numOfOps()):
+                        newKey = map[prefix].replace(newKeyOp + token + '0.0.',
+                                                     newKeyOp + token + '{}.{}.'.format(j, i))
                         newStateDict[newKey + suffix] = chckpntDict[key]
-                        newKey = newKey.replace(newKeyOp + token + '{}.'.format(i),
-                                                newKeyOp + token + '{}.'.format(i + 1))
-            else:
-                newStateDict[key] = chckpntDict[key]
 
         # load model weights
         self.load_state_dict(newStateDict)
