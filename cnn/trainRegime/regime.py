@@ -11,7 +11,7 @@ from torch.nn import CrossEntropyLoss
 
 from cnn.utils import accuracy, AvgrageMeter, load_data, saveArgsToJSON
 from cnn.utils import initTrainLogger, logDominantQuantizedOp, save_checkpoint
-from cnn.utils import sendEmail as uSendEmail, logForwardCounters
+from cnn.utils import sendDataEmail
 
 
 def trainWeights(train_queue, model, modelChoosePathFunc, crit, optimizer, grad_clip, nEpoch, loggers):
@@ -326,7 +326,7 @@ class TrainRegime:
         for line in body:
             content += line + '\n'
 
-        uSendEmail(self.model, self.args, self.trainFolderPath, content)
+        sendDataEmail(self.model, self.args, self.trainFolderPath, content)
 
     def trainAlphas(self, search_queue, model, architect, nEpoch, loggers):
         loss_container = AvgrageMeter()
