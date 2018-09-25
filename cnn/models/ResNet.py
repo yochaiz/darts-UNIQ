@@ -153,8 +153,7 @@ class ResNet(BaseNet):
 
     def turnOnWeights(self):
         for layer in self.layersList:
-            layerOps = layer.getOps()
-            for op in layerOps:
+            for op in layer.getOps():
                 # turn off operations noise
                 op.noise = False
                 # remove hooks
@@ -172,9 +171,11 @@ class ResNet(BaseNet):
                         m.noise_during_training = True
 
         # set noise=True for 1st layer
-        if len(layerOps) > 0:
-            for op in layerOps:
+        if len(self.layersList) > 0:
+            layer = self.layersList[0]
+            for op in layer.getOps():
                 op.noise = op.quant
+
         # update learnable parameters
         self.learnable_params = [param for param in self.parameters() if param.requires_grad]
         # reset nLayersQuantCompleted
