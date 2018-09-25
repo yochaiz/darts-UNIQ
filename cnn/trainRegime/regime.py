@@ -226,8 +226,8 @@ class TrainRegime:
         # increase model allocation counter
         self.optModelBitwidthCounter[bitwidthKey] += 1
 
-        # if this allocation has been optimal enough batches, let's check its accuracy
-        if self.optModelBitwidthCounter[bitwidthKey] >= 20:
+        # if this allocation has been optimal enough batches, let's train it
+        if self.optModelBitwidthCounter[bitwidthKey] == 20:
             # save args to JSON
             saveArgsToJSON(args)
             # init args JSON destination path on server
@@ -244,15 +244,16 @@ class TrainRegime:
             command = '{} && {}'.format(copyJSONcommand, trainOptCommand)
             retVal = system(command)
 
-            if retVal == 0:
-                self.trySendQueuedJobs()
-            else:
+            if retVal != 0:
                 # server is full with jobs, add current job to queue
                 self.optModelTrainingQueue.append((command, args.optModel_bitwidth))
                 print('No available GPU, adding {} to queue, queue size:[{}]'
                       .format(bitwidthKey, len(self.optModelTrainingQueue)))
                 # remove args JSON
                 system('ssh yochaiz@132.68.39.32 rm {}'.format(dstPath))
+
+        # try to send queued jobs, regardless current optimal model
+        self.trySendQueuedJobs()
 
     def trainOptimalModel(self, nEpoch, nBatch):
         model = self.model
