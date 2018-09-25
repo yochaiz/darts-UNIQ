@@ -53,7 +53,7 @@ class ModelReplicator:
         # get model in order to extract the forward counters
         cModel = self.getModel(args)
         # extract forward counters
-        counters = [layer.opsForwardCounters for layer in cModel.layersList]
+        counters = [layer.opsForwardCounters.copy() for layer in cModel.layersList]
 
         return result, counters
 
@@ -68,7 +68,6 @@ class ModelReplicator:
     def loss(self, model, input, target):
         nCopies = len(self.replications)
         if nCopies > 0:
-            print('model replication loss()')
             # clone input & target to all GPUs
             inputPerGPU = {}
             targetPerGPU = {}
@@ -86,7 +85,6 @@ class ModelReplicator:
                     cLayer.alphas.requires_grad = mLayer.alphas.requires_grad
 
             args = self.buildArgs(inputPerGPU, targetPerGPU, layersIndicesPerModel)
-            print('built args')
 
             with Pool(processes=nCopies, maxtasksperchild=1) as pool:
                 results = pool.map(self.replicationFunc, args)
@@ -97,10 +95,7 @@ class ModelReplicator:
                 counters.append(result[-1])
                 results[i] = results[i][0]
 
-            print('pool ended, pre processResults()')
             res = self.processResults(model, results)
-            print('post processResults()')
-            print ('===================')
 
             # reset model layers forward counters
             for layer in model.layersList:
