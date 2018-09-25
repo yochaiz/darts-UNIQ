@@ -41,7 +41,7 @@ class Statistics:
         # init list of batch labels for y axis
         self.batchLabels = []
         # collect op bitwidth per layer in model
-        self.layersBitwidths = [tensor([op.bitwidth[0] for op in layer.ops], dtype=float32).cuda()
+        self.layersBitwidths = [tensor([op.bitwidth[0] for op in layer.ops[0]], dtype=float32).cuda()
                                 for layer in layersList]
         # plot bops plot
         self.plotBops(layersList)
@@ -102,17 +102,17 @@ class Statistics:
         ax.set_title(title)
         ax.legend(loc='upper center', bbox_to_anchor=(0.5, 1.005), ncol=5, fancybox=True, shadow=True)
 
-    def __setFigProperties(self, fig, fileName):
-        fig.set_size_inches((20, 15))
+    def __setFigProperties(self, fig, fileName, figSize=(15, 10)):
+        fig.set_size_inches(figSize)
         fig.tight_layout()
         # save to file
         fig.savefig('{}/{}.png'.format(self.saveFolder, fileName))
+        # close plot
+        plt.close(fig)
 
     def __setPlotProperties(self, fig, ax, xLabel, yLabel, yMax, title, fileName):
         self.__setAxesProperties(ax, xLabel, yLabel, yMax, title)
         self.__setFigProperties(fig, fileName)
-        # close plot
-        plt.close()
 
     def __plotContainer(self, data, xValues, xLabel, yLabel, title, fileName, labelFunc, axOther=None, scale=True,
                         annotate=None):
@@ -205,7 +205,7 @@ class Statistics:
                 if axCol == 0:
                     axRow += 1
             # save fig
-            self.__setFigProperties(fig, fileName)
+            self.__setFigProperties(fig, fileName, figSize=(30, 15))
 
     def plotBops(self, layersList):
         # create plot
