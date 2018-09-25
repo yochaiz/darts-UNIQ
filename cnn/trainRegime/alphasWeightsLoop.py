@@ -36,8 +36,8 @@ class Replicator(ModelReplicator):
         alphaLossVariance = []
         for layerIdx in layersIndices:
             layer = cModel.layersList[layerIdx]
-            # # turn off coin toss for this layer
-            # layer.alphas.requires_grad = False
+            # turn off coin toss for this layer
+            layer.alphas.requires_grad = False
             # init layer alphas gradient
             layerAlphasGrad = zeros(len(layer.alphas)).cuda()
             # calc layer alphas softmax
@@ -71,8 +71,8 @@ class Replicator(ModelReplicator):
                 # add alpha loss variance to statistics
                 alphaLossVariance.append((layerIdx, i, alphaAvgLoss.item(), lossVariance.item()))
 
-            # # turn in coin toss for this layer
-            # layer.alphas.requires_grad = True
+            # turn in coin toss for this layer
+            layer.alphas.requires_grad = True
             # add layer alphas grad to container
             alphasGrad.append(layerAlphasGrad)
             # add gradNorm to statistics
