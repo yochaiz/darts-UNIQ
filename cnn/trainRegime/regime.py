@@ -33,7 +33,8 @@ def trainWeights(train_queue, model, modelChoosePathFunc, crit, optimizer, grad_
         target = Variable(target, requires_grad=False).cuda(async=True)
 
         # choose alpha per layer
-        bopsRatio = modelChoosePathFunc()
+        modelChoosePathFunc()
+        bopsRatio = model.calcBopsRatio()
         # optimize model weights
         optimizer.zero_grad()
         logits = model(input)
@@ -268,10 +269,12 @@ class TrainRegime:
     def trainOptimalModel(self, nEpoch, nBatch):
         model = self.model
         # set optimal model bitwidth per layer
-        model.evalMode()
+        optBopsRatio = model.evalMode()
         bitwidthKey = self.setOptModelBitwidth()
         # train optimal model
         self.sendOptModel(bitwidthKey, nEpoch, nBatch)
+
+        return optBopsRatio
 
     def gwow(self, model, args, trainFolderName, filename=None):
         nEpochs = self.nEpochs
@@ -363,9 +366,9 @@ class TrainRegime:
             loss = architect.step(model, input, target)
 
             # train optimal model
-            self.trainOptimalModel(nEpoch, step)
+            optBopsRatio = self.trainOptimalModel(nEpoch, step)
             # add alphas data to statistics
-            optBopsRatio = model.stats.addBatchData(model, nEpoch, step)
+            model.stats.addBatchData(model, optBopsRatio, nEpoch, step)
             # log dominant QuantizedOp in each layer
             logDominantQuantizedOp(model, k=2, logger=trainLogger)
             # log forward counters
