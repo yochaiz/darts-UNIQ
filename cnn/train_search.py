@@ -140,7 +140,7 @@ if __name__ == '__main__':
     uniform_args.bitwidth = args.MaxBopsBits
     uniform_model = modelClass(uniform_args)
     # init maxBops
-    args.maxBops = uniform_model.countBops()
+    args.maxBops = uniform_model._criterion.maxBops
 
     try:
         set_start_method('spawn', force=True)
