@@ -20,7 +20,6 @@ parser.add_argument('--data', type=str, required=True, help='JSON file path')
 parser.add_argument('--epochs', type=str, default='5',
                     help='num of training epochs per layer, as list, e.g. 5,4,3,8,6.'
                          'If len(epochs)<len(layers) then last value is used for rest of the layers')
-parser.add_argument('--learning_rate', type=float, default=0.1, help='init learning rate')
 
 args = parser.parse_args()
 
@@ -30,8 +29,7 @@ outputFile = '{}.out'.format(datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
 commands = [
     [executable, './train_opt2.py',
      '--data', args.data,
-     '--epochs', args.epochs,
-     '--learning_rate', str(args.learning_rate)
+     '--epochs', args.epochs
      ]
 ]
 
