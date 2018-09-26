@@ -66,9 +66,9 @@ class BaseNet(Module):
         # set bops counter function
         self.countBopsFunc = self.countBopsFuncs[args.bopsCounter]
         # init criterion
-        args.maxBops = getattr(args, 'maxBops', self.countBops())
+        if 'maxBops' not in args:
+            args.maxBops = self.countBops()
         self._criterion = UniqLoss(args)
-        # self._criterion = UniqLoss(lmdba=lmbda, maxBops=maxBops or self.countBops(), folderName=saveFolder)
         self._criterion = self._criterion.cuda()
         # init statistics
         self.stats = Statistics(self.layersList, self.nLayers(), saveFolder)
@@ -236,9 +236,6 @@ class BaseNet(Module):
         for l in self.layers:
             prev_alpha_idx = l.chooseRandomPath(prev_alpha_idx)
 
-        # calc bops ratio
-        return self.calcBopsRatio()
-
     # layerIdx, alphaIdx meaning: self.layersList[layerIdx].curr_alpha_idx = alphaIdx
     def choosePathByAlphas(self, layerIdx=None, alphaIdx=None):
         # 1st layer has only 1 copy
@@ -254,9 +251,6 @@ class BaseNet(Module):
             if layerIdx < self.nLayers():
                 layer = self.layersList[layerIdx]
                 layer.prev_alpha_idx = alphaIdx
-
-        # calc bops ratio
-        return self.calcBopsRatio()
 
     def evalMode(self):
         # 1st layer has only 1 copy
