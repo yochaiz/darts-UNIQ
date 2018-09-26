@@ -62,12 +62,10 @@ class Statistics:
                                   self.gradNormKey, self.batchOptModelBopsRatioKey]
         self.plotLayersSeparateKeys = [self.alphaLossAvgKey, self.alphaLossVarianceKey, self.alphaDistributionKey]
 
-    def addBatchData(self, model, nEpoch, nBatch):
+    def addBatchData(self, model, optBopsRatio, nEpoch, nBatch):
         assert (self.nLayers == model.nLayers())
         # add batch label
         self.batchLabels.append('[{}]_[{}]'.format(nEpoch, nBatch))
-        # count current optimal model bops
-        optBopsRatio = model.evalMode()
         self.containers[self.batchOptModelBopsRatioKey][0].append(optBopsRatio)
         # add data per layer
         for i, layer in enumerate(model.layersList):
