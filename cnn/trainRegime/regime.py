@@ -1,4 +1,4 @@
-from time import time
+from time import time, sleep
 from abc import abstractmethod
 from os import makedirs, path, system
 
@@ -172,6 +172,16 @@ class TrainRegime:
             switchStageFlag = True
             while switchStageFlag:
                 switchStageFlag = model.switch_stage(logger)
+
+        # train according to chosen regime
+        self.train()
+        # send final email
+        self.sendEmail('Final', 0, 0)
+        # wait for sending all queued jobs
+        while len(self.optModelTrainingQueue) > 0:
+            logger.info('Waiting for queued jobs, queue size:[{}]'.format(len(self.optModelTrainingQueue)))
+            self.trySendQueuedJobs()
+            sleep(60)
 
     @abstractmethod
     def train(self):
