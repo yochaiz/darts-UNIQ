@@ -128,12 +128,12 @@ class Replicator(ModelReplicator):
 
 class AlphasWeightsLoop(TrainRegime):
     def __init__(self, args, model, modelClass, logger):
-        super(AlphasWeightsLoop, self).__init__(args, model, modelClass, logger)
-
         # init model replicator
         replicator = Replicator(model, modelClass, args)
         # init architect
         self.architect = Architect(replicator, args)
+
+        super(AlphasWeightsLoop, self).__init__(args, model, modelClass, logger)
 
     def train(self):
         epoch = self.epoch
