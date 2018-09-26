@@ -179,7 +179,7 @@ class AlphasWeightsLoop(TrainRegime):
             switchStageFlag = True
             while switchStageFlag:
                 # init epoch train logger
-                trainLogger = initTrainLogger(str(wEpoch), epochFolderPath, args.propagate)
+                trainLogger = initTrainLogger('{}_{}'.format(epochName, wEpoch), epochFolderPath, args.propagate)
                 # train stage weights
                 trainWeights(self.train_queue, model, model.choosePathByAlphas, self.cross_entropy, optimizer,
                              args.grad_clip, wEpoch, dict(train=trainLogger))
