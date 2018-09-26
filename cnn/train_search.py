@@ -13,7 +13,7 @@ from torch import manual_seed as torch_manual_seed
 
 import cnn.trainRegime as trainRegimes
 from cnn.utils import create_exp_dir, count_parameters_in_MB, load_pre_trained, saveArgsToJSON
-from cnn.utils import initLogger, printModelToFile, loadModelNames, models, sendEmail
+from cnn.utils import initLogger, printModelToFile, loadModelNames, models, sendEmail, logUniformModel
 
 
 # collect possible alphas optimization
@@ -183,6 +183,7 @@ if __name__ == '__main__':
     logger.info('Learnable params:[{}]'.format(len(model.learnable_params)))
     logger.info('Ops per layer:{}'.format([layer.numOfOps() for layer in model.layersList]))
     logger.info('nPerms:[{}]'.format(model.nPerms))
+    logUniformModel(args, logger)
 
     try:
         # build regime for alphas optimization
