@@ -4,7 +4,7 @@ from os import path, remove
 
 from torch import load as loadModel
 
-import cnn.trainRegime as trainRegimes
+from cnn.trainRegime.regime import TrainRegime
 from cnn.utils import load_pre_trained, initLogger, printModelToFile, models, create_exp_dir
 
 # references to models pre-trained
@@ -98,13 +98,9 @@ with open(scriptArgs.data, 'r') as f:
                     # log bops ratio
                     logger.info('Bops ratio:[{:.5f}]'.format(model.calcBopsRatio()))
 
-                    # build regime for alphas optimization
-                    alphasRegimeClass = trainRegimes.__dict__.get(args.alphas_regime)
-                    if alphasRegimeClass:
-                        # create train regime instance, it performs initial weights training
-                        alphasRegimeClass(args, model, modelClass, logger)
-
-                        logger.info('Done !')
+                    # build regime for alphas optimization, it performs initial weights training
+                    alphasRegimeClass = TrainRegime(args, model, modelClass, logger)
+                    logger.info('Done !')
 
 # remove the JSON file
 if path.exists(scriptArgs.data):
