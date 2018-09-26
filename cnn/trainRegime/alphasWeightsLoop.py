@@ -189,7 +189,7 @@ class AlphasWeightsLoop(TrainRegime):
                 wEpoch += 1
 
             # init epoch train logger for last epoch
-            trainLogger = initTrainLogger(str(wEpoch), epochFolderPath, args.propagate)
+            trainLogger = initTrainLogger('{}_{}'.format(epochName, wEpoch), epochFolderPath, args.propagate)
             # set loggers dictionary
             loggersDict = dict(train=trainLogger, main=self.logger)
             # last weights training epoch we want to log also to main logger
