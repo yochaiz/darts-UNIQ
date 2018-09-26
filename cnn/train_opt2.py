@@ -46,7 +46,7 @@ with open(scriptArgs.data, 'r') as f:
             # sort bitwidths as list of tuples
             args.optModel_bitwidth = [[(v[0], v[1])] for v in args.optModel_bitwidth]
             args.MaxBopsBits = args.MaxBopsBits[0]
-            args.MaxBopsBits = (args.MaxBopsBits[0], args.MaxBopsBits[1])
+            args.MaxBopsBits = [(args.MaxBopsBits[0], args.MaxBopsBits[1])]
             # set bitwidth to optimal model bitwidth
             args.bitwidth = args.optModel_bitwidth
             # build optimal model
