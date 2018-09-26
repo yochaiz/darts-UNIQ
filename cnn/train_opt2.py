@@ -99,7 +99,7 @@ with open(scriptArgs.data, 'r') as f:
                     logger.info('Bops ratio:[{:.5f}]'.format(model.calcBopsRatio()))
 
                     # build regime for alphas optimization, it performs initial weights training
-                    alphasRegimeClass = TrainRegime(args, model, modelClass, logger)
+                    TrainRegime(args, model, modelClass, logger)
                     logger.info('Done !')
 
 # remove the JSON file
