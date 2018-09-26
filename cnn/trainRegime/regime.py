@@ -174,16 +174,6 @@ class TrainRegime:
             while switchStageFlag:
                 switchStageFlag = model.switch_stage(logger)
 
-        # train according to chosen regime
-        self.train()
-        # send final email
-        self.sendEmail('Final', 0, 0)
-        # wait for sending all queued jobs
-        while len(self.optModelTrainingQueue) > 0:
-            logger.info('Waiting for queued jobs, queue size:[{}]'.format(len(self.optModelTrainingQueue)))
-            self.trySendQueuedJobs()
-            sleep(60)
-
     @abstractmethod
     def train(self):
         raise NotImplementedError('subclasses must override train()!')
@@ -200,6 +190,13 @@ class TrainRegime:
         bitwidthKey = self.__getBitwidthKey(args.optModel_bitwidth)
 
         return bitwidthKey
+
+    # wait for sending all queued jobs
+    def waitForQueuedJobs(self):
+        while len(self.optModelTrainingQueue) > 0:
+            self.logger.info('Waiting for queued jobs, queue size:[{}]'.format(len(self.optModelTrainingQueue)))
+            self.trySendQueuedJobs()
+            sleep(60)
 
     # try to send more queued jobs to server
     def trySendQueuedJobs(self):
