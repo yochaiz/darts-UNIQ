@@ -2,29 +2,9 @@ from argparse import ArgumentParser, Namespace
 from json import loads
 from os import path, remove
 
-from torch import load as loadModel
-
 from cnn.trainRegime.regime import TrainRegime
 from cnn.utils import load_pre_trained, initLogger, printModelToFile, models, create_exp_dir
-
-# references to models pre-trained
-modelsRefs = {
-    'thin_resnet': '/home/yochaiz/DropDarts/cnn/pre_trained/thin_resnet/train/model_opt.pth.tar',
-    'thin_resnet_w:[2]_a:[32]': '/home/yochaiz/DropDarts/cnn/uniform/thin_resnet_w:[2]_a:[32]/train/model_opt.pth.tar',
-    'thin_resnet_w:[3]_a:[3]': '/home/yochaiz/DropDarts/cnn/uniform/thin_resnet_w:[3]_a:[3]/train/model_opt.pth.tar',
-    'resnet': '/home/yochaiz/DropDarts/cnn/pre_trained/resnet_cifar10_trained_32_bit_deeper/model_best.pth.tar',
-    'resnet_w:[1]_a:[1]': '/home/yochaiz/DropDarts/cnn/uniform/resnet_w:[1]_a:[1]/train/model_opt.pth.tar',
-    'resnet_w:[1]_a:[32]': '/home/yochaiz/DropDarts/cnn/uniform/resnet_w:[1]_a:[32]/train/model_opt.pth.tar',
-    'resnet_w:[2]_a:[32]': '/home/yochaiz/DropDarts/cnn/uniform/resnet_w:[2]_a:[32]/train/model_opt.pth.tar',
-    'resnet_w:[2]_a:[3]': '/home/yochaiz/DropDarts/cnn/uniform/resnet_w:[2]_a:[3]/train/model_opt.pth.tar',
-    'resnet_w:[2]_a:[4]': '/home/yochaiz/DropDarts/cnn/uniform/resnet_w:[2]_a:[4]/train/model_opt.pth.tar',
-    'resnet_w:[3]_a:[3]': '/home/yochaiz/DropDarts/cnn/uniform/resnet_w:[3]_a:[3]/train/model_opt.pth.tar',
-    'resnet_w:[3]_a:[32]': '/home/yochaiz/DropDarts/cnn/uniform/resnet_w:[3]_a:[32]/train/model_opt.pth.tar',
-    'resnet_w:[4]_a:[4]': '/home/yochaiz/DropDarts/cnn/uniform/resnet_w:[4]_a:[4]/train/model_opt.pth.tar',
-    'resnet_w:[4]_a:[32]': '/home/yochaiz/DropDarts/cnn/uniform/resnet_w:[4]_a:[32]/train/model_opt.pth.tar',
-    'resnet_w:[5]_a:[5]': '/home/yochaiz/DropDarts/cnn/uniform/resnet_w:[5]_a:[5]/train/model_opt.pth.tar',
-    'resnet_w:[8]_a:[32]': '/home/yochaiz/DropDarts/cnn/uniform/resnet_w:[8]_a:[32]/train/model_checkpoint.pth.tar',
-}
+from cnn.utils import modelsRefs, logUniformModel
 
 parser = ArgumentParser()
 parser.add_argument('--data', type=str, required=True, help='JSON file path')
@@ -86,15 +66,7 @@ with open(scriptArgs.data, 'r') as f:
                     logger.info('nPerms:[{}]'.format(model.nPerms))
 
                     # load uniform model
-                    uniformKey = '{}_w:[{}]_a:[{}]'.format(args.model, args.MaxBopsBits[0], args.MaxBopsBits[-1])
-                    uniformPath = modelsRefs.get(uniformKey)
-                    best_prec1 = 'Not found'
-                    if uniformPath and path.exists(uniformPath):
-                        uniform_checkpoint = loadModel(uniformPath,
-                                                       map_location=lambda storage, loc: storage.cuda(args.gpu[0]))
-                        best_prec1 = uniform_checkpoint.get('best_prec1', best_prec1)
-                    # print result
-                    logger.info('Uniform {} validation accuracy:[{}]'.format(uniformKey, best_prec1))
+                    logUniformModel(args, logger)
                     # log bops ratio
                     logger.info('Bops ratio:[{:.5f}]'.format(model.calcBopsRatio()))
 
