@@ -19,13 +19,16 @@ class BasicBlock(Module):
                                         out_planes, kernel_size, stride1, input_size[0], input_bitwidth,
                                         nOpsCopies=nOpsCopies, useResidual=False)
 
-        downsampleBitwidth = [(b, None) for b, _ in (bitwidths[1] if isinstance(bitwidths[0], list) else bitwidths)]
-        self.downsample = MixedConv(downsampleBitwidth, in_planes, out_planes, [1], stride1, input_size[0],
-                                    input_bitwidth, nOpsCopies=self.block1.numOfOps()) \
-            if in_planes != out_planes else None
+        bitwidthIdx = 1
+        self.downsample = None
+        if in_planes != out_planes:
+            downsampleBitwidth = [(b, None) for b, _ in (bitwidths[1] if isinstance(bitwidths[0], list) else bitwidths)]
+            self.downsample = MixedConv(downsampleBitwidth, in_planes, out_planes, [1], stride1, input_size[0],
+                                        input_bitwidth, nOpsCopies=self.block1.numOfOps())
+            bitwidthIdx += 1
 
-        self.block2 = MixedConvWithReLU(bitwidths[2] if isinstance(bitwidths[0], list) else bitwidths, out_planes,
-                                        out_planes, kernel_size, stride, input_size[-1],
+        self.block2 = MixedConvWithReLU(bitwidths[bitwidthIdx] if isinstance(bitwidths[0], list) else bitwidths,
+                                        out_planes, out_planes, kernel_size, stride, input_size[-1],
                                         self.block1.getOutputBitwidthList(), nOpsCopies=self.block1.numOfOps(),
                                         useResidual=True)
 
