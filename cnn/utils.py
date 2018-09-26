@@ -51,7 +51,8 @@ modelsRefs = {
 
 
 def logUniformModel(args, logger):
-    uniformKey = '{}_w:[{}]_a:[{}]'.format(args.model, args.MaxBopsBits[0], args.MaxBopsBits[-1])
+    uniformBops = args.MaxBopsBits[0]
+    uniformKey = '{}_w:[{}]_a:[{}]'.format(args.model, uniformBops[0], uniformBops[-1])
     uniformPath = modelsRefs.get(uniformKey)
     best_prec1 = 'Not found'
     if uniformPath and path.exists(uniformPath):
