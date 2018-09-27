@@ -25,7 +25,7 @@ from UNIQ.preprocess import get_transform
 from UNIQ.data import get_dataset
 
 import cnn.models as models
-
+import cnn.gradEstimators as gradEstimators
 
 # import torchvision.transforms as transforms
 # import torchvision.transforms as transforms
@@ -62,9 +62,15 @@ def logUniformModel(args, logger):
     # print result
     logger.info('Uniform {} validation accuracy:[{}]'.format(uniformKey, best_prec1))
 
+
 # collect possible models names
 def loadModelNames():
     return [name for (name, obj) in models.__dict__.items() if isclass(obj) and name.islower()]
+
+
+# collect possible gradient estimators names
+def loadGradEstimatorsNames():
+    return [name for (name, obj) in gradEstimators.__dict__.items() if isclass(obj) and name.islower()]
 
 
 class AvgrageMeter(object):
