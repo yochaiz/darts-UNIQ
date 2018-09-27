@@ -367,6 +367,9 @@ def initTrainLogger(logger_file_name, folder_path, propagate=False):
         os.makedirs(folder_path)
 
     log_file_path = '{}/{}.txt'.format(folder_path, logger_file_name)
+    if os.path.exists(log_file_path):
+        os.remove(log_file_path)
+
     logger = setup_logging(log_file_path, logger_file_name, propagate)
 
     return logger
