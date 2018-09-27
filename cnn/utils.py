@@ -296,6 +296,13 @@ def load_pre_trained(path, model, logger, gpu):
             # load checkpoint
             checkpoint = loadModel(path, map_location=lambda storage, loc: storage.cuda(gpu))
             chckpntStateDict = checkpoint['state_dict']
+
+            # remove prev layers
+            prevLayers = []
+            for layer in model.layersList:
+                prevLayers.append(layer.prevLayer)
+                layer.prevLayer = None
+
             # load model state dict keys
             modelStateDictKeys = set(model.state_dict().keys())
             # compare dictionaries
@@ -317,6 +324,10 @@ def load_pre_trained(path, model, logger, gpu):
             else:
                 # use some function to map keys
                 model.loadUNIQPre_trained(chckpntStateDict)
+
+            # restore prev layers
+            for pLayer, layer in zip(prevLayers, model.layersList):
+                layer.prevLayer = pLayer
 
             logger.info('Loaded model from [{}]'.format(path))
             logger.info('checkpoint validation accuracy:[{:.5f}]'.format(checkpoint['best_prec1']))
