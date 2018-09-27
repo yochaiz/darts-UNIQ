@@ -130,6 +130,9 @@ class TrainRegime:
         self.lastMailTime = time()
         self.secondsBetweenMails = 1 * 3600
 
+        # number of batches for allocation as optimal model in order to train it from full-precision
+        self.nBatchesOptModel = 20
+
         # init train optimal model counter.
         # each key is an allocation, and the map hold a counter per key, how many batches this allocation is optimal
         self.optModelBitwidthCounter = {}
@@ -235,7 +238,7 @@ class TrainRegime:
         self.optModelBitwidthCounter[bitwidthKey] += 1
 
         # if this allocation has been optimal enough batches, let's train it
-        if self.optModelBitwidthCounter[bitwidthKey] == 20:
+        if self.optModelBitwidthCounter[bitwidthKey] == self.nBatchesOptModel:
             # save args to JSON
             saveArgsToJSON(args)
             # init args JSON destination path on server
@@ -372,6 +375,8 @@ class TrainRegime:
             logForwardCounters(model, trainLogger)
             # save alphas to csv
             model.save_alphas_to_csv(data=[nEpoch, step])
+            # log allocations
+            self.logAllocations()
             # save loss to container
             loss_container.update(loss, n)
 
@@ -395,3 +400,9 @@ class TrainRegime:
 
         for _, logger in loggers.items():
             logger.info(message)
+
+    def logAllocations(self):
+        logger = initTrainLogger('allocations', self.args.save)
+
+        for bitwidth, nBatches in self.optModelBitwidthCounter.items():
+            logger.info('{}:{}'.format(bitwidth, nBatches))
