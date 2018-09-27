@@ -12,7 +12,7 @@ from torch.cuda import manual_seed as cuda_manual_seed
 from torch import manual_seed as torch_manual_seed
 
 import cnn.trainRegime as trainRegimes
-from cnn.utils import create_exp_dir, count_parameters_in_MB, load_pre_trained, saveArgsToJSON
+from cnn.utils import create_exp_dir, count_parameters_in_MB, load_pre_trained, saveArgsToJSON, loadGradEstimatorsNames
 from cnn.utils import initLogger, printModelToFile, loadModelNames, models, sendEmail, logUniformModel
 
 
@@ -24,6 +24,7 @@ def loadAlphasRegimeNames():
 def parseArgs(lossFuncsLambda):
     modelNames = loadModelNames()
     alphasRegimeNames = loadAlphasRegimeNames()
+    gradEstimatorsNames = loadGradEstimatorsNames()
 
     parser = argparse.ArgumentParser("cifar")
     parser.add_argument('--data', type=str, required=True, help='location of the data corpus')
@@ -65,6 +66,8 @@ def parseArgs(lossFuncsLambda):
 
     parser.add_argument('--alphas_regime', default='alphas_weights_loop', choices=alphasRegimeNames,
                         help='alphas optimization method')
+    parser.add_argument('--grad_estimator', default='random_path', choices=gradEstimatorsNames,
+                        help='gradient estimation method')
     parser.add_argument('--nSamplesPerAlpha', type=int, default=20,
                         help='How many paths to sample in order to calculate average alpha loss')
 
