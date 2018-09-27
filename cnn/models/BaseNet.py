@@ -231,32 +231,21 @@ class BaseNet(Module):
 
     # select random alpha
     def chooseRandomPath(self):
-        # 1st layer has only 1 copy
-        prev_alpha_idx = 0
         for l in self.layers:
-            prev_alpha_idx = l.chooseRandomPath(prev_alpha_idx)
+            l.chooseRandomPath()
 
     # layerIdx, alphaIdx meaning: self.layersList[layerIdx].curr_alpha_idx = alphaIdx
     def choosePathByAlphas(self, layerIdx=None, alphaIdx=None):
-        # 1st layer has only 1 copy
-        prev_alpha_idx = 0
         for l in self.layers:
-            prev_alpha_idx = l.choosePathByAlphas(prev_alpha_idx)
+            l.choosePathByAlphas()
 
         if (layerIdx is not None) and (alphaIdx is not None):
             layer = self.layersList[layerIdx]
             layer.curr_alpha_idx = alphaIdx
-            # update following layer prev_alpha_idx
-            layerIdx += 1
-            if layerIdx < self.nLayers():
-                layer = self.layersList[layerIdx]
-                layer.prev_alpha_idx = alphaIdx
 
     def evalMode(self):
-        # 1st layer has only 1 copy
-        prev_alpha_idx = 0
         for l in self.layers:
-            prev_alpha_idx = l.evalMode(prev_alpha_idx)
+            l.evalMode()
 
         # calc bops ratio
         return self.calcBopsRatio()

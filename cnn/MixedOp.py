@@ -68,15 +68,15 @@ class Block(Module):
         raise NotImplementedError('subclasses must override getOutputBitwidthList()!')
 
     @abstractmethod
-    def chooseRandomPath(self, prev_alpha_idx):
+    def chooseRandomPath(self):
         raise NotImplementedError('subclasses must override chooseRandomPath()!')
 
     @abstractmethod
-    def choosePathByAlphas(self, prev_alpha_idx):
+    def choosePathByAlphas(self):
         raise NotImplementedError('subclasses must override choosePathByAlphas()!')
 
     @abstractmethod
-    def evalMode(self, prev_alpha_idx):
+    def evalMode(self):
         raise NotImplementedError('subclasses must override evalMode()!')
 
     @abstractmethod
@@ -118,7 +118,7 @@ class Block(Module):
 
 
 class MixedOp(Module):
-    def __init__(self, bitwidths, input_bitwidth, params, coutBopsParams, nOpsCopies=1):
+    def __init__(self, bitwidths, input_bitwidth, params, coutBopsParams, prevLayer, nOpsCopies=1):
         super(MixedOp, self).__init__()
 
         # assure bitwidths is a list of integers
@@ -128,7 +128,6 @@ class MixedOp(Module):
         self.ops = ModuleList()
         for _ in range(nOpsCopies):
             self.ops.append(self.initOps(bitwidths, params))
-        # self.ops = self.initOps(bitwidths, params)
 
         # init list of all operations (including copies) as single long list
         # for cases we have to modify all ops
@@ -145,10 +144,9 @@ class MixedOp(Module):
         self.alphas = tensor((ones(self.numOfOps()) * value).cuda(), requires_grad=False)
 
         self.curr_alpha_idx = 0
-        # previous layer selected alpha index, in order to select the corresponding operation copy
-        self.prev_alpha_idx = 0
-        # # init forward() function
-        # self.forward = self.trainForward
+        # init previous layer
+        assert ((prevLayer is None) or (isinstance(prevLayer, MixedOp)))
+        self.prevLayer = prevLayer
 
         # init bops for operation
         self.bops = self.buildBopsMap(bitwidths, input_bitwidth, params, coutBopsParams)
@@ -192,37 +190,26 @@ class MixedOp(Module):
 
         return bops
 
+    def outputLayer(self):
+        return self
+
     def getBops(self, input_bitwidth):
         return self.bops[input_bitwidth][self.curr_alpha_idx]
 
     # select random alpha
-    def chooseRandomPath(self, prev_alpha_idx):
+    def chooseRandomPath(self):
         self.curr_alpha_idx = randint(0, len(self.alphas) - 1)
-        self.prev_alpha_idx = prev_alpha_idx
-
-        return self.curr_alpha_idx
 
     # select alpha based on alphas distribution
-    def choosePathByAlphas(self, prev_alpha_idx):
+    def choosePathByAlphas(self):
         dist = Categorical(logits=self.alphas)
         chosen = dist.sample()
         self.curr_alpha_idx = chosen.item()
-        self.prev_alpha_idx = prev_alpha_idx
 
-        return self.curr_alpha_idx
-
-    # def trainMode(self):
-    #     self.forward = self.trainForward
-
-    def evalMode(self, prev_alpha_idx):
+    def evalMode(self):
         # update current alpha to max alpha value
         dist = F.softmax(self.alphas, dim=-1)
         self.curr_alpha_idx = dist.argmax().item()
-        self.prev_alpha_idx = prev_alpha_idx
-        # # update forward function
-        # self.forward = self.evalForward
-
-        return self.curr_alpha_idx
 
     # select op index based on desired bitwidth
     def uniformMode(self, bitwidth):
@@ -232,12 +219,10 @@ class MixedOp(Module):
                 self.curr_alpha_idx = i
                 break
 
-        # # update forward function
-        # self.forward = self.evalForward
-
     def forward(self, x):
-        self.opsForwardCounters[self.prev_alpha_idx][self.curr_alpha_idx] += 1
-        return self.ops[self.prev_alpha_idx][self.curr_alpha_idx](x)
+        prev_alpha_idx = self.prevLayer.curr_alpha_idx if self.prevLayer else 0
+        self.opsForwardCounters[prev_alpha_idx][self.curr_alpha_idx] += 1
+        return self.ops[prev_alpha_idx][self.curr_alpha_idx](x)
 
     # def trainForward(self, x):
     #     if self.alphas.requires_grad:
@@ -294,12 +279,13 @@ class MixedLinear(MixedOp):
 
 
 class MixedConv(MixedOp):
-    def __init__(self, bitwidths, in_planes, out_planes, kernel_size, stride, input_size, input_bitwidth, nOpsCopies=1):
+    def __init__(self, bitwidths, in_planes, out_planes, kernel_size, stride, input_size, input_bitwidth, prevLayer,
+                 nOpsCopies=1):
         assert (isinstance(kernel_size, list))
         params = in_planes, out_planes, kernel_size, stride
         coutBopsParams = input_size, in_planes
 
-        super(MixedConv, self).__init__(bitwidths, input_bitwidth, params, coutBopsParams, nOpsCopies)
+        super(MixedConv, self).__init__(bitwidths, input_bitwidth, params, coutBopsParams, prevLayer, nOpsCopies)
 
         self.in_planes = in_planes
 
@@ -330,7 +316,7 @@ class MixedConv(MixedOp):
 
 class MixedConvWithReLU(MixedOp):
     def __init__(self, bitwidths, in_planes, out_planes, kernel_size, stride,
-                 input_size, input_bitwidth, nOpsCopies=1, useResidual=False):
+                 input_size, input_bitwidth, prevLayer, nOpsCopies=1, useResidual=False):
         assert (isinstance(kernel_size, list))
         params = in_planes, out_planes, kernel_size, stride, useResidual
         coutBopsParams = in_planes, input_size
@@ -340,7 +326,8 @@ class MixedConvWithReLU(MixedOp):
             # self.trainForward = self.trainResidualForward
             # self.evalForward = self.evalResidualForward
 
-        super(MixedConvWithReLU, self).__init__(bitwidths, input_bitwidth, params, coutBopsParams, nOpsCopies)
+        super(MixedConvWithReLU, self).__init__(bitwidths, input_bitwidth, params, coutBopsParams, prevLayer,
+                                                nOpsCopies)
 
         self.in_planes = in_planes
 
@@ -386,8 +373,9 @@ class MixedConvWithReLU(MixedOp):
         return self.outputBitwidth
 
     def residualForward(self, x, residual):
-        self.opsForwardCounters[self.prev_alpha_idx][self.curr_alpha_idx] += 1
-        return self.ops[self.prev_alpha_idx][self.curr_alpha_idx](x, residual)
+        prev_alpha_idx = self.prevLayer.curr_alpha_idx if self.prevLayer else 0
+        self.opsForwardCounters[prev_alpha_idx][self.curr_alpha_idx] += 1
+        return self.ops[prev_alpha_idx][self.curr_alpha_idx](x, residual)
 
     # def trainResidualForward(self, x, residual):
     #     if self.alphas.requires_grad:
