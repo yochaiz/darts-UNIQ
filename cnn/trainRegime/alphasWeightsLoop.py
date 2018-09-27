@@ -205,6 +205,9 @@ class AlphasWeightsLoop(TrainRegime):
             best_prec1 = max(valid_acc, best_prec1)
             save_checkpoint(self.trainFolderPath, model, epoch, best_prec1, is_best)
 
+        # send final email
+        self.sendEmail('Final', 0, 0)
+
 
 class TripleAlphaReplicator(ModelReplicator):
     def __init__(self, model, modelClass, args):
