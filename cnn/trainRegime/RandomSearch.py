@@ -27,8 +27,6 @@ class RandomSearch(TrainRegime):
                 # set 1st layer to maximal bitwidth (based on bops)
                 layer = model.layersList[0]
                 layer.curr_alpha_idx = layer.numOfOps() - 1
-                layer2 = model.layersList[1]
-                layer2.prev_alpha_idx = layer.curr_alpha_idx
                 # calc bops ratio
                 bopsRatio = model.calcBopsRatio()
                 # set current allocation as optimal model
