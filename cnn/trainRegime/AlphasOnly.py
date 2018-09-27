@@ -1,7 +1,7 @@
 from .regime import TrainRegime, infer
 from cnn.utils import initTrainLogger, save_checkpoint
 from cnn.architect import Architect
-from .alphasWeightsLoop import Replicator
+import cnn.gradEstimators as gradEstimators
 
 
 class AlphasOnly(TrainRegime):
@@ -9,7 +9,8 @@ class AlphasOnly(TrainRegime):
         super(AlphasOnly, self).__init__(args, model, modelClass, logger)
 
         # init model replicator
-        replicator = Replicator(model, modelClass, args)
+        replicatorClass = gradEstimators.__dict__[args.grad_estimator]
+        replicator = replicatorClass(model, modelClass, args)
         # init architect
         self.architect = Architect(replicator, args)
 
