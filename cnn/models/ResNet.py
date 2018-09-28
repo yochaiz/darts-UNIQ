@@ -130,7 +130,8 @@ class ResNet(BaseNet):
             layers.append(l)
             # remove layer specific bitwidths, in case of different bitwidths to layers
             if isinstance(bitwidths[0], list):
-                nMixedOpLayers = sum(1 for m in l.modules() if isinstance(m, MixedOp))
+                nMixedOpLayers = 1 if isinstance(l, MixedOp) \
+                    else sum(1 for _, m in l._modules.items() if isinstance(m, MixedOp))
                 del bitwidths[:nMixedOpLayers]
             # update input_bitwidth for next layer
             input_bitwidth = l.getOutputBitwidthList()
