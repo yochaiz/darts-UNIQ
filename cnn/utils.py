@@ -228,7 +228,8 @@ def sendDataEmail(model, args, trainFolderPath, content):
     zipFname = 'attach.zip'
     zipPath = zipFiles(saveFolder, zipFname, attachPaths)
     # init email addresses
-    toAddr = ['evron.itay@gmail.com', 'chaimbaskin@cs.technion.ac.il', 'yochaiz.cs@gmail.com']
+    toAddr = ['evron.itay@gmail.com', 'chaimbaskin@cs.technion.ac.il', 'evgeniizh@campus.technion.ac.il',
+              'yochaiz.cs@gmail.com', ]
     # init subject
     subject = 'Results [{}] - Model:[{}] Bitwidth:{}'.format(args.folderName, args.model, args.bitwidth)
     # send email
