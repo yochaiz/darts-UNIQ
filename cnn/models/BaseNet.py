@@ -91,19 +91,7 @@ class BaseNet(Module):
 
         # init alphas DataFrame
         self.alphas_df = None
-        if saveFolder:
-            # update save path if saveFolder exists
-            self.alphasCsvFileName = '{}/{}'.format(saveFolder, self.alphasCsvFileName)
-            # init DataFrame cols
-            cols = ['Epoch', 'Batch']
-            cols += ['Layer_{}'.format(i) for i in range(self.nLayers())]
-            self.cols = cols
-            # init DataFrame
-            self.alphas_df = DataFrame([], columns=self.cols)
-            # set init data
-            data = ['init', 'init']
-            # save alphas data
-            self.save_alphas_to_csv(data)
+        self.__initAlphasDataFrame(saveFolder)
 
     @abstractmethod
     def initLayers(self, params):
@@ -130,6 +118,21 @@ class BaseNet(Module):
 
     def arch_parameters(self):
         return self.learnable_alphas
+
+    def __initAlphasDataFrame(self, saveFolder):
+        if saveFolder:
+            # update save path if saveFolder exists
+            self.alphasCsvFileName = '{}/{}'.format(saveFolder, self.alphasCsvFileName)
+            # init DataFrame cols
+            cols = ['Epoch', 'Batch']
+            cols += ['Layer_{}'.format(i) for i in range(self.nLayers())]
+            self.cols = cols
+            # init DataFrame
+            self.alphas_df = DataFrame([], columns=cols)
+            # set init data
+            data = ['init', 'init']
+            # save alphas data
+            self.save_alphas_to_csv(data)
 
     def turnOffAlphas(self):
         for layer in self.layersList:
