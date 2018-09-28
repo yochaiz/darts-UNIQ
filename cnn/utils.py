@@ -248,7 +248,7 @@ def create_exp_dir(resultFolderPath):
     baseFolder = path.dirname(path.abspath(getfile(currentframe())))  # script directory
     baseFolder += '/../'
     # init folders we want to zip
-    foldersToZip = ['cnn/models', 'cnn/trainRegime', 'UNIQ']
+    foldersToZip = ['cnn/models', 'cnn/trainRegime', 'cnn/gradEstimators', 'UNIQ']
     # save folders files
     for folder in foldersToZip:
         folderFullPath = baseFolder + folder
