@@ -1,5 +1,5 @@
 import torch.nn as nn
-from UNIQ.quantize import backup_weights, quantize, add_noise, restore_weights
+from UNIQ.quantize import backup_weights, quantize, add_noise, restore_weights, check_quantization
 from UNIQ.actquant import ActQuant
 
 
@@ -20,6 +20,11 @@ def save_state(self, _):
         for i in range(self.training_stage):
             self.full_parameters = backup_weights(layers_steps[i], self.full_parameters)
             quantize(layers_steps[i], bitwidth=self.bitwidth[i])
+
+    # for layer in layers_list:
+    #     weights = getattr(layer, 'weight', None)
+    #     if weights is not None:
+    #         print('Layer is quantized to {} values'.format(check_quantization(weights)))
 
 
 def restore_state(self, _, __):
