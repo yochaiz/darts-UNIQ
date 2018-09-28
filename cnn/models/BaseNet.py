@@ -129,13 +129,6 @@ class BaseNet(Module):
                 # load checkpoint
                 checkpoint = loadModel(path, map_location=lambda storage, loc: storage.cuda(gpu))
                 chckpntStateDict = checkpoint['state_dict']
-
-                # remove prev layers
-                prevLayers = []
-                for layer in self.layersList:
-                    prevLayers.append(layer.prevLayer)
-                    layer.prevLayer = None
-
                 # load model state dict keys
                 modelStateDictKeys = set(self.state_dict().keys())
                 # compare dictionaries
@@ -157,10 +150,6 @@ class BaseNet(Module):
                 else:
                     # use some function to map keys
                     self.loadUNIQPre_trained(chckpntStateDict)
-
-                # restore prev layers
-                for pLayer, layer in zip(prevLayers, self.layersList):
-                    layer.prevLayer = pLayer
 
                 logger.info('Loaded model from [{}]'.format(path))
                 logger.info('checkpoint validation accuracy:[{:.5f}]'.format(checkpoint['best_prec1']))

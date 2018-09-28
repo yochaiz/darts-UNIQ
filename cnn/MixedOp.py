@@ -148,9 +148,9 @@ class MixedOp(Block):
         self.alphas = tensor((ones(self.numOfOps()) * value).cuda(), requires_grad=False)
 
         self.curr_alpha_idx = 0
-        # init previous layer
+        # init previous layer, put it in a list, in order to ignore it as a model in this instance
         assert ((prevLayer is None) or (isinstance(prevLayer, MixedOp)))
-        self.prevLayer = prevLayer
+        self.prevLayer = [prevLayer]
 
         # init bops for operation
         self.bops = self.buildBopsMap(bitwidths, input_bitwidth, params, coutBopsParams)
@@ -224,7 +224,8 @@ class MixedOp(Block):
                 break
 
     def forward(self, x):
-        prev_alpha_idx = self.prevLayer.curr_alpha_idx if self.prevLayer else 0
+        prevLayer = self.prevLayer[0]
+        prev_alpha_idx = prevLayer.curr_alpha_idx if prevLayer else 0
         self.opsForwardCounters[prev_alpha_idx][self.curr_alpha_idx] += 1
         return self.ops[prev_alpha_idx][self.curr_alpha_idx](x)
 
@@ -377,7 +378,8 @@ class MixedConvWithReLU(MixedOp):
         return self.outputBitwidth
 
     def residualForward(self, x, residual):
-        prev_alpha_idx = self.prevLayer.curr_alpha_idx if self.prevLayer else 0
+        prevLayer = self.prevLayer[0]
+        prev_alpha_idx = prevLayer.curr_alpha_idx if prevLayer else 0
         self.opsForwardCounters[prev_alpha_idx][self.curr_alpha_idx] += 1
         return self.ops[prev_alpha_idx][self.curr_alpha_idx](x, residual)
 
