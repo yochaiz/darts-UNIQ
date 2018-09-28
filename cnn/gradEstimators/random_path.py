@@ -20,6 +20,7 @@ class RandomPath(ModelReplicator):
     def lossPerReplication(self, args):
         cModel, input, target, layersIndices = args
 
+        cModel.eval()
         # init total loss
         totalLoss = 0.0
         # init loss samples list for ALL alphas
