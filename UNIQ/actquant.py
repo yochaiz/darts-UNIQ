@@ -1,5 +1,5 @@
 import torch.nn as nn
-from UNIQ.quantize import act_quantize, act_noise
+from UNIQ.quantize import act_quantize, act_noise, check_quantization
 import torch.nn.functional as F
 
 
@@ -27,4 +27,5 @@ class ActQuant(nn.Module):
         else:
             x = F.relu(input)
 
+        # print('Activation is quantized to {} values'.format(check_quantization(x)))
         return x
