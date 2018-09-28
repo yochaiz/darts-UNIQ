@@ -1,10 +1,12 @@
 from abc import abstractmethod
 
 from pandas import DataFrame
+from os.path import exists
 
-from torch import tensor, zeros
+from torch import zeros
 from torch.nn import Module
 from torch.nn import functional as F
+from torch import load as loadModel
 
 from cnn.MixedOp import MixedOp
 from cnn.uniq_loss import UniqLoss
@@ -118,6 +120,54 @@ class BaseNet(Module):
 
     def arch_parameters(self):
         return self.learnable_alphas
+
+    def loadPreTrained(self, path, logger, gpu):
+        # init bool flag whether we loaded ops in the same layer with equal or different weights
+        loadOpsWithDifferentWeights = False
+        if path is not None:
+            if exists(path):
+                # load checkpoint
+                checkpoint = loadModel(path, map_location=lambda storage, loc: storage.cuda(gpu))
+                chckpntStateDict = checkpoint['state_dict']
+
+                # remove prev layers
+                prevLayers = []
+                for layer in self.layersList:
+                    prevLayers.append(layer.prevLayer)
+                    layer.prevLayer = None
+
+                # load model state dict keys
+                modelStateDictKeys = set(self.state_dict().keys())
+                # compare dictionaries
+                dictDiff = modelStateDictKeys.symmetric_difference(set(chckpntStateDict.keys()))
+                # # update flag value
+                # loadOpsWithDifferentWeights = True
+                # for v in dictDiff:
+                #     if v.endswith('.num_batches_tracked') is False:
+                #         loadOpsWithDifferentWeights = False
+                #         break
+                #     else:
+                #         chckpntStateDict.pop(v)
+                # update flag value
+                loadOpsWithDifferentWeights = len(dictDiff) == 0
+                # decide how to load checkpoint state dict
+                if loadOpsWithDifferentWeights:
+                    # load directly, keys are the same
+                    self.load_state_dict(chckpntStateDict)
+                else:
+                    # use some function to map keys
+                    self.loadUNIQPre_trained(chckpntStateDict)
+
+                # restore prev layers
+                for pLayer, layer in zip(prevLayers, self.layersList):
+                    layer.prevLayer = pLayer
+
+                logger.info('Loaded model from [{}]'.format(path))
+                logger.info('checkpoint validation accuracy:[{:.5f}]'.format(checkpoint['best_prec1']))
+            else:
+                logger.info('Failed to load pre-trained from [{}], path does not exists'.format(path))
+
+        return loadOpsWithDifferentWeights
 
     def __initAlphasDataFrame(self, saveFolder):
         if saveFolder:

@@ -12,7 +12,7 @@ from torch.cuda import manual_seed as cuda_manual_seed
 from torch import manual_seed as torch_manual_seed
 
 import cnn.trainRegime as trainRegimes
-from cnn.utils import create_exp_dir, count_parameters_in_MB, load_pre_trained, saveArgsToJSON, loadGradEstimatorsNames
+from cnn.utils import create_exp_dir, count_parameters_in_MB, saveArgsToJSON, loadGradEstimatorsNames
 from cnn.utils import initLogger, printModelToFile, loadModelNames, models, sendEmail, logUniformModel
 
 
@@ -154,7 +154,7 @@ if __name__ == '__main__':
     model = modelClass(args)
     model = model.cuda()
     # load pre-trained full-precision model
-    args.loadedOpsWithDiffWeights = load_pre_trained(args.pre_trained, model, logger, args.gpu[0])
+    args.loadedOpsWithDiffWeights = model.loadPreTrained(args.pre_trained, logger, args.gpu[0])
 
     ## ======================================
     # # set optimal model bitwidth per layer

@@ -3,8 +3,7 @@ from json import loads
 from os import path, remove
 
 from cnn.trainRegime.regime import TrainRegime
-from cnn.utils import load_pre_trained, initLogger, printModelToFile, models, create_exp_dir
-from cnn.utils import modelsRefs, logUniformModel
+from cnn.utils import initLogger, printModelToFile, models, create_exp_dir, modelsRefs, logUniformModel
 
 parser = ArgumentParser()
 parser.add_argument('--data', type=str, required=True, help='JSON file path')
@@ -53,7 +52,7 @@ with open(scriptArgs.data, 'r') as f:
             # select pre-trained key
             pre_trained_path = modelsRefs.get(args.model)
             if pre_trained_path:
-                args.loadedOpsWithDiffWeights = load_pre_trained(pre_trained_path, model, logger, args.gpu[0])
+                args.loadedOpsWithDiffWeights = model.loadPreTrained(pre_trained_path, logger, args.gpu[0])
                 if args.loadedOpsWithDiffWeights is False:
                     # print some attributes
                     print(args)
