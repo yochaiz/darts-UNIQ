@@ -34,6 +34,11 @@ def norm_icdf(x, mean, std):
     return mean + std * sqrt_of_2 * torch.erfinv(2. * x - 1)
 
 
+def check_quantization(x):
+    unique_vals = torch.sort(torch.unique(x.cpu()))[0]  # TODO remove cpu when possible
+    return unique_vals.size()[0]
+
+
 def add_noise(modules, training=False, bitwidth=32, noise=True, high_noise=False):
     for m in modules:
         if isinstance(m, torch.nn.Conv2d) or isinstance(m, torch.nn.Linear) or isinstance(m, torch.nn.LSTM):
