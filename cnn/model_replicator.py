@@ -3,6 +3,38 @@ from multiprocessing import Pool
 from abc import abstractmethod
 
 
+def cleanStateDict(model, f, args):
+    # remove prev layers
+    prevLayers = []
+    for layer in model.layersList:
+        prevLayers.append(layer.prevLayer)
+        layer.prevLayer = None
+
+    res = f(args)
+
+    # restore prev layers
+    for pLayer, layer in zip(prevLayers, model.layersList):
+        layer.prevLayer = pLayer
+
+    return res
+
+
+def getStateDict(model):
+    def f(_model):
+        return _model.state_dict()
+
+    return cleanStateDict(model, f, model)
+
+
+def loadStateDict(model, stateDict):
+    def f(args):
+        _model, _stateDict = args
+        _model.load_state_dict(_stateDict)
+
+    args = model, stateDict
+    cleanStateDict(model, f, args)
+
+
 class ModelReplicator:
     def __init__(self, model, modelClass, args):
         self.gpuIDs = args.gpu
@@ -10,8 +42,9 @@ class ModelReplicator:
         self.replications = []
         # count number of replications and assign each of them to a GPU
         gpus = [gpu for gpu in args.gpu for _ in range(args.nCopies)]
-        # load model state dict
-        modelStateDict = model.state_dict()
+        # get model state dict
+        modelStateDict = getStateDict(model)
+
         # create replications
         for gpu in gpus:
             # create model new instance
@@ -22,7 +55,7 @@ class ModelReplicator:
             cModel._criterion.cuda(gpu)
             cModel._criterion.search_loss.cuda(gpu)
             # load model weights
-            cModel.load_state_dict(modelStateDict)
+            loadStateDict(cModel, modelStateDict)
             # add model to replications
             self.replications.append((cModel, gpu))
 
