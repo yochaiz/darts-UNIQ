@@ -4,12 +4,12 @@ from torch.nn import Module, Conv2d, AvgPool2d, Linear, ModuleList
 
 from UNIQ.actquant import ActQuant
 
-from cnn.MixedOp import MixedOp, MixedConv, MixedConvWithReLU, MixedLinear
+from cnn.MixedOp import MixedOp, MixedConv, MixedConvWithReLU, MixedLinear, Block
 from cnn.models import BaseNet
 from cnn.models.BaseNet import save_quant_state, restore_quant_state
 
 
-class BasicBlock(Module):
+class BasicBlock(Block):
     def __init__(self, bitwidths, in_planes, out_planes, kernel_size, stride, input_size, input_bitwidth, prevLayer,
                  nOpsCopies=1):
         super(BasicBlock, self).__init__()

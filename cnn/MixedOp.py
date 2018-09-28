@@ -83,6 +83,10 @@ class Block(Module):
     def numOfOps(self):
         raise NotImplementedError('subclasses must override numOfOps()!')
 
+    @abstractmethod
+    def outputLayer(self):
+        raise NotImplementedError('subclasses must override outputLayer()!')
+
 
 # class Chooser(Function):
 #     chosen = None
@@ -117,7 +121,7 @@ class Block(Module):
 #         return grads_x, grads_alpha
 
 
-class MixedOp(Module):
+class MixedOp(Block):
     def __init__(self, bitwidths, input_bitwidth, params, coutBopsParams, prevLayer, nOpsCopies=1):
         super(MixedOp, self).__init__()
 
