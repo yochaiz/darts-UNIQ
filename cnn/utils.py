@@ -61,6 +61,8 @@ def logUniformModel(args, logger):
         # extract learning rate from uniform checkpoint
         if 'learning_rate' in uniform_checkpoint:
             args.learning_rate = uniform_checkpoint.get('learning_rate')
+            if logger:
+                logger.info('Loaded learning_rate from uniform checkpoint:[{}]'.format(args.learning_rate))
         # extract best_prec1 from uniform checkpoint
         best_prec1 = uniform_checkpoint.get('best_prec1', best_prec1)
         if isinstance(best_prec1, float):
