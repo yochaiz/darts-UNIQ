@@ -3,7 +3,8 @@ from json import loads
 from os import path, remove
 
 from cnn.trainRegime.regime import TrainRegime
-from cnn.utils import initLogger, printModelToFile, models, create_exp_dir, modelsRefs, logUniformModel
+from cnn.utils import initLogger, printModelToFile, models, create_exp_dir, modelsRefs, logUniformModel, sendEmail
+
 
 parser = ArgumentParser()
 parser.add_argument('--data', type=str, required=True, help='JSON file path')
@@ -63,14 +64,32 @@ with open(scriptArgs.data, 'r') as f:
                     logger.info('nPerms:[{}]'.format(model.nPerms))
 
                     # load uniform model
-                    logUniformModel(args, logger)
+                    uniform_best_prec1, uniformKey = logUniformModel(args, logger)
                     # log bops ratio
-                    logger.info('Bops ratio:[{:.5f}]'.format(model.calcBopsRatio()))
+                    bopsRatioStr = 'Bops ratio:[{:.5f}]'.format(model.calcBopsRatio())
+                    logger.info(bopsRatioStr)
                     # log learning rate
                     logger.info('learning_rate:[{}]'.format(args.learning_rate))
 
                     # build regime for alphas optimization, it performs initial weights training
                     TrainRegime(args, model, modelClass, logger)
+                    # load model best_prec1
+                    best_prec1 = getattr(args, 'best_prec1', None)
+                    # send mail if model beats uniform model
+                    if (best_prec1 is not None) and (uniform_best_prec1 is not None):
+                        if best_prec1 > uniform_best_prec1:
+                            subject = '[{}] - found better allocation'.format(args.folderName)
+                            content = 'The following allocation achieves better accuracy than uniform {}\n' \
+                                .format(uniformKey)
+                            content += 'Validation acc: current:[{}] > uniform:[{}]\n' \
+                                .format(best_prec1, uniform_best_prec1)
+                            content += bopsRatioStr + '\n\n'
+                            # add model bitwidth allocation
+                            for i, layerBitwidth in enumerate(args.bitwidth):
+                                content += 'Layer [{}]: {}\n'.format(i, layerBitwidth)
+                            # send email
+                            sendEmail(args.recipients, subject, content)
+
                     logger.info('Done !')
 
 # remove the JSON file
