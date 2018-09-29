@@ -66,6 +66,8 @@ with open(scriptArgs.data, 'r') as f:
                     logUniformModel(args, logger)
                     # log bops ratio
                     logger.info('Bops ratio:[{:.5f}]'.format(model.calcBopsRatio()))
+                    # log learning rate
+                    logger.info('learning_rate:[{}]'.format(args.learning_rate))
 
                     # build regime for alphas optimization, it performs initial weights training
                     TrainRegime(args, model, modelClass, logger)
