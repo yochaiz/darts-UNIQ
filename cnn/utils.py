@@ -195,7 +195,18 @@ def zipFiles(saveFolder, zipFname, attachPaths):
     return zipPath
 
 
-def sendEmail(toAddr, subject, content, zipPath=None, zipFname=None):
+# msg - email message, MIMEMultipart() object
+def attachFiletoEmail(msg, fileFullPath):
+    with open(fileFullPath, 'rb') as z:
+        # attach file
+        part = MIMEBase('application', 'octet-stream')
+        part.set_payload(z.read())
+        encoders.encode_base64(part)
+        part.add_header('Content-Disposition', "attachment; filename= %s" % path.basename(fileFullPath))
+        msg.attach(part)
+
+
+def sendEmail(toAddr, subject, content, attachments=None):
     # init email addresses
     fromAddr = "yochaiz@campus.technion.ac.il"
     # init connection
@@ -211,15 +222,14 @@ def sendEmail(toAddr, subject, content, zipPath=None, zipFname=None):
     msg['Subject'] = subject
     msg.attach(MIMEText(content, 'plain'))
 
-    # add zip file if required
-    if (zipPath is not None) and (zipFname is not None):
-        with open(zipPath, 'rb') as z:
-            # attach zip file
-            part = MIMEBase('application', 'octet-stream')
-            part.set_payload(z.read())
-            encoders.encode_base64(part)
-            part.add_header('Content-Disposition', "attachment; filename= %s" % zipFname)
-            msg.attach(part)
+    if attachments:
+        for att in attachments:
+            if path.exists(att):
+                if path.isdir(att):
+                    for filename in listdir(att):
+                        attachFiletoEmail(msg, '{}/{}'.format(att, filename))
+                else:
+                    attachFiletoEmail(msg, att)
 
     # send message
     for dst in toAddr:
@@ -229,21 +239,17 @@ def sendEmail(toAddr, subject, content, zipPath=None, zipFname=None):
             server.sendmail(fromAddr, dst, text)
         except Exception as e:
             print('Sending email failed, error:[{}]'.format(e))
+
     server.close()
 
 
-def sendDataEmail(model, args, trainFolderPath, content):
-    saveFolder = args.save
-    # init files to zip
-    attachPaths = [trainFolderPath, model.alphasCsvFileName, model.stats.saveFolder, args.jsonPath,
-                   model._criterion.bopsLossImgPath]
-    # zip files
-    zipFname = '{}.zip'.format(args.folderName)
-    zipPath = zipFiles(saveFolder, zipFname, attachPaths)
+def sendDataEmail(model, args, content):
+    # init files to send
+    attachments = [model.alphasCsvFileName, model.stats.saveFolder, args.jsonPath, model._criterion.bopsLossImgPath]
     # init subject
     subject = 'Results [{}] - Model:[{}] Bitwidth:{}'.format(args.folderName, args.model, args.bitwidth)
     # send email
-    sendEmail(args.recipients, subject, content, zipPath, zipFname)
+    sendEmail(args.recipients, subject, content, attachments)
 
 
 def create_exp_dir(resultFolderPath):
