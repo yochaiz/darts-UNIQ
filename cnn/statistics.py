@@ -1,6 +1,9 @@
 from scipy.stats import entropy
 from os import makedirs, path
-from math import ceil, floor, sqrt
+from math import ceil
+from io import BytesIO
+from base64 import b64encode
+from urllib.parse import quote
 
 from torch import tensor, float32
 import torch.nn.functional as F
@@ -9,6 +12,7 @@ import matplotlib
 
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
 
 
 class Statistics:
@@ -90,6 +94,31 @@ class Statistics:
 
         return optBopsRatio
 
+    def saveFigHTML(self, figs, fileName):
+        # create html page
+        htmlCode = '<!DOCTYPE html><html><head><style>' \
+                   'table { font-family: gisha; border-collapse: collapse;}' \
+                   'td, th { border: 1px solid #dddddd; text-align: center; padding: 8px; white-space:pre;}' \
+                   '.collapsible { background-color: #777; color: white; cursor: pointer; padding: 18px; border: none; text-align: left; outline: none; font-size: 15px; }' \
+                   '.active, .collapsible:hover { background-color: #555; }' \
+                   '.content { max-height: 0; overflow: hidden; transition: max-height 0.2s ease-out;}' \
+                   '</style></head>' \
+                   '<body>'
+        for fig in figs:
+            # convert fig to base64
+            canvas = FigureCanvas(fig)
+            png_output = BytesIO()
+            canvas.print_png(png_output)
+            img = b64encode(png_output.getvalue())
+            img = '<img src="data:image/png;base64,{}">'.format(quote(img))
+            # add image to html code
+            htmlCode += img
+        # close html tags
+        htmlCode += '</body></html>'
+        # write html code to file
+        with open('{}/{}.html'.format(self.saveFolder, fileName), 'w') as f:
+            f.write(htmlCode)
+
     @staticmethod
     def __setAxesProperties(ax, xLabel, yLabel, yMax, title):
         # ax.set_xticks(xValues)
@@ -100,19 +129,17 @@ class Statistics:
         ax.set_title(title)
         ax.legend(loc='upper center', bbox_to_anchor=(0.5, 1.005), ncol=5, fancybox=True, shadow=True)
 
-    def __setFigProperties(self, fig, fileName, figSize=(15, 10)):
+    def __setFigProperties(self, fig, figSize=(15, 10)):
         fig.set_size_inches(figSize)
         fig.tight_layout()
-        # save to file
-        fig.savefig('{}/{}.png'.format(self.saveFolder, fileName))
         # close plot
         plt.close(fig)
 
-    def __setPlotProperties(self, fig, ax, xLabel, yLabel, yMax, title, fileName):
+    def __setPlotProperties(self, fig, ax, xLabel, yLabel, yMax, title):
         self.__setAxesProperties(ax, xLabel, yLabel, yMax, title)
-        self.__setFigProperties(fig, fileName)
+        self.__setFigProperties(fig)
 
-    def __plotContainer(self, data, xValues, xLabel, yLabel, title, fileName, labelFunc, axOther=None, scale=True,
+    def __plotContainer(self, data, xValues, xLabel, yLabel, title, labelFunc, axOther=None, scale=True,
                         annotate=None):
         # create plot
         fig, ax = plt.subplots(nrows=1, ncols=1)
@@ -151,7 +178,9 @@ class Statistics:
             if scale:
                 yMax = min(yMax, (sum(dataSum) / len(dataSum)) * 1.5)
 
-            self.__setPlotProperties(fig, ax, xLabel, yLabel, yMax, title, fileName)
+            self.__setPlotProperties(fig, ax, xLabel, yLabel, yMax, title)
+
+        return fig
 
     # find optimal grid
     def __findGrid(self, nPlots):
@@ -182,8 +211,9 @@ class Statistics:
         # generate different plots
         for fileName in self.plotAllLayersKeys:
             data = self.containers[fileName]
-            self.__plotContainer(data, xValues, xLabel='Batch #', yLabel=fileName,
-                                 title='{} over epochs'.format(fileName), fileName=fileName, labelFunc=lambda x: x)
+            fig = self.__plotContainer(data, xValues, xLabel='Batch #', yLabel=fileName, title='{} over epochs'.format(fileName),
+                                       labelFunc=lambda x: x)
+            self.saveFigHTML([fig], fileName)
 
         for fileName in self.plotLayersSeparateKeys:
             data = self.containers[fileName]
@@ -192,18 +222,22 @@ class Statistics:
             nRows, nCols = self.__findGrid(nPlots)
             fig, ax = plt.subplots(nrows=nRows, ncols=nCols)
             axRow, axCol = 0, 0
+            figs = [fig]
             # add each layer alphas data to plot
             for i, layerData in enumerate(data):
-                self.__plotContainer(layerData, xValues, xLabel='Batch #', fileName='{}_{}'.format(fileName, i),
-                                     title='{} --layer:[{}]-- over epochs'.format(fileName, i), yLabel=fileName,
-                                     labelFunc=lambda x: int(self.layersBitwidths[i][x].item()),
-                                     axOther=ax[axRow, axCol])
+                layerFig = self.__plotContainer(layerData, xValues, xLabel='Batch #', axOther=ax[axRow, axCol],
+                                                title='{} --layer:[{}]-- over epochs'.format(fileName, i), yLabel=fileName,
+                                                labelFunc=lambda x: int(self.layersBitwidths[i][x].item()))
+                figs.append(layerFig)
                 # update next axes indices
                 axCol = (axCol + 1) % nCols
                 if axCol == 0:
                     axRow += 1
-            # save fig
-            self.__setFigProperties(fig, fileName, figSize=(30, 15))
+
+            # set fig properties
+            self.__setFigProperties(fig, figSize=(30, 15))
+            # save as HTML
+            self.saveFigHTML(figs, fileName)
 
     def plotBops(self, layersList):
         # create plot
@@ -233,5 +267,6 @@ class Statistics:
                     colors[label] = info[0].get_color()
 
         yMax *= 1.1
-        self.__setPlotProperties(fig, ax, xLabel='Layer #', yLabel='M-bops', yMax=yMax, title='bops per op in layer',
-                                 fileName=self.bopsKey)
+        self.__setPlotProperties(fig, ax, xLabel='Layer #', yLabel='M-bops', yMax=yMax, title='bops per op in layer')
+        # save as HTML
+        self.saveFigHTML([fig], fileName=self.bopsKey)
