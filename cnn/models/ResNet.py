@@ -108,6 +108,7 @@ class ResNet(BaseNet):
 
     def initLayers(self, params):
         bitwidths, kernel_sizes = params
+        bitwidths = bitwidths.copy()
 
         layersPlanes = self.initLayersPlanes()
 
