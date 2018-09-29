@@ -58,9 +58,16 @@ def logUniformModel(args, logger):
     if uniformPath and path.exists(uniformPath):
         uniform_checkpoint = loadModel(uniformPath,
                                        map_location=lambda storage, loc: storage.cuda(args.gpu[0]))
+        # extract learning rate from uniform checkpoint
+        if 'learning_rate' in uniform_checkpoint:
+            args.learning_rate = uniform_checkpoint.get('learning_rate')
+        # extract best_prec1 from uniform checkpoint
         best_prec1 = uniform_checkpoint.get('best_prec1', best_prec1)
+        if isinstance(best_prec1, float):
+            best_prec1 = '{:.3f}'.format(best_prec1)
     # print result
-    logger.info('Uniform {} validation accuracy:[{}]'.format(uniformKey, best_prec1))
+    if logger:
+        logger.info('Uniform {} validation accuracy:[{}]'.format(uniformKey, best_prec1))
 
 
 # collect possible models names
