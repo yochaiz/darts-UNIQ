@@ -54,7 +54,9 @@ def logUniformModel(args, logger):
     uniformBops = args.MaxBopsBits[0]
     uniformKey = '{}_w:[{}]_a:[{}]'.format(args.model, uniformBops[0], uniformBops[-1])
     uniformPath = modelsRefs.get(uniformKey)
-    best_prec1 = 'Not found'
+
+    best_prec1 = None
+    best_prec1_str = 'Not found'
     if uniformPath and path.exists(uniformPath):
         uniform_checkpoint = loadModel(uniformPath,
                                        map_location=lambda storage, loc: storage.cuda(args.gpu[0]))
@@ -64,12 +66,14 @@ def logUniformModel(args, logger):
             if logger:
                 logger.info('Loaded learning_rate from uniform checkpoint:[{}]'.format(args.learning_rate))
         # extract best_prec1 from uniform checkpoint
-        best_prec1 = uniform_checkpoint.get('best_prec1', best_prec1)
-        if isinstance(best_prec1, float):
-            best_prec1 = '{:.3f}'.format(best_prec1)
+        best_prec1 = uniform_checkpoint.get('best_prec1')
+        if best_prec1:
+            best_prec1_str = '{:.3f}'.format(best_prec1)
     # print result
     if logger:
-        logger.info('Uniform {} validation accuracy:[{}]'.format(uniformKey, best_prec1))
+        logger.info('Uniform {} validation accuracy:[{}]'.format(uniformKey, best_prec1_str))
+
+    return best_prec1
 
 
 # collect possible models names
@@ -236,13 +240,10 @@ def sendDataEmail(model, args, trainFolderPath, content):
     # zip files
     zipFname = '{}.zip'.format(args.folderName)
     zipPath = zipFiles(saveFolder, zipFname, attachPaths)
-    # init email addresses
-    toAddr = ['evron.itay@gmail.com', 'chaimbaskin@cs.technion.ac.il', 'evgeniizh@campus.technion.ac.il',
-              'yochaiz.cs@gmail.com', ]
     # init subject
     subject = 'Results [{}] - Model:[{}] Bitwidth:{}'.format(args.folderName, args.model, args.bitwidth)
     # send email
-    sendEmail(toAddr, subject, content, zipPath, zipFname)
+    sendEmail(args.recipients, subject, content, zipPath, zipFname)
 
 
 def create_exp_dir(resultFolderPath):
