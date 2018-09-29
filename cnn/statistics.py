@@ -13,6 +13,7 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
+from matplotlib.backends.backend_pdf import PdfPages
 
 
 class Statistics:
@@ -93,6 +94,13 @@ class Statistics:
         self.plotData()
 
         return optBopsRatio
+
+    def saveFigPDF(self, figs, fileName):
+        pdf = PdfPages('{}/{}.pdf'.format(self.saveFolder, fileName))
+        for fig in figs:
+            pdf.savefig(fig)
+
+        pdf.close()
 
     def saveFigHTML(self, figs, fileName):
         # create html page
@@ -213,7 +221,7 @@ class Statistics:
             data = self.containers[fileName]
             fig = self.__plotContainer(data, xValues, xLabel='Batch #', yLabel=fileName, title='{} over epochs'.format(fileName),
                                        labelFunc=lambda x: x)
-            self.saveFigHTML([fig], fileName)
+            self.saveFigPDF([fig], fileName)
 
         for fileName in self.plotLayersSeparateKeys:
             data = self.containers[fileName]
@@ -237,7 +245,7 @@ class Statistics:
             # set fig properties
             self.__setFigProperties(fig, figSize=(30, 15))
             # save as HTML
-            self.saveFigHTML(figs, fileName)
+            self.saveFigPDF(figs, fileName)
 
     def plotBops(self, layersList):
         # create plot
@@ -269,4 +277,4 @@ class Statistics:
         yMax *= 1.1
         self.__setPlotProperties(fig, ax, xLabel='Layer #', yLabel='M-bops', yMax=yMax, title='bops per op in layer')
         # save as HTML
-        self.saveFigHTML([fig], fileName=self.bopsKey)
+        self.saveFigPDF([fig], fileName=self.bopsKey)
