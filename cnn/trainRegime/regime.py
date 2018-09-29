@@ -343,7 +343,7 @@ class TrainRegime:
         for line in body:
             content += line + '\n'
 
-        sendDataEmail(self.model, self.args, self.trainFolderPath, content)
+        sendDataEmail(self.model, self.args, content)
 
     def trainAlphas(self, search_queue, model, architect, nEpoch, loggers):
         loss_container = AvgrageMeter()
