@@ -170,7 +170,7 @@ class TrainRegime:
         # if we loaded ops in the same layer with the same weights, then we loaded the optimal full precision model,
         # therefore we have to train the weights for each QuantizedOp
         if args.loadedOpsWithDiffWeights is False:
-            self.epoch = self.gwow(model, args, trainFolderName='init_weights_train')
+            self.epoch = self.initialWeightsTraining(model, args, trainFolderName='init_weights_train')
         else:
             # we loaded ops in the same layer with different weights, therefore we just have to switch_stage
             switchStageFlag = True
@@ -276,7 +276,7 @@ class TrainRegime:
 
         return optBopsRatio
 
-    def gwow(self, model, args, trainFolderName, filename=None):
+    def initialWeightsTraining(self, model, args, trainFolderName, filename=None):
         nEpochs = self.nEpochs
 
         # create train folder
