@@ -181,7 +181,8 @@ class TrainRegime:
     def train(self):
         raise NotImplementedError('subclasses must override train()!')
 
-    def __getBitwidthKey(self, optModel_bitwidth):
+    @staticmethod
+    def __getBitwidthKey(optModel_bitwidth):
         return '{}'.format(optModel_bitwidth)
 
     def setOptModelBitwidth(self):
@@ -293,6 +294,7 @@ class TrainRegime:
         # init validation best precision value
         best_prec1 = 0.0
 
+        epoch = 0
         for epoch in range(1, nEpochs + 1):
             trainLogger = initTrainLogger(str(epoch), folderPath, args.propagate)
             # set loggers dictionary
