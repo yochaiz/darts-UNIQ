@@ -73,7 +73,7 @@ def logUniformModel(args, logger):
     if logger:
         logger.info('Uniform {} validation accuracy:[{}]'.format(uniformKey, best_prec1_str))
 
-    return best_prec1
+    return best_prec1, uniformKey
 
 
 # collect possible models names
