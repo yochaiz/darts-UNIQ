@@ -54,17 +54,19 @@ def logUniformModel(args, logger):
     uniformBops = args.MaxBopsBits[0]
     uniformKey = '{}_w:[{}]_a:[{}]'.format(args.model, uniformBops[0], uniformBops[-1])
     uniformPath = modelsRefs.get(uniformKey)
+    keysFromUniform = ['epochsPerStage', 'learning_rate']
 
     best_prec1 = None
     best_prec1_str = 'Not found'
     if uniformPath and path.exists(uniformPath):
         uniform_checkpoint = loadModel(uniformPath,
                                        map_location=lambda storage, loc: storage.cuda(args.gpu[0]))
-        # extract learning rate from uniform checkpoint
-        if 'learning_rate' in uniform_checkpoint:
-            args.learning_rate = uniform_checkpoint.get('learning_rate')
-            if logger:
-                logger.info('Loaded learning_rate from uniform checkpoint:[{}]'.format(args.learning_rate))
+        # extract keys from uniform checkpoint
+        for key in keysFromUniform:
+            if key in uniform_checkpoint:
+                setattr(args, key, uniform_checkpoint.get(key))
+                if logger:
+                    logger.info('Loaded {} from uniform checkpoint:[{}]'.format(key))
         # extract best_prec1 from uniform checkpoint
         best_prec1 = uniform_checkpoint.get('best_prec1')
         if best_prec1:
