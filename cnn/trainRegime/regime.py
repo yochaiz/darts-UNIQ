@@ -327,10 +327,10 @@ class TrainRegime:
                 # save model checkpoint
                 is_best = valid_acc > best_prec1
                 best_prec1 = max(valid_acc, best_prec1)
-                save_checkpoint(self.trainFolderPath, model, epoch, best_prec1, is_best, filename)
+                save_checkpoint(self.trainFolderPath, model, args, epoch, best_prec1, is_best, filename)
             else:
                 # save model checkpoint
-                save_checkpoint(self.trainFolderPath, model, epoch, best_prec1, is_best=False, filename=filename)
+                save_checkpoint(self.trainFolderPath, model, args, epoch, best_prec1, is_best=False, filename=filename)
 
         self.logger.info('Optimal validation accuracy: [{:.3f}]'.format(best_prec1))
         args.best_prec1 = best_prec1

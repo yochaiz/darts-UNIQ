@@ -41,7 +41,7 @@ class AlphasWeightsLoop(TrainRegime):
             # save model checkpoint
             is_best = valid_acc > best_prec1
             best_prec1 = max(valid_acc, best_prec1)
-            save_checkpoint(self.trainFolderPath, model, epoch, best_prec1, is_best)
+            save_checkpoint(self.trainFolderPath, model, args, epoch, best_prec1, is_best)
 
             ## train weights ##
             # create epoch train weights folder
@@ -83,7 +83,7 @@ class AlphasWeightsLoop(TrainRegime):
             # save model checkpoint
             is_best = valid_acc > best_prec1
             best_prec1 = max(valid_acc, best_prec1)
-            save_checkpoint(self.trainFolderPath, model, epoch, best_prec1, is_best)
+            save_checkpoint(self.trainFolderPath, model, args, epoch, best_prec1, is_best)
 
         # send final email
         self.sendEmail('Final', 0, 0)

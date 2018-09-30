@@ -225,4 +225,4 @@ class MinimalAlphaSamplesLoss(TrainRegime):
         valid_acc = infer(self.valid_queue, model, model.evalMode, self.cross_entropy, self.epoch, loggersDict)
 
         # save model checkpoint
-        save_checkpoint(self.trainFolderPath, model, self.epoch, valid_acc, True)
+        save_checkpoint(self.trainFolderPath, model, self.args, self.epoch, valid_acc, True)

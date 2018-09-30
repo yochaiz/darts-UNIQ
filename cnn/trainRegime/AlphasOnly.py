@@ -36,4 +36,4 @@ class AlphasOnly(TrainRegime):
             # save model checkpoint
             is_best = valid_acc > best_prec1
             best_prec1 = max(valid_acc, best_prec1)
-            save_checkpoint(self.trainFolderPath, self.model, epoch, best_prec1, is_best)
+            save_checkpoint(self.trainFolderPath, self.model, self.args, epoch, best_prec1, is_best)

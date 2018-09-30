@@ -295,10 +295,10 @@ def save_state(state, is_best, path, filename):
         copyfile(default_filename, stateOptModelPattern.format(path, filename))
 
 
-def save_checkpoint(path, model, epoch, best_prec1, is_best=False, filename=None):
+def save_checkpoint(path, model, args, epoch, best_prec1, is_best=False, filename=None):
     # set state dictionary
-    state = dict(epoch=epoch + 1, state_dict=model.state_dict(), alphas=model.alphas_state(),
-                 nLayersQuantCompleted=model.nLayersQuantCompleted, best_prec1=best_prec1)
+    state = dict(epoch=epoch + 1, state_dict=model.state_dict(), alphas=model.alphas_state(), epochsPerStage=args.epochs,
+                 nLayersQuantCompleted=model.nLayersQuantCompleted, best_prec1=best_prec1, learning_rate=args.learning_rate)
     # set state filename
     filename = filename or stateFilenameDefault
     # save state to file
