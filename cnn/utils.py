@@ -50,7 +50,7 @@ modelsRefs = {
 }
 
 
-def logUniformModel(args, logger):
+def logUniformModel(args, logger, copyKeys=True):
     uniformBops = args.MaxBopsBits[0]
     uniformKey = '{}_w:[{}]_a:[{}]'.format(args.model, uniformBops[0], uniformBops[-1])
     uniformPath = modelsRefs.get(uniformKey)
@@ -62,11 +62,12 @@ def logUniformModel(args, logger):
         uniform_checkpoint = loadModel(uniformPath,
                                        map_location=lambda storage, loc: storage.cuda(args.gpu[0]))
         # extract keys from uniform checkpoint
-        for key in keysFromUniform:
-            if key in uniform_checkpoint:
-                setattr(args, key, uniform_checkpoint.get(key))
-                if logger:
-                    logger.info('Loaded {} from uniform checkpoint:[{}]'.format(key))
+        if copyKeys:
+            for key in keysFromUniform:
+                if key in uniform_checkpoint:
+                    setattr(args, key, uniform_checkpoint.get(key))
+                    if logger:
+                        logger.info('Loaded {} from uniform checkpoint:[{}]'.format(key))
         # extract best_prec1 from uniform checkpoint
         best_prec1 = uniform_checkpoint.get('best_prec1')
         if best_prec1:

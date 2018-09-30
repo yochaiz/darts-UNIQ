@@ -115,7 +115,8 @@ def parseArgs(lossFuncsLambda):
     create_exp_dir(args.save)
 
     # init emails recipients
-    args.recipients = ['evron.itay@gmail.com', 'chaimbaskin@cs.technion.ac.il', 'evgeniizh@campus.technion.ac.il', 'yochaiz.cs@gmail.com']
+    # args.recipients = ['evron.itay@gmail.com', 'chaimbaskin@cs.technion.ac.il', 'evgeniizh@campus.technion.ac.il', 'yochaiz.cs@gmail.com']
+    args.recipients = ['yochaiz.cs@gmail.com']
 
     # save args to JSON
     saveArgsToJSON(args)
@@ -189,7 +190,7 @@ if __name__ == '__main__':
     logger.info('Learnable params:[{}]'.format(len(model.learnable_params)))
     logger.info('Ops per layer:{}'.format([layer.numOfOps() for layer in model.layersList]))
     logger.info('nPerms:[{}]'.format(model.nPerms))
-    logUniformModel(args, logger)
+    logUniformModel(args, logger, copyKeys=False)
 
     try:
         # build regime for alphas optimization
