@@ -65,9 +65,10 @@ def logUniformModel(args, logger, copyKeys=True):
         if copyKeys:
             for key in keysFromUniform:
                 if key in uniform_checkpoint:
-                    setattr(args, key, uniform_checkpoint.get(key))
+                    value = uniform_checkpoint.get(key)
+                    setattr(args, key, value)
                     if logger:
-                        logger.info('Loaded {} from uniform checkpoint:[{}]'.format(key))
+                        logger.info('Loaded {} from uniform checkpoint:[{}]'.format(key, value))
         # extract best_prec1 from uniform checkpoint
         best_prec1 = uniform_checkpoint.get('best_prec1')
         if best_prec1:
