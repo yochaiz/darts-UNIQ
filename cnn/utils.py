@@ -355,8 +355,8 @@ def initTrainLogger(logger_file_name, folder_path, propagate=False):
     return logger
 
 
-def logForwardCounters(model, trainLogger):
-    if not trainLogger:
+def logForwardCounters(model, loggerFuncs):
+    if (not loggerFuncs) or (len(loggerFuncs) == 0):
         return
 
     rows = [['Layer #', 'Counters']]
@@ -392,11 +392,13 @@ def logForwardCounters(model, trainLogger):
         # reset layer counters
         layer.resetOpsForwardCounters()
 
-    trainLogger.addInfoTable(title='Forward counters', rows=rows)
+    # apply loggers functions
+    for f in loggerFuncs:
+        f(rows)
 
 
-def logDominantQuantizedOp(model, k, logger):
-    if not logger:
+def logDominantQuantizedOp(model, k, loggerFuncs):
+    if (not loggerFuncs) or (len(loggerFuncs) == 0):
         return
 
     rows = [['Layer #', 'Alphas']]
@@ -416,14 +418,16 @@ def logDominantQuantizedOp(model, k, logger):
         # add layer data table to model table as row
         rows.append([i, layerRow])
 
-    logger.addInfoTable(title='Alphas (top [{}])'.format(k), rows=rows)
+    # apply loggers functions
+    for f in loggerFuncs:
+        f(k, rows)
 
 
 def printModelToFile(model, save_path, fname='model'):
     filePath = '{}/{}.txt'.format(save_path, fname)
     logger = setup_logging(filePath, 'modelLogger')
     logger.info('{}'.format(model))
-    logDominantQuantizedOp(model, k=2, logger=logger)
+    logDominantQuantizedOp(model, k=2, loggerFuncs=logger)
 
 
 # def _data_transforms_cifar10(args):

@@ -311,7 +311,7 @@ class TrainRegime:
             # add alphas data to statistics
             model.stats.addBatchData(model, optBopsRatio, nEpoch, step)
             # log dominant QuantizedOp in each layer
-            logDominantQuantizedOp(model, k=2, logger=trainLogger)
+            logDominantQuantizedOp(model, k=2, loggerFuncs=trainLogger)
             # log forward counters
             logForwardCounters(model, trainLogger)
             # save alphas to csv
@@ -399,6 +399,8 @@ class TrainRegime:
                 if (step + 1) % 10 == 0:
                     trainLogger.addColumnsRowToDataTable()
 
+            break
+
         # log accuracy, loss, etc.
         summaryData = {self.trainLossKey: '{:.5f}'.format(loss_container.avg), self.trainAccKey: '{:.3f}'.format(top1.avg)}
 
@@ -406,10 +408,10 @@ class TrainRegime:
             logger.addSummaryDataRow(summaryData)
 
         # log dominant QuantizedOp in each layer
-        logDominantQuantizedOp(model, k=2, logger=trainLogger)
+        logDominantQuantizedOp(model, k=2, loggerFuncs=[lambda k, rows: trainLogger.addInfoTable(title='Alphas (top [{}])'.format(k), rows=rows)])
 
         # log forward counters
-        logForwardCounters(model, trainLogger)
+        logForwardCounters(model, loggerFuncs=[lambda rows: trainLogger.addInfoTable(title='Forward counters', rows=rows)])
 
         return summaryData
 
