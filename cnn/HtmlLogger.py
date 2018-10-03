@@ -49,6 +49,7 @@ class HtmlLogger:
 
         self.end = '</body></html>'
         self.infoTables = ''
+        self.curInfoTable = None
         self.dataTable = ''
 
     # converts dictionary to rows with nElementPerRow (k,v) elements at most in each row
@@ -106,21 +107,35 @@ class HtmlLogger:
         res += '</table>'
         return res
 
+    def __closeInfoTable(self):
+        if self.curInfoTable:
+            # add ending tags
+            self.curInfoTable += '</div>'
+            self.curInfoTable += '<h2></h2>'
+            # add current info table to all info tables
+            self.infoTables += self.curInfoTable
+            # reset current info table
+            self.curInfoTable = None
+
+    def createInfoTable(self, title):
+        # close current info table if exists
+        self.__closeInfoTable()
+        # open a new table
+        res = '<button class="collapsible"> {} </button>'.format(title)
+        res += '<div class="content">'
+        self.curInfoTable = res
+
     # title - a string for table title
     # rows - array of rows. each row is array of values.
     def addInfoTable(self, title, rows):
-        res = '<button class="collapsible"> {} </button>'.format(title)
-        res += '<div class="content">'
-        res += self.__createTableFromRows(rows)
-        res += '</div>'
-        # add table to body
-        self.infoTables += res
-        # create gap for next table
-        self.infoTables += '<h2></h2>'
+        self.createInfoTable(title)
+        self.curInfoTable += self.__createTableFromRows(rows)
+        self.__closeInfoTable()
         # write to file
         self.__writeToFile()
 
-    def addRowToInfoTable(self, title, row):
+    # add row to existing info table by its title
+    def addRowToInfoTableByTitle(self, title, row):
         valuesToFind = [title, '</table>']
         idx = 0
         # walk through the string to the desired position
