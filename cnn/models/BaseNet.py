@@ -157,7 +157,9 @@ class BaseNet(Module):
             else:
                 loggerRows.append(['Path', 'Failed to load pre-trained from [{}], path does not exists'.format(path)])
 
-        logger.addInfoTable('Pre-trained model', loggerRows)
+            # load pre-trained model if we tried to load pre-trained
+            logger.addInfoTable('Pre-trained model', loggerRows)
+
         return loadOpsWithDifferentWeights
 
     def __initAlphasDataFrame(self, saveFolder):
