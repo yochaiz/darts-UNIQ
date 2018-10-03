@@ -15,131 +15,19 @@ from cnn.utils import sendDataEmail, logForwardCounters
 from cnn.HtmlLogger import HtmlLogger
 
 
-def trainWeights(train_queue, model, modelChoosePathFunc, crit, optimizer, grad_clip, nEpoch, loggers):
-    loss_container = AvgrageMeter()
-    top1 = AvgrageMeter()
-    top5 = AvgrageMeter()
-
-    trainLogger = loggers.get('train')
-
-    model.train()
-
-    nBatches = len(train_queue)
-
-    for step, (input, target) in enumerate(train_queue):
-        startTime = time()
-        n = input.size(0)
-
-        input = Variable(input, requires_grad=False).cuda()
-        target = Variable(target, requires_grad=False).cuda(async=True)
-
-        # choose alpha per layer
-        modelChoosePathFunc()
-        bopsRatio = model.calcBopsRatio()
-        # optimize model weights
-        optimizer.zero_grad()
-        logits = model(input)
-        # calc loss
-        loss = crit(logits, target)
-        # back propagate
-        loss.backward()
-        clip_grad_norm_(model.parameters(), grad_clip)
-        # update weights
-        optimizer.step()
-
-        prec1, prec5 = accuracy(logits, target, topk=(1, 5))
-        loss_container.update(loss.item(), n)
-        top1.update(prec1.item(), n)
-        top5.update(prec5.item(), n)
-
-        endTime = time()
-
-        if trainLogger:
-            trainLogger.addDataRow({'Batch #': '{}/{}'.format(step, nBatches),
-                                    'Weight loss': '{:.5f}'.format(loss_container.avg),
-                                    'Accuracy': '{:.3f}'.format(top1.avg),
-                                    'Path bops ratio': '{:.3f}'.format(bopsRatio),
-                                    'Time': '{:.5f}'.format(endTime - startTime)
-                                    })
-            if (step + 1) % 10 == 0:
-                trainLogger.addColumnsRowToDataTable()
-
-        break
-
-    # log accuracy, loss, etc.
-    summaryData = {'Weight loss': '{:.5f}'.format(loss_container.avg), 'Accuracy': '{:.3f}'.format(top1.avg)}
-
-    for _, logger in loggers.items():
-        logger.addSummaryDataRow(summaryData)
-
-    # log dominant QuantizedOp in each layer
-    logDominantQuantizedOp(model, k=2, logger=trainLogger)
-
-    # log forward counters
-    logForwardCounters(model, trainLogger)
-
-    return summaryData
-
-
-def infer(valid_queue, model, modelInferMode, crit, nEpoch, loggers):
-    objs = AvgrageMeter()
-    top1 = AvgrageMeter()
-    top5 = AvgrageMeter()
-
-    trainLogger = loggers.get('train')
-
-    model.eval()
-    bopsRatio = modelInferMode()
-    # print eval layer index selection
-    if trainLogger:
-        trainLogger.addInfoToDataTable('Layers optimal indices:{}'.format([layer.curr_alpha_idx for layer in model.layersList]))
-
-    nBatches = len(valid_queue)
-
-    with no_grad():
-        for step, (input, target) in enumerate(valid_queue):
-            startTime = time()
-
-            input = Variable(input).cuda()
-            target = Variable(target).cuda(async=True)
-
-            logits = model(input)
-            loss = crit(logits, target)
-
-            prec1, prec5 = accuracy(logits, target, topk=(1, 5))
-            n = input.size(0)
-            objs.update(loss.item(), n)
-            top1.update(prec1.item(), n)
-            top5.update(prec5.item(), n)
-
-            endTime = time()
-
-            if trainLogger:
-                trainLogger.addDataRow({'Batch #': '{}/{}'.format(step, nBatches),
-                                        'Weight loss': '{:.5f}'.format(objs.avg),
-                                        'Accuracy': '{:.3f}'.format(top1.avg),
-                                        'Path bops ratio': '{:.3f}'.format(bopsRatio),
-                                        'Time': '{:.5f}'.format(endTime - startTime)
-                                        })
-                if (step + 1) % 10 == 0:
-                    trainLogger.addColumnsRowToDataTable()
-
-            break
-
-    # log accuracy, loss, etc.
-    summaryData = {'Weight loss': '{:.5f}'.format(objs.avg), 'Accuracy': '{:.3f}'.format(top1.avg)}
-
-    for _, logger in loggers.items():
-        logger.addSummaryDataRow(summaryData)
-
-    return top1.avg
-
-
 class TrainRegime:
-    colsTrainWeights = ['Batch #', 'Weight loss', 'Accuracy', 'Path bops ratio', 'Time']
-    colsMainInitWeightsTrain = ['Epoch #', 'Training loss', 'Training acc', 'Validation loss', 'Validation acc']
-    colsMainLogger = ['Epoch #', 'Arch loss', 'Optimal bops ratio', 'Training loss', 'Training acc', 'Validation loss', 'Validation acc',
-                      'Optimizer lr']
+    trainLossKey = 'Training loss'
+    trainAccKey = 'Training acc'
+    validLossKey = 'Validation loss'
+    validAccKey = 'Validation acc'
+    epochNumKey = 'Epoch #'
+    batchNumKey = 'Batch #'
+    pathBopsRatioKey = 'Path bops ratio'
+    optBopsRatioKey = 'Optimal bops ratio'
+    timeKey = 'Time'
+    colsTrainWeights = [batchNumKey, trainLossKey, trainAccKey, pathBopsRatioKey, timeKey]
+    colsMainInitWeightsTrain = [epochNumKey, trainLossKey, trainAccKey, validLossKey, validAccKey]
+    colsMainLogger = [epochNumKey, 'Arch loss', optBopsRatioKey, trainLossKey, trainAccKey, validLossKey, validAccKey, 'Optimizer lr']
 
     def __init__(self, args, model, modelClass, logger):
         self.args = args
@@ -328,29 +216,33 @@ class TrainRegime:
             lr = scheduler.get_lr()[0]
 
             trainLogger = HtmlLogger(folderPath, str(epoch))
-            # set loggers dictionary
-            loggersDict = dict(train=trainLogger)
-
             trainLogger.addInfoTable('Learning rates', [
                 ['optimizer_lr', '{:.5f}'.format(optimizer.param_groups[0]['lr'])],
                 ['scheduler_lr', '{:.5f}'.format(lr)]
             ])
-
             trainLogger.createDataTable(title, self.colsTrainWeights)
+
+            # set loggers dictionary
+            loggersDict = dict(train=trainLogger)
 
             # training
             print('========== Epoch:[{}] =============='.format(epoch))
-            epochData = trainWeights(self.train_queue, model, model.chooseRandomPath, self.cross_entropy, optimizer, args.grad_clip, epoch,
-                                     loggersDict)
+            trainData = self.trainWeights(self.train_queue, model, model.chooseRandomPath, self.cross_entropy, optimizer, args.grad_clip, epoch,
+                                          loggersDict)
 
-            logger.addDataRow(epochData)
+            # add epoch number
+            trainData[self.epochNumKey] = epoch
 
             # switch stage, i.e. freeze one more layer
             if (epoch in self.epochsSwitchStage) or (epoch == nEpochs):
                 # create validation table
                 trainLogger.createDataTable('Validation', self.colsTrainWeights)
                 # validation
-                valid_acc = infer(self.valid_queue, model, model.evalMode, self.cross_entropy, epoch, loggersDict)
+                valid_acc, validData = self.infer(self.valid_queue, model, model.evalMode, self.cross_entropy, epoch, loggersDict)
+
+                # merge trainData with validData
+                for k, v in validData.items():
+                    trainData[k] = v
 
                 # switch stage
                 model.switch_stage()
@@ -368,8 +260,11 @@ class TrainRegime:
                 # save model checkpoint
                 save_checkpoint(self.trainFolderPath, model, args, epoch, best_prec1, is_best=False, filename=filename)
 
-        trainData.append(['Optimal validation accuracy', '{:.3f}'.format(best_prec1)])
-        self.logger.addInfoTable(title, trainData)
+            # add data to main logger table
+            logger.addDataRow(trainData)
+
+        # add optimal accuracy
+        logger.addSummaryDataRow({self.epochNumKey: 'Optimal', self.validAccKey: '{:.3f}'.format(best_prec1)})
 
         args.best_prec1 = best_prec1
 
@@ -441,6 +336,124 @@ class TrainRegime:
 
         for _, logger in loggers.items():
             logger.info(message)
+
+    def trainWeights(self, train_queue, model, modelChoosePathFunc, crit, optimizer, grad_clip, nEpoch, loggers):
+        loss_container = AvgrageMeter()
+        top1 = AvgrageMeter()
+        top5 = AvgrageMeter()
+
+        trainLogger = loggers.get('train')
+
+        model.train()
+
+        nBatches = len(train_queue)
+
+        for step, (input, target) in enumerate(train_queue):
+            startTime = time()
+            n = input.size(0)
+
+            input = Variable(input, requires_grad=False).cuda()
+            target = Variable(target, requires_grad=False).cuda(async=True)
+
+            # choose alpha per layer
+            modelChoosePathFunc()
+            bopsRatio = model.calcBopsRatio()
+            # optimize model weights
+            optimizer.zero_grad()
+            logits = model(input)
+            # calc loss
+            loss = crit(logits, target)
+            # back propagate
+            loss.backward()
+            clip_grad_norm_(model.parameters(), grad_clip)
+            # update weights
+            optimizer.step()
+
+            prec1, prec5 = accuracy(logits, target, topk=(1, 5))
+            loss_container.update(loss.item(), n)
+            top1.update(prec1.item(), n)
+            top5.update(prec5.item(), n)
+
+            endTime = time()
+
+            if trainLogger:
+                trainLogger.addDataRow({self.batchNumKey: '{}/{}'.format(step, nBatches),
+                                        self.trainLossKey: '{:.5f}'.format(loss_container.avg),
+                                        self.trainAccKey: '{:.3f}'.format(top1.avg),
+                                        self.pathBopsRatioKey: '{:.3f}'.format(bopsRatio),
+                                        self.timeKey: '{:.5f}'.format(endTime - startTime)
+                                        })
+                if (step + 1) % 10 == 0:
+                    trainLogger.addColumnsRowToDataTable()
+
+            break
+
+        # log accuracy, loss, etc.
+        summaryData = {self.trainLossKey: '{:.5f}'.format(loss_container.avg), self.trainAccKey: '{:.3f}'.format(top1.avg)}
+
+        for _, logger in loggers.items():
+            logger.addSummaryDataRow(summaryData)
+
+        # log dominant QuantizedOp in each layer
+        logDominantQuantizedOp(model, k=2, logger=trainLogger)
+
+        # log forward counters
+        logForwardCounters(model, trainLogger)
+
+        return summaryData
+
+    def infer(self, valid_queue, model, modelInferMode, crit, nEpoch, loggers):
+        objs = AvgrageMeter()
+        top1 = AvgrageMeter()
+        top5 = AvgrageMeter()
+
+        trainLogger = loggers.get('train')
+
+        model.eval()
+        bopsRatio = modelInferMode()
+        # print eval layer index selection
+        if trainLogger:
+            trainLogger.addInfoToDataTable('Layers optimal indices:{}'.format([layer.curr_alpha_idx for layer in model.layersList]))
+
+        nBatches = len(valid_queue)
+
+        with no_grad():
+            for step, (input, target) in enumerate(valid_queue):
+                startTime = time()
+
+                input = Variable(input).cuda()
+                target = Variable(target).cuda(async=True)
+
+                logits = model(input)
+                loss = crit(logits, target)
+
+                prec1, prec5 = accuracy(logits, target, topk=(1, 5))
+                n = input.size(0)
+                objs.update(loss.item(), n)
+                top1.update(prec1.item(), n)
+                top5.update(prec5.item(), n)
+
+                endTime = time()
+
+                if trainLogger:
+                    trainLogger.addDataRow({self.batchNumKey: '{}/{}'.format(step, nBatches),
+                                            self.validLossKey: '{:.5f}'.format(objs.avg),
+                                            self.validAccKey: '{:.3f}'.format(top1.avg),
+                                            self.pathBopsRatioKey: '{:.3f}'.format(bopsRatio),
+                                            self.timeKey: '{:.5f}'.format(endTime - startTime)
+                                            })
+                    if (step + 1) % 10 == 0:
+                        trainLogger.addColumnsRowToDataTable()
+
+                break
+
+        # log accuracy, loss, etc.
+        summaryData = {self.validLossKey: '{:.5f}'.format(objs.avg), self.validAccKey: '{:.3f}'.format(top1.avg)}
+
+        for _, logger in loggers.items():
+            logger.addSummaryDataRow(summaryData)
+
+        return top1.avg, summaryData
 
     def logAllocations(self):
         logger = initTrainLogger('allocations', self.args.save)
