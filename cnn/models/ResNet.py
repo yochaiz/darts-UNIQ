@@ -195,7 +195,7 @@ class ResNet(BaseNet):
         # reset nLayersQuantCompleted
         self.nLayersQuantCompleted = 0
 
-    def switch_stage(self, logger=None):
+    def switch_stage(self, loggerFuncs=[]):
         # check whether we have to perform a switching stage, or there are no more stages left
         conditionFlag = self.nLayersQuantCompleted < len(self.layersList)
         if conditionFlag:
@@ -232,10 +232,12 @@ class ResNet(BaseNet):
                 for op in layer.getOps():
                     op.noise = True
 
-            if logger:
-                logger.info(
-                    'Switching stage, nLayersQuantCompleted:[{}], learnable_params:[{}], learnable_alphas:[{}]'
-                        .format(self.nLayersQuantCompleted, len(self.learnable_params), len(self.learnable_alphas)))
+            logMsg = 'nLayersQuantCompleted:[{}], learnable_params:[{}], learnable_alphas:[{}]' \
+                .format(self.nLayersQuantCompleted, len(self.learnable_params), len(self.learnable_alphas))
+
+            # log message to all loggers
+            for f in loggerFuncs:
+                f(logMsg)
 
         return conditionFlag
 
