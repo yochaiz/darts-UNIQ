@@ -292,6 +292,9 @@ class TrainRegime:
         architect.modelReplicator.updateModelWeights(model)
         trainLogger.info('Model replications weights have been updated')
 
+        # quantize all ops
+        architect.modelReplicator.quantize()
+
         nBatches = len(search_queue)
 
         for step, (input, target) in enumerate(search_queue):
@@ -332,12 +335,15 @@ class TrainRegime:
                 trainLogger.info('train [{}/{}] arch_loss:[{:.5f}] OptBopsRatio:[{:.3f}] time:[{:.5f}]'
                                  .format(step, nBatches, loss_container.avg, optBopsRatio, endTime - startTime))
 
+        # restore quantization for all replications ops
+        architect.modelReplicator.restore_quantize()
+
         # log accuracy, loss, etc.
         message = 'Epoch:[{}] , arch loss:[{:.3f}] , OptBopsRatio:[{:.3f}] , lr:[{:.5f}]' \
             .format(nEpoch, loss_container.avg, optBopsRatio, architect.lr)
 
-        for _, logger in loggers.items():
-            logger.info(message)
+        # for _, logger in loggers.items():
+        #     logger.info(message)
 
     def trainWeights(self, modelChoosePathFunc, optimizer, loggers):
         loss_container = AvgrageMeter()

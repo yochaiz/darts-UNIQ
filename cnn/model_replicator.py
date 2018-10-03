@@ -2,6 +2,8 @@ from numpy import array_split
 from multiprocessing import Pool
 from abc import abstractmethod
 
+from UNIQ.uniq import save_state, restore_state
+
 
 class ModelReplicator:
     def __init__(self, model, modelClass, args):
@@ -10,8 +12,6 @@ class ModelReplicator:
         self.replications = []
         # count number of replications and assign each of them to a GPU
         gpus = [gpu for gpu in args.gpu for _ in range(args.nCopies)]
-        # get model state dict
-        modelStateDict = model.state_dict()
 
         # create replications
         for gpu in gpus:
@@ -22,10 +22,21 @@ class ModelReplicator:
             # set model criterion to its GPU
             cModel._criterion.cuda(gpu)
             cModel._criterion.search_loss.cuda(gpu)
-            # load model weights
-            cModel.load_state_dict(modelStateDict)
+            # set mode to eval mode
+            cModel.eval()
+            # remove UNIQ save_state(), restore_state() hooks for all model ops
+            for layer in cModel.layersList:
+                for op in layer.getOps():
+                    # remove hooks
+                    for hook in op.hooks:
+                        hook.remove()
+                    # clear hooks list
+                    op.hooks.clear()
             # add model to replications
             self.replications.append((cModel, gpu))
+
+        # update replications weights + quantize weights
+        self.updateModelWeights(model)
 
     # build args for pool.map
     @abstractmethod
@@ -46,6 +57,19 @@ class ModelReplicator:
     @abstractmethod
     def processResults(self, model, results):
         raise NotImplementedError('subclasses must override processResults()!')
+
+    # quantize all replications ops
+    def quantize(self):
+        for cModel, _ in self.replications:
+            for layer in cModel.layersList:
+                for op in layer.getOps():
+                    save_state(op, None)
+
+    def restore_quantize(self):
+        for cModel, _ in self.replications:
+            for layer in cModel.layersList:
+                for op in layer.getOps():
+                    restore_state(op, None, None)
 
     # Wrapper function per process, i.e. per replication
     def replicationFunc(self, args):
