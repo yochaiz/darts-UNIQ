@@ -32,16 +32,16 @@ class AlphasWeightsLoop(TrainRegime):
             trainLogger = initTrainLogger(str(epoch), self.trainFolderPath, args.propagate)
             # set loggers dictionary
             loggersDict = dict(train=trainLogger, main=self.logger)
-            # # train alphas
-            # self.trainAlphas(self.search_queue, model, self.architect, epoch, loggersDict)
-            #
-            # # validation on current optimal model
-            # valid_acc = infer(self.valid_queue, model, model.evalMode, self.cross_entropy, epoch, loggersDict)
-            #
-            # # save model checkpoint
-            # is_best = valid_acc > best_prec1
-            # best_prec1 = max(valid_acc, best_prec1)
-            # save_checkpoint(self.trainFolderPath, model, args, epoch, best_prec1, is_best)
+            # train alphas
+            self.trainAlphas(self.search_queue, model, self.architect, epoch, loggersDict)
+
+            # validation on current optimal model
+            valid_acc = self.infer(loggersDict)
+
+            # save model checkpoint
+            is_best = valid_acc > best_prec1
+            best_prec1 = max(valid_acc, best_prec1)
+            save_checkpoint(self.trainFolderPath, model, args, epoch, best_prec1, is_best)
 
             ## train weights ##
             # create epoch train weights folder
@@ -52,16 +52,14 @@ class AlphasWeightsLoop(TrainRegime):
             # turn on weights gradients
             model.turnOnWeights()
             # init optimizer
-            optimizer = SGD(model.parameters(), args.learning_rate,
-                            momentum=args.momentum, weight_decay=args.weight_decay)
+            optimizer = SGD(model.parameters(), args.learning_rate, momentum=args.momentum, weight_decay=args.weight_decay)
             # train weights with 1 epoch per stage
             wEpoch = 1
             switchStageFlag = True
             while switchStageFlag:
                 # init epoch train logger
-                # trainLogger = initTrainLogger('{}_{}'.format(epochName, wEpoch), epochFolderPath, args.propagate)
                 trainLogger = HtmlLogger(epochFolderPath, '{}_{}'.format(epochName, wEpoch))
-                trainLogger.createDataTable('', self.colsTrainWeights)
+                trainLogger.createDataTable('PP', self.colsTrainWeights)
                 # train stage weights
                 self.trainWeights(model.choosePathByAlphas, optimizer, dict(train=trainLogger))
                 # switch stage
@@ -77,8 +75,6 @@ class AlphasWeightsLoop(TrainRegime):
             self.trainWeights(model.choosePathByAlphas, optimizer, loggersDict)
             # validation on optimal model
             valid_acc = self.infer(loggersDict)
-            # # calc validation accuracy & loss on uniform model
-            # infer(self.valid_queue, model, model.uniformMode, self.cross_entropy, 'Uniform', dict(main=self.logger))
 
             # save model checkpoint
             is_best = valid_acc > best_prec1
