@@ -13,7 +13,7 @@ class LayerSamePath(RandomPath):
     def lossPerReplication(self, args):
         cModel, input, target, layersIndices = args
 
-        cModel.eval()
+        assert(cModel.training is False)
         # init total loss
         totalLoss = 0.0
         # init loss samples list for ALL alphas
@@ -43,7 +43,7 @@ class LayerSamePath(RandomPath):
                     # select the specific alpha in this layer
                     layer.curr_alpha_idx = i
                     # forward input in model
-                    logits = cModel.forward(input)
+                    logits = cModel(input)
                     # alphaLoss += cModel._criterion(logits, target, cModel.countBops()).detach()
                     alphaLossSamples[i].append(cModel._criterion(logits, target, cModel.countBops()).detach())
 

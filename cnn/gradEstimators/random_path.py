@@ -51,7 +51,7 @@ class RandomPath(ModelReplicator):
                     # choose path in model based on alphas distribution, while current layer alpha is [i]
                     cModel.choosePathByAlphas(layerIdx=layerIdx, alphaIdx=i)
                     # forward input in model
-                    logits = cModel.forward(input)
+                    logits = cModel(input)
                     # alphaLoss += cModel._criterion(logits, target, cModel.countBops()).detach()
                     alphaLossSamples.append(cModel._criterion(logits, target, cModel.countBops()).detach())
 

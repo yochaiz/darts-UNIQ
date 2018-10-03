@@ -47,7 +47,7 @@ class TripleAlphas(ModelReplicator):
                 # sample path based on alphas distribution
                 alphaLossSamples1 = []
                 for _ in range(nSamplesPerAlpha1):
-                    logits = cModel.forward(input)
+                    logits = cModel(input)
                     alphaLossSamples1.append(cModel._criterion(logits, target, cModel.countBops()).detach())
 
                 # calc alpha average loss
@@ -66,7 +66,7 @@ class TripleAlphas(ModelReplicator):
                 # sample paths
                 alphaLossSamples2 = []
                 for _ in range(nSamplesPerAlpha2):
-                    logits = cModel.forward(input)
+                    logits = cModel(input)
                     alphaLossSamples2.append(cModel._criterion(logits, target, cModel.countBops()).detach())
 
                 # calc alpha average loss
