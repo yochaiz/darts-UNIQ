@@ -25,6 +25,7 @@ class TrainRegime:
     pathBopsRatioKey = 'Path bops ratio'
     optBopsRatioKey = 'Optimal bops ratio'
     timeKey = 'Time'
+    initWeightsTrainTableTitle = 'Initial weights training'
     colsTrainWeights = [batchNumKey, trainLossKey, trainAccKey, pathBopsRatioKey, timeKey]
     colsMainInitWeightsTrain = [epochNumKey, trainLossKey, trainAccKey, validLossKey, validAccKey]
     colsMainLogger = [epochNumKey, 'Arch loss', optBopsRatioKey, trainLossKey, trainAccKey, validLossKey, validAccKey, 'Optimizer lr']
@@ -80,10 +81,13 @@ class TrainRegime:
         if args.loadedOpsWithDiffWeights is False:
             self.epoch = self.initialWeightsTraining(model, args, trainFolderName='init_weights_train')
         else:
+            rows = [['Switching stage']]
             # we loaded ops in the same layer with different weights, therefore we just have to switch_stage
             switchStageFlag = True
             while switchStageFlag:
-                switchStageFlag = model.switch_stage(logger=None)
+                switchStageFlag = model.switch_stage([lambda msg: rows.append([msg])])
+            # create info table
+            logger.addInfoTable(self.initWeightsTrainTableTitle, rows)
 
         # init logger data table
         logger.createDataTable('A', self.colsMainLogger)
@@ -208,8 +212,7 @@ class TrainRegime:
 
         epoch = 0
         # init table in main logger
-        title = 'Initial weights training'
-        logger.createDataTable(title, self.colsMainInitWeightsTrain)
+        logger.createDataTable(self.initWeightsTrainTableTitle, self.colsMainInitWeightsTrain)
 
         for epoch in range(1, nEpochs + 1):
             scheduler.step()
@@ -220,7 +223,7 @@ class TrainRegime:
                 ['optimizer_lr', '{:.5f}'.format(optimizer.param_groups[0]['lr'])],
                 ['scheduler_lr', '{:.5f}'.format(lr)]
             ])
-            trainLogger.createDataTable(title, self.colsTrainWeights)
+            trainLogger.createDataTable(self.initWeightsTrainTableTitle, self.colsTrainWeights)
 
             # set loggers dictionary
             loggersDict = dict(train=trainLogger)
