@@ -42,7 +42,7 @@ class Replicator(ModelReplicator):
                 alphaLossSamples = []
                 for _ in range(cModel.nSamplesPerAlpha):
                     # forward through some path in model
-                    logits = cModel.forward(input)
+                    logits = cModel(input)
                     alphaLossSamples.append(cModel._criterion(logits, target, cModel.countBops()).detach())
 
                 # calc current alpha batch average loss
@@ -184,7 +184,7 @@ class MinimalAlphaSamplesLoss(TrainRegime):
                 alphaLossSamples = []
                 for _ in range(model.nSamplesPerAlpha):
                     # forward through some path in model
-                    logits = model.forward(input)
+                    logits = model(input)
                     alphaLossSamples.append(model._criterion(logits, target, model.countBops()).detach())
 
                 # calc current alpha batch average loss
