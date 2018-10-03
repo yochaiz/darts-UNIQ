@@ -1,4 +1,4 @@
-from .regime import TrainRegime, infer
+from .regime import TrainRegime
 from cnn.utils import initTrainLogger, save_checkpoint
 from cnn.architect import Architect
 import cnn.gradEstimators as gradEstimators
@@ -31,7 +31,7 @@ class AlphasOnly(TrainRegime):
             # train alphas
             self.trainAlphas(self.search_queue, self.model, self.architect, epoch, loggersDict)
             # validation on current optimal model
-            valid_acc = infer(self.valid_queue, self.model, self.model.evalMode, self.cross_entropy, epoch, loggersDict)
+            valid_acc = self.infer(self.valid_queue, self.model, self.model.evalMode, self.cross_entropy, epoch, loggersDict)
 
             # save model checkpoint
             is_best = valid_acc > best_prec1

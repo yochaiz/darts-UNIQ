@@ -4,7 +4,7 @@ from numpy import argmin
 from torch.autograd.variable import Variable
 from torch.nn import functional as F
 
-from .regime import TrainRegime, infer
+from .regime import TrainRegime
 from cnn.utils import AvgrageMeter, logDominantQuantizedOp, save_checkpoint, initTrainLogger
 from cnn.model_replicator import ModelReplicator
 
@@ -222,7 +222,7 @@ class MinimalAlphaSamplesLoss(TrainRegime):
         self.trainSamplesAlphas(loggersDict)
 
         # validation on current optimal model
-        valid_acc = infer(self.valid_queue, model, model.evalMode, self.cross_entropy, self.epoch, loggersDict)
+        valid_acc = self.infer(self.valid_queue, model, model.evalMode, self.cross_entropy, self.epoch, loggersDict)
 
         # save model checkpoint
         save_checkpoint(self.trainFolderPath, model, self.args, self.epoch, valid_acc, True)
