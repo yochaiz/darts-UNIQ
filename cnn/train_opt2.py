@@ -3,7 +3,7 @@ from json import loads
 from os import path, remove
 
 from cnn.trainRegime.regime import TrainRegime
-from cnn.utils import initLogger, printModelToFile, models, create_exp_dir, modelsRefs, logUniformModel, sendEmail
+from cnn.utils import initLogger, printModelToFile, models, create_exp_dir, modelsRefs, logBaselineModel, sendEmail
 
 
 parser = ArgumentParser()
@@ -43,8 +43,8 @@ with open(scriptArgs.data, 'r') as f:
         if modelClass:
             # sort bitwidths as list of tuples
             args.optModel_bitwidth = [[(v[0], v[1])] for v in args.optModel_bitwidth]
-            args.MaxBopsBits = args.MaxBopsBits[0]
-            args.MaxBopsBits = [(args.MaxBopsBits[0], args.MaxBopsBits[1])]
+            args.baselineBits = args.baselineBits[0]
+            args.baselineBits = [(args.baselineBits[0], args.baselineBits[1])]
             # set bitwidth to optimal model bitwidth
             args.bitwidth = args.optModel_bitwidth
             # build optimal model
@@ -64,7 +64,7 @@ with open(scriptArgs.data, 'r') as f:
                     logger.info('nPerms:[{}]'.format(model.nPerms))
 
                     # load uniform model
-                    uniform_best_prec1, uniformKey = logUniformModel(args, logger)
+                    uniform_best_prec1, uniformKey = logBaselineModel(args, logger)
                     # log bops ratio
                     bopsRatioStr = 'Bops ratio:[{:.5f}]'.format(model.calcBopsRatio())
                     logger.info(bopsRatioStr)

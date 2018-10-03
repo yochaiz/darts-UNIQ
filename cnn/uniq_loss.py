@@ -27,7 +27,7 @@ class UniqLoss(Module):
         self.search_loss = CrossEntropyLoss().cuda()
 
         self.maxBops = args.maxBops
-        self.maxBopsBits = args.MaxBopsBits
+        self.baselineBits = args.baselineBits
 
         # init bops loss function and plot it
         self.bopsLoss = BopsLoss(LeakyReLU(inplace=True), 1, 1, 0, 1).calcLoss

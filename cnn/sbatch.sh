@@ -2,7 +2,7 @@
 #SBATCH -c 3 # number of cores
 #SBATCH --gres=gpu:1 # number of gpu requested
 #SBATCH -J "DropDarts"
-#SBATCH -t 03-00:00:00
+#SBATCH -t 04-00:00:00
 #SBATCH -p gip,all
 #SBATCH -w gaon2
 #SBATCH --mail-user=yochaiz@cs.technion.ac.il

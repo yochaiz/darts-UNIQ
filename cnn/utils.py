@@ -50,11 +50,12 @@ modelsRefs = {
 }
 
 
-def logUniformModel(args, logger, copyKeys=True):
-    uniformBops = args.MaxBopsBits[0]
+def logBaselineModel(args, logger, copyKeys=True):
+    uniformBops = args.baselineBits[0]
     uniformKey = '{}_w:[{}]_a:[{}]'.format(args.model, uniformBops[0], uniformBops[-1])
     uniformPath = modelsRefs.get(uniformKey)
     keysFromUniform = ['epochsPerStage', 'learning_rate']
+    loggerRows = []
 
     best_prec1 = None
     best_prec1_str = 'Not found'
@@ -68,14 +69,19 @@ def logUniformModel(args, logger, copyKeys=True):
                     value = uniform_checkpoint.get(key)
                     setattr(args, key, value)
                     if logger:
-                        logger.info('Loaded {} from uniform checkpoint:[{}]'.format(key, value))
+                        # logger.info('Loaded {} from uniform checkpoint:[{}]'.format(key, value))
+                        loggerRows.append(['Loaded key', '{} from checkpoint:[{}]'.format(key, value)])
         # extract best_prec1 from uniform checkpoint
         best_prec1 = uniform_checkpoint.get('best_prec1')
         if best_prec1:
             best_prec1_str = '{:.3f}'.format(best_prec1)
+
     # print result
     if logger:
-        logger.info('Uniform {} validation accuracy:[{}]'.format(uniformKey, best_prec1_str))
+        # logger.info('Uniform {} validation accuracy:[{}]'.format(uniformKey, best_prec1_str))
+        loggerRows.append(['Model', '{}'.format(uniformKey)])
+        loggerRows.append(['Validation accuracy', '{}'.format(best_prec1_str)])
+        logger.addInfoTable('Baseline model', loggerRows)
 
     return best_prec1, uniformKey
 
@@ -351,11 +357,10 @@ def logForwardCounters(model, trainLogger):
     if not trainLogger:
         return
 
-    trainLogger.info('=============================================')
-    trainLogger.info('=========== Ops forward counters ============')
-    trainLogger.info('=============================================')
+    rows = [['Layer #', 'Counters']]
+    counterCols = ['Prev idx', 'Current idx', 'Counter']
+
     for layerIdx, layer in enumerate(model.layersList):
-        trainLogger.info('Layer:[{}]  '.format(layerIdx))
         # collect layer counters to 2 arrays:
         # counters holds the counters values
         # indices holds the corresponding counter value indices
@@ -366,47 +371,50 @@ def logForwardCounters(model, trainLogger):
                 indices.append((i, j))
 
         # for each layer, sort counters in descending order
-        msg = ''
+        layerRow = [counterCols]
         while len(counters) > 0:
             # find max counter and print it
             maxIdx = argmax(counters)
             i, j = indices[maxIdx]
-            msg += '[{}][{}]: [{}] || '.format(i, j, counters[maxIdx])
+
+            # add counter as new row
+            layerRow.append([i, j, counters[maxIdx]])
+
             # remove max counter from lists
             del counters[maxIdx]
             del indices[maxIdx]
 
-        trainLogger.info(msg)
+        # add layer row to model table
+        rows.append([layerIdx, layerRow])
 
         # reset layer counters
         layer.resetOpsForwardCounters()
 
-    trainLogger.info('=============================================')
+    trainLogger.addInfoTable(title='Forward counters', rows=rows)
 
 
 def logDominantQuantizedOp(model, k, logger):
     if not logger:
         return
 
+    rows = [['Layer #', 'Alphas']]
+    alphaCols = ['Index', 'Ratio', 'Value', 'Bitwidth', 'Act bitwidth']
+
     top = model.topOps(k=k)
-    logger.info('=============================================')
-    logger.info('Top [{}] quantizations per layer:'.format(k))
-    logger.info('=============================================')
     attributes = ['bitwidth', 'act_bitwidth']
     for i, layerTop in enumerate(top):
-        message = 'Layer:[{}]  '.format(i)
+        layerRow = [alphaCols]
         for idx, w, alpha, layer in layerTop:
-            message += 'Idx:[{}]  w:[{:.5f}]  alpha:[{:.5f}]  '.format(idx, w, alpha)
+            alphaRow = [idx, '{:.5f}'.format(w), '{:.5f}'.format(alpha)]
             for attr in attributes:
-                v = getattr(layer, attr, None)
-                if v:
-                    message += '{}:{}  '.format(attr, v)
+                v = getattr(layer, attr, '')
+                alphaRow.append(v)
+            # add alpha data row to layer data table
+            layerRow.append(alphaRow)
+        # add layer data table to model table as row
+        rows.append([i, layerRow])
 
-            message += '||  '
-
-        logger.info(message)
-
-    logger.info('=============================================')
+    logger.addInfoTable(title='Alphas (top [{}])'.format(k), rows=rows)
 
 
 def printModelToFile(model, save_path, fname='model'):

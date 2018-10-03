@@ -1,6 +1,6 @@
 from torch.optim import SGD
 
-from .regime import TrainRegime, infer, trainWeights, initTrainLogger, save_checkpoint
+from .regime import TrainRegime, infer, trainWeights, initTrainLogger, save_checkpoint, HtmlLogger
 from cnn.architect import Architect
 import cnn.gradEstimators as gradEstimators
 
@@ -32,16 +32,16 @@ class AlphasWeightsLoop(TrainRegime):
             trainLogger = initTrainLogger(str(epoch), self.trainFolderPath, args.propagate)
             # set loggers dictionary
             loggersDict = dict(train=trainLogger, main=self.logger)
-            # train alphas
-            self.trainAlphas(self.search_queue, model, self.architect, epoch, loggersDict)
-
-            # validation on current optimal model
-            valid_acc = infer(self.valid_queue, model, model.evalMode, self.cross_entropy, epoch, loggersDict)
-
-            # save model checkpoint
-            is_best = valid_acc > best_prec1
-            best_prec1 = max(valid_acc, best_prec1)
-            save_checkpoint(self.trainFolderPath, model, args, epoch, best_prec1, is_best)
+            # # train alphas
+            # self.trainAlphas(self.search_queue, model, self.architect, epoch, loggersDict)
+            #
+            # # validation on current optimal model
+            # valid_acc = infer(self.valid_queue, model, model.evalMode, self.cross_entropy, epoch, loggersDict)
+            #
+            # # save model checkpoint
+            # is_best = valid_acc > best_prec1
+            # best_prec1 = max(valid_acc, best_prec1)
+            # save_checkpoint(self.trainFolderPath, model, args, epoch, best_prec1, is_best)
 
             ## train weights ##
             # create epoch train weights folder
@@ -59,7 +59,9 @@ class AlphasWeightsLoop(TrainRegime):
             switchStageFlag = True
             while switchStageFlag:
                 # init epoch train logger
-                trainLogger = initTrainLogger('{}_{}'.format(epochName, wEpoch), epochFolderPath, args.propagate)
+                # trainLogger = initTrainLogger('{}_{}'.format(epochName, wEpoch), epochFolderPath, args.propagate)
+                trainLogger = HtmlLogger(epochFolderPath, '{}_{}'.format(epochName, wEpoch))
+                trainLogger.createDataTable('', self.colsTrainWeights)
                 # train stage weights
                 trainWeights(self.train_queue, model, model.choosePathByAlphas, self.cross_entropy, optimizer,
                              args.grad_clip, wEpoch, dict(train=trainLogger))

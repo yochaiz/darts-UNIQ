@@ -12,6 +12,7 @@ from torch.nn import CrossEntropyLoss
 from cnn.utils import accuracy, AvgrageMeter, load_data, saveArgsToJSON
 from cnn.utils import initTrainLogger, logDominantQuantizedOp, save_checkpoint
 from cnn.utils import sendDataEmail, logForwardCounters
+from cnn.HtmlLogger import HtmlLogger
 
 
 def trainWeights(train_queue, model, modelChoosePathFunc, crit, optimizer, grad_clip, nEpoch, loggers):
@@ -54,22 +55,30 @@ def trainWeights(train_queue, model, modelChoosePathFunc, crit, optimizer, grad_
         endTime = time()
 
         if trainLogger:
-            trainLogger.info(
-                'train [{}/{}] weight_loss:[{:.5f}] Accuracy:[{:.3f}] PathBopsRatio:[{:.3f}] time:[{:.5f}]'
-                    .format(step, nBatches, loss_container.avg, top1.avg, bopsRatio, endTime - startTime))
+            trainLogger.addDataRow({'Batch #': '{}/{}'.format(step, nBatches),
+                                    'Weight loss': '{:.5f}'.format(loss_container.avg),
+                                    'Accuracy': '{:.3f}'.format(top1.avg),
+                                    'Path bops ratio': '{:.3f}'.format(bopsRatio),
+                                    'Time': '{:.5f}'.format(endTime - startTime)
+                                    })
+            if (step + 1) % 10 == 0:
+                trainLogger.addColumnsRowToDataTable()
+
+        break
 
     # log accuracy, loss, etc.
-    message = 'Epoch:[{}] , training accuracy:[{:.3f}] , training loss:[{:.3f}] , optimizer_lr:[{:.5f}]' \
-        .format(nEpoch, top1.avg, loss_container.avg, optimizer.param_groups[0]['lr'])
+    summaryData = {'Weight loss': '{:.5f}'.format(loss_container.avg), 'Accuracy': '{:.3f}'.format(top1.avg)}
 
     for _, logger in loggers.items():
-        logger.info(message)
+        logger.addSummaryDataRow(summaryData)
 
     # log dominant QuantizedOp in each layer
     logDominantQuantizedOp(model, k=2, logger=trainLogger)
 
     # log forward counters
     logForwardCounters(model, trainLogger)
+
+    return summaryData
 
 
 def infer(valid_queue, model, modelInferMode, crit, nEpoch, loggers):
@@ -83,7 +92,7 @@ def infer(valid_queue, model, modelInferMode, crit, nEpoch, loggers):
     bopsRatio = modelInferMode()
     # print eval layer index selection
     if trainLogger:
-        trainLogger.info('Layers optimal indices:{}'.format([layer.curr_alpha_idx for layer in model.layersList]))
+        trainLogger.addInfoToDataTable('Layers optimal indices:{}'.format([layer.curr_alpha_idx for layer in model.layersList]))
 
     nBatches = len(valid_queue)
 
@@ -106,20 +115,32 @@ def infer(valid_queue, model, modelInferMode, crit, nEpoch, loggers):
             endTime = time()
 
             if trainLogger:
-                trainLogger.info(
-                    'validation [{}/{}] Loss:[{:.5f}] Accuracy:[{:.3f}] OptBopsRatio:[{:.3f}] time:[{:.5f}]'
-                        .format(step, nBatches, objs.avg, top1.avg, bopsRatio, endTime - startTime))
+                trainLogger.addDataRow({'Batch #': '{}/{}'.format(step, nBatches),
+                                        'Weight loss': '{:.5f}'.format(objs.avg),
+                                        'Accuracy': '{:.3f}'.format(top1.avg),
+                                        'Path bops ratio': '{:.3f}'.format(bopsRatio),
+                                        'Time': '{:.5f}'.format(endTime - startTime)
+                                        })
+                if (step + 1) % 10 == 0:
+                    trainLogger.addColumnsRowToDataTable()
 
-    message = 'Epoch:[{}] , validation accuracy:[{:.3f}] , validation loss:[{:.3f}] , OptBopsRatio:[{:.3f}]' \
-        .format(nEpoch, top1.avg, objs.avg, bopsRatio)
+            break
+
+    # log accuracy, loss, etc.
+    summaryData = {'Weight loss': '{:.5f}'.format(objs.avg), 'Accuracy': '{:.3f}'.format(top1.avg)}
 
     for _, logger in loggers.items():
-        logger.info(message)
+        logger.addSummaryDataRow(summaryData)
 
     return top1.avg
 
 
 class TrainRegime:
+    colsTrainWeights = ['Batch #', 'Weight loss', 'Accuracy', 'Path bops ratio', 'Time']
+    colsMainInitWeightsTrain = ['Epoch #', 'Training loss', 'Training acc', 'Validation loss', 'Validation acc']
+    colsMainLogger = ['Epoch #', 'Arch loss', 'Optimal bops ratio', 'Training loss', 'Training acc', 'Validation loss', 'Validation acc',
+                      'Optimizer lr']
+
     def __init__(self, args, model, modelClass, logger):
         self.args = args
         self.model = model
@@ -159,8 +180,7 @@ class TrainRegime:
         # remove epoch 0 from list, we don't want to switch stage at the beginning
         epochsSwitchStage = epochsSwitchStage[1:]
 
-        logger.info('nEpochs:[{}]'.format(nEpochs))
-        logger.info('epochsSwitchStage:{}'.format(epochsSwitchStage))
+        logger.addInfoTable('Epochs', [['nEpochs', '{}'.format(nEpochs)], ['epochsSwitchStage', '{}'.format(epochsSwitchStage)]])
 
         # init epoch
         self.epoch = 0
@@ -175,7 +195,10 @@ class TrainRegime:
             # we loaded ops in the same layer with different weights, therefore we just have to switch_stage
             switchStageFlag = True
             while switchStageFlag:
-                switchStageFlag = model.switch_stage(logger)
+                switchStageFlag = model.switch_stage(logger=None)
+
+        # init logger data table
+        logger.createDataTable('A', self.colsMainLogger)
 
     @abstractmethod
     def train(self):
@@ -279,6 +302,7 @@ class TrainRegime:
 
     def initialWeightsTraining(self, model, args, trainFolderName, filename=None):
         nEpochs = self.nEpochs
+        logger = self.logger
 
         # create train folder
         folderPath = '{}/{}'.format(self.trainFolderPath, trainFolderName)
@@ -295,29 +319,41 @@ class TrainRegime:
         best_prec1 = 0.0
 
         epoch = 0
-        for epoch in range(1, nEpochs + 1):
-            trainLogger = initTrainLogger(str(epoch), folderPath, args.propagate)
-            # set loggers dictionary
-            loggersDict = dict(train=trainLogger, main=self.logger)
+        # init table in main logger
+        title = 'Initial weights training'
+        logger.createDataTable(title, self.colsMainInitWeightsTrain)
 
+        for epoch in range(1, nEpochs + 1):
             scheduler.step()
             lr = scheduler.get_lr()[0]
 
-            trainLogger.info(
-                'optimizer_lr:[{:.5f}], scheduler_lr:[{:.5f}]'.format(optimizer.param_groups[0]['lr'], lr))
+            trainLogger = HtmlLogger(folderPath, str(epoch))
+            # set loggers dictionary
+            loggersDict = dict(train=trainLogger)
+
+            trainLogger.addInfoTable('Learning rates', [
+                ['optimizer_lr', '{:.5f}'.format(optimizer.param_groups[0]['lr'])],
+                ['scheduler_lr', '{:.5f}'.format(lr)]
+            ])
+
+            trainLogger.createDataTable(title, self.colsTrainWeights)
 
             # training
             print('========== Epoch:[{}] =============='.format(epoch))
-            trainWeights(self.train_queue, model, model.chooseRandomPath, self.cross_entropy, optimizer, args.grad_clip,
-                         epoch, loggersDict)
+            epochData = trainWeights(self.train_queue, model, model.chooseRandomPath, self.cross_entropy, optimizer, args.grad_clip, epoch,
+                                     loggersDict)
+
+            logger.addDataRow(epochData)
 
             # switch stage, i.e. freeze one more layer
             if (epoch in self.epochsSwitchStage) or (epoch == nEpochs):
+                # create validation table
+                trainLogger.createDataTable('Validation', self.colsTrainWeights)
                 # validation
                 valid_acc = infer(self.valid_queue, model, model.evalMode, self.cross_entropy, epoch, loggersDict)
 
                 # switch stage
-                model.switch_stage(trainLogger)
+                model.switch_stage()
                 # update optimizer & scheduler due to update in learnable params
                 optimizer = SGD(model.parameters(), scheduler.get_lr()[0],
                                 momentum=args.momentum, weight_decay=args.weight_decay)
@@ -332,7 +368,9 @@ class TrainRegime:
                 # save model checkpoint
                 save_checkpoint(self.trainFolderPath, model, args, epoch, best_prec1, is_best=False, filename=filename)
 
-        self.logger.info('Optimal validation accuracy: [{:.3f}]'.format(best_prec1))
+        trainData.append(['Optimal validation accuracy', '{:.3f}'.format(best_prec1)])
+        self.logger.addInfoTable(title, trainData)
+
         args.best_prec1 = best_prec1
 
         return epoch

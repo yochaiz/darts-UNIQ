@@ -19,12 +19,13 @@ outputFile = '{}.out'.format(datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
 
 commands = [
     [executable, './train_search.py',
-     '--data', '../data/', '--batch_size', '5', '--arch_learning_rate', '5', '--lmbda', '0',
-     '--bitwidth', '2#3#4#6', '--MaxBopsBits', '3', '--epochs', '1', '--bopsCounter', 'discrete',
-     '--model', 'thin_resnet', '--nSamplesPerAlpha', '5', '--pre_trained',
-     './pre_trained/multiple_layer_weights/thin_resnet_[2,3,4,6]/train/model_checkpoint.pth.tar',
-     '--nCopies', '2'
-     ]  # , '--train_portion', '1'
+     '--data', '../data/', '--batch_size', '250', '--arch_learning_rate', '5', '--lmbda', '0',
+     '--bitwidth', '3', '--baselineBits', '3', '--epochs', '5', '--bopsCounter', 'discrete',
+     '--model', 'thin_resnet', '--pre_trained',
+     './pre_trained/thin_resnet/train/model_opt.pth.tar',
+     '--learning_rate', '0.01',
+     '--nCopies', '2', '--train_portion', '1'
+     ]  #
 ]
 
 # # resume training

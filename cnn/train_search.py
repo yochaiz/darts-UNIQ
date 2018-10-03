@@ -12,8 +12,9 @@ from torch.cuda import manual_seed as cuda_manual_seed
 from torch import manual_seed as torch_manual_seed
 
 import cnn.trainRegime as trainRegimes
+from cnn.HtmlLogger import HtmlLogger
 from cnn.utils import create_exp_dir, count_parameters_in_MB, saveArgsToJSON, loadGradEstimatorsNames
-from cnn.utils import initLogger, printModelToFile, loadModelNames, models, sendEmail, logUniformModel
+from cnn.utils import initLogger, printModelToFile, loadModelNames, models, sendEmail, logBaselineModel
 
 
 # collect possible alphas optimization
@@ -73,7 +74,7 @@ def parseArgs(lossFuncsLambda):
 
     parser.add_argument('--loss', type=str, default='UniqLoss', choices=[key for key in lossFuncsLambda.keys()])
     parser.add_argument('--lmbda', type=float, default=1.0, help='Lambda value for UniqLoss')
-    parser.add_argument('--MaxBopsBits', type=str, default='3,3', help='bits budget')
+    parser.add_argument('--baselineBits', type=str, default='3,3', help='bits budget')
     # select bops counter function
     bopsCounterKeys = list(models.BaseNet.countBopsFuncs.keys())
     parser.add_argument('--bopsCounter', type=str, default=bopsCounterKeys[0], choices=bopsCounterKeys)
@@ -93,9 +94,9 @@ def parseArgs(lossFuncsLambda):
     else:
         args.bitwidth = [(x, x) for x in list(range(args.nBitsMin, args.nBitsMax + 1))]
 
-    # convert MaxBopsBits to tuple
-    args.MaxBopsBits = args.MaxBopsBits.split(',')
-    args.MaxBopsBits = [(int(args.MaxBopsBits[0]), int(args.MaxBopsBits[-1]))]
+    # convert baselineBits to tuple
+    args.baselineBits = args.baselineBits.split(',')
+    args.baselineBits = [(int(args.baselineBits[0]), int(args.baselineBits[-1]))]
 
     # convert kernel sizes to list, sorted ascending
     args.kernel = [int(i) for i in args.kernel.split(',')]
@@ -128,10 +129,10 @@ if __name__ == '__main__':
     # loss functions manipulate lambda value
     lossFuncsLambda = dict(UniqLoss=1.0, CrossEntropy=0.0)
     args = parseArgs(lossFuncsLambda)
-    logger = initLogger(args.save, args.propagate)
+    logger = HtmlLogger(args.save, 'log')
 
     if not is_available():
-        logger.info('no gpu device available')
+        print('no gpu device available')
         exit(1)
 
     np.random.seed(args.seed)
@@ -144,7 +145,7 @@ if __name__ == '__main__':
     # build model for uniform distribution of bits
     modelClass = models.__dict__[args.model]
     uniform_args = argparse.Namespace(**vars(args))
-    uniform_args.bitwidth = args.MaxBopsBits
+    uniform_args.bitwidth = args.baselineBits
     uniform_model = modelClass(uniform_args)
     # init maxBops
     args.maxBops = uniform_model._criterion.maxBops
@@ -157,6 +158,31 @@ if __name__ == '__main__':
     # init model
     model = modelClass(args)
     model = model.cuda()
+
+    # log args
+    logger.addInfoTable('args', HtmlLogger.dictToRows(vars(args), nElementPerRow=3))
+    # log other parameters
+    permutationStr = model.nPerms
+    for p in [9, 6, 3]:
+        v = model.nPerms / (10 ** p)
+        if v > 1:
+            permutationStr = '{:.3f} * 10<sup>{}</sup>'.format(v, p)
+            break
+
+    logger.addInfoTable('Parameters', HtmlLogger.dictToRows(
+        {
+            'Parameters size': '{:.3f} MB'.format(count_parameters_in_MB(model)),
+            'Learnable params': len(model.learnable_params),
+            'Ops per layer': [layer.numOfOps() for layer in model.layersList],
+            'Permutations': permutationStr
+        }, nElementPerRow=2))
+    # log baseline model
+    logBaselineModel(args, logger, copyKeys=False)
+    # print args
+    print(args)
+    # # log model architecture to file
+    # printModelToFile(model, args.save)
+
     # load pre-trained full-precision model
     args.loadedOpsWithDiffWeights = model.loadPreTrained(args.pre_trained, logger, args.gpu[0])
 
@@ -181,17 +207,6 @@ if __name__ == '__main__':
     # G(t)
     ## ======================================
 
-    # print some attributes
-    print(args)
-    printModelToFile(model, args.save)
-    logger.info('GPU:{}'.format(args.gpu))
-    logger.info("args = %s", args)
-    logger.info("param size = %fMB", count_parameters_in_MB(model))
-    logger.info('Learnable params:[{}]'.format(len(model.learnable_params)))
-    logger.info('Ops per layer:{}'.format([layer.numOfOps() for layer in model.layersList]))
-    logger.info('nPerms:[{}]'.format(model.nPerms))
-    logUniformModel(args, logger, copyKeys=False)
-
     try:
         # build regime for alphas optimization
         alphasRegimeClass = trainRegimes.__dict__[args.alphas_regime]
@@ -201,7 +216,7 @@ if __name__ == '__main__':
         # wait for sending all queued jobs
         alphasRegime.waitForQueuedJobs()
 
-        logger.info('Done !')
+        logger.addInfoToDataTable('Done !')
 
     except Exception as e:
         # create message content
@@ -209,7 +224,7 @@ if __name__ == '__main__':
             format(args.folderName, type(e), str(e), format_exc())
 
         # log to logger
-        logger.info(messageContent)
+        logger.addInfoToDataTable(messageContent, color='lightsalmon')
         # send e-mail with error details
         subject = '[{}] stopped'.format(args.folderName)
         sendEmail(['yochaiz.cs@gmail.com'], subject, messageContent)

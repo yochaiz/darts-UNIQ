@@ -68,7 +68,7 @@ cudnn.enabled = True
 cuda_manual_seed(args.seed)
 
 # init losses
-crit = UniqLoss(lmdba=args.lmbda, MaxBopsBits=args.MaxBopsBits, kernel_sizes=args.kernel,
+crit = UniqLoss(lmdba=args.lmbda, baselineBits=args.baselineBits, kernel_sizes=args.kernel,
                 bopsFuncKey=args.bopsCounter, folderName=args.save)
 crit = crit.cuda()
 model = ResNet(crit, args.bitwidth, args.kernel, args.bopsCounter)
@@ -85,7 +85,7 @@ model.load_alphas_state(optModelChkpnt['alphas'])
 model.toDiscrete()
 
 #build uniform model
-uniform_model = ResNet(crit, [args.MaxBopsBits], args.kernel, args.bopsCounter).cuda()
+uniform_model = ResNet(crit, [args.baselineBits], args.kernel, args.bopsCounter).cuda()
 load_pre_trained(args.pre_trained, uniform_model, logger, args.gpu[0])
 uniform_model.toDiscrete()
 
