@@ -33,9 +33,11 @@ import cnn.gradEstimators as gradEstimators
 # references to models pre-trained
 modelsRefs = {
     'thin_resnet': '/home/yochaiz/DropDarts/cnn/pre_trained/thin_resnet/train/model_opt.pth.tar',
+    'thin_resnet_w:[32]_a:[32]': '/home/yochaiz/DropDarts/cnn/pre_trained/thin_resnet/train/model_opt.pth.tar',
     'thin_resnet_w:[2]_a:[32]': '/home/yochaiz/DropDarts/cnn/uniform/thin_resnet_w:[2]_a:[32]/train/model_opt.pth.tar',
     'thin_resnet_w:[3]_a:[3]': '/home/yochaiz/DropDarts/cnn/uniform/thin_resnet_w:[3]_a:[3]/train/model_opt.pth.tar',
     'resnet': '/home/yochaiz/DropDarts/cnn/pre_trained/resnet_cifar10_trained_32_bit_deeper/model_best.pth.tar',
+    'resnet_w:[32]_a:[32]': '/home/yochaiz/DropDarts/cnn/pre_trained/resnet_cifar10_trained_32_bit_deeper/model_best.pth.tar',
     'resnet_w:[1]_a:[1]': '/home/yochaiz/DropDarts/cnn/uniform/resnet_w:[1]_a:[1]/train/model_opt.pth.tar',
     'resnet_w:[1]_a:[32]': '/home/yochaiz/DropDarts/cnn/uniform/resnet_w:[1]_a:[32]/train/model_opt.pth.tar',
     'resnet_w:[2]_a:[32]': '/home/yochaiz/DropDarts/cnn/uniform/resnet_w:[2]_a:[32]/train/model_opt.pth.tar',
