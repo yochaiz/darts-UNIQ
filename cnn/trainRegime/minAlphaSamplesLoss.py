@@ -222,7 +222,7 @@ class MinimalAlphaSamplesLoss(TrainRegime):
         self.trainSamplesAlphas(loggersDict)
 
         # validation on current optimal model
-        valid_acc = self.infer(self.valid_queue, model, model.evalMode, self.cross_entropy, self.epoch, loggersDict)
+        valid_acc = self.infer(loggersDict)
 
         # save model checkpoint
         save_checkpoint(self.trainFolderPath, model, self.args, self.epoch, valid_acc, True)

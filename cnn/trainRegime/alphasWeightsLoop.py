@@ -63,8 +63,7 @@ class AlphasWeightsLoop(TrainRegime):
                 trainLogger = HtmlLogger(epochFolderPath, '{}_{}'.format(epochName, wEpoch))
                 trainLogger.createDataTable('', self.colsTrainWeights)
                 # train stage weights
-                self.trainWeights(self.train_queue, model, model.choosePathByAlphas, self.cross_entropy, optimizer,
-                             args.grad_clip, wEpoch, dict(train=trainLogger))
+                self.trainWeights(model.choosePathByAlphas, optimizer, dict(train=trainLogger))
                 # switch stage
                 switchStageFlag = model.switch_stage(trainLogger)
                 # update epoch number
@@ -75,10 +74,9 @@ class AlphasWeightsLoop(TrainRegime):
             # set loggers dictionary
             loggersDict = dict(train=trainLogger, main=self.logger)
             # last weights training epoch we want to log also to main logger
-            self.trainWeights(self.train_queue, model, model.choosePathByAlphas, self.cross_entropy, optimizer,
-                         args.grad_clip, epochName, loggersDict)
+            self.trainWeights(model.choosePathByAlphas, optimizer, loggersDict)
             # validation on optimal model
-            valid_acc = self.infer(self.valid_queue, model, model.evalMode, self.cross_entropy, epochName, loggersDict)
+            valid_acc = self.infer(loggersDict)
             # # calc validation accuracy & loss on uniform model
             # infer(self.valid_queue, model, model.uniformMode, self.cross_entropy, 'Uniform', dict(main=self.logger))
 

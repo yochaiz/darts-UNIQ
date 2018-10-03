@@ -230,8 +230,7 @@ class TrainRegime:
 
             # training
             print('========== Epoch:[{}] =============='.format(epoch))
-            trainData = self.trainWeights(self.train_queue, model, model.chooseRandomPath, self.cross_entropy, optimizer, args.grad_clip, epoch,
-                                          loggersDict)
+            trainData = self.trainWeights(model.chooseRandomPath, optimizer, loggersDict)
 
             # add epoch number
             trainData[self.epochNumKey] = epoch
@@ -241,7 +240,7 @@ class TrainRegime:
                 # create validation table
                 trainLogger.createDataTable('Validation', self.colsTrainWeights)
                 # validation
-                valid_acc, validData = self.infer(self.valid_queue, model, model.evalMode, self.cross_entropy, epoch, loggersDict)
+                valid_acc, validData = self.infer(loggersDict)
 
                 # merge trainData with validData
                 for k, v in validData.items():
@@ -340,12 +339,17 @@ class TrainRegime:
         for _, logger in loggers.items():
             logger.info(message)
 
-    def trainWeights(self, train_queue, model, modelChoosePathFunc, crit, optimizer, grad_clip, nEpoch, loggers):
+    def trainWeights(self, modelChoosePathFunc, optimizer, loggers):
         loss_container = AvgrageMeter()
         top1 = AvgrageMeter()
         top5 = AvgrageMeter()
 
         trainLogger = loggers.get('train')
+
+        model = self.model
+        crit = self.cross_entropy
+        train_queue = self.train_queue
+        grad_clip = self.args.grad_clip
 
         model.train()
 
@@ -389,8 +393,6 @@ class TrainRegime:
                 if (step + 1) % 10 == 0:
                     trainLogger.addColumnsRowToDataTable()
 
-            break
-
         # log accuracy, loss, etc.
         summaryData = {self.trainLossKey: '{:.5f}'.format(loss_container.avg), self.trainAccKey: '{:.3f}'.format(top1.avg)}
 
@@ -405,12 +407,17 @@ class TrainRegime:
 
         return summaryData
 
-    def infer(self, valid_queue, model, modelInferMode, crit, nEpoch, loggers):
+    def infer(self, loggers):
         objs = AvgrageMeter()
         top1 = AvgrageMeter()
         top5 = AvgrageMeter()
 
         trainLogger = loggers.get('train')
+
+        model = self.model
+        modelInferMode = model.evalMode
+        valid_queue = self.valid_queue
+        crit = self.cross_entropy
 
         model.eval()
         bopsRatio = modelInferMode()
@@ -447,8 +454,6 @@ class TrainRegime:
                                             })
                     if (step + 1) % 10 == 0:
                         trainLogger.addColumnsRowToDataTable()
-
-                break
 
         # log accuracy, loss, etc.
         summaryData = {self.validLossKey: '{:.5f}'.format(objs.avg), self.validAccKey: '{:.3f}'.format(top1.avg)}
