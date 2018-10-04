@@ -61,8 +61,11 @@ class UNIQNet(nn.Module):
         self.act_bitwidth = act_bitwidth
         self.quant_edges = quant and quant_edges
         self.stages = list(range(step_setup[0], 1000, step_setup[1]))
-        self.register_forward_pre_hook(save_state)
-        self.register_forward_hook(restore_state)
+        # save hooks handlers
+        self.hooks = [
+            self.register_forward_pre_hook(save_state),
+            self.register_forward_hook(restore_state)
+        ]
 
     def get_layers_list(self):
         modules_list = list(self.modules())
