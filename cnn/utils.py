@@ -71,7 +71,6 @@ def logBaselineModel(args, logger, copyKeys=True):
                     value = uniform_checkpoint.get(key)
                     setattr(args, key, value)
                     if logger:
-                        # logger.info('Loaded {} from uniform checkpoint:[{}]'.format(key, value))
                         loggerRows.append(['Loaded key', '{} from checkpoint:[{}]'.format(key, value)])
         # extract best_prec1 from uniform checkpoint
         best_prec1 = uniform_checkpoint.get('best_prec1')
@@ -80,7 +79,6 @@ def logBaselineModel(args, logger, copyKeys=True):
 
     # print result
     if logger:
-        # logger.info('Uniform {} validation accuracy:[{}]'.format(uniformKey, best_prec1_str))
         loggerRows.append(['Model', '{}'.format(uniformKey)])
         loggerRows.append(['Validation accuracy', '{}'.format(best_prec1_str)])
         logger.addInfoTable('Baseline model', loggerRows)
@@ -357,6 +355,10 @@ def initTrainLogger(logger_file_name, folder_path, propagate=False):
 
 def logForwardCounters(model, loggerFuncs):
     if (not loggerFuncs) or (len(loggerFuncs) == 0):
+        for layerIdx, layer in enumerate(model.layersList):
+            # reset layer counters
+            layer.resetOpsForwardCounters()
+
         return
 
     rows = [['Layer #', 'Counters']]
@@ -422,12 +424,35 @@ def logDominantQuantizedOp(model, k, loggerFuncs):
     for f in loggerFuncs:
         f(k, rows)
 
+def logDominantQuantizedOpOLD(model, k, logger):
+    if not logger:
+        return
+
+    top = model.topOps(k=k)
+    logger.info('=============================================')
+    logger.info('Top [{}] quantizations per layer:'.format(k))
+    logger.info('=============================================')
+    attributes = ['bitwidth', 'act_bitwidth']
+    for i, layerTop in enumerate(top):
+        message = 'Layer:[{}]  '.format(i)
+        for idx, w, alpha, layer in layerTop:
+            message += 'Idx:[{}]  w:[{:.5f}]  alpha:[{:.5f}]  '.format(idx, w, alpha)
+            for attr in attributes:
+                v = getattr(layer, attr, None)
+                if v:
+                    message += '{}:{}  '.format(attr, v)
+
+            message += '||  '
+
+        logger.info(message)
+
+    logger.info('=============================================')
 
 def printModelToFile(model, save_path, fname='model'):
     filePath = '{}/{}.txt'.format(save_path, fname)
     logger = setup_logging(filePath, 'modelLogger')
     logger.info('{}'.format(model))
-    logDominantQuantizedOp(model, k=2, loggerFuncs=logger)
+    logDominantQuantizedOpOLD(model, k=2, logger=logger)
 
 
 # def _data_transforms_cifar10(args):
