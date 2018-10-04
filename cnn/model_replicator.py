@@ -2,6 +2,7 @@ from numpy import array_split
 from multiprocessing import Pool
 from abc import abstractmethod
 
+from torch.cuda import set_device
 from UNIQ.uniq import save_state, restore_state
 
 
@@ -10,33 +11,35 @@ class ModelReplicator:
         self.gpuIDs = args.gpu
         # init replications list
         self.replications = []
-        # count number of replications and assign each of them to a GPU
-        gpus = [gpu for gpu in args.gpu for _ in range(args.nCopies)]
 
         # create replications
-        for gpu in gpus:
-            # create model new instance
-            cModel = modelClass(args)
-            # set model to cuda on specific GPU
-            cModel = cModel.cuda(gpu)
-            # set model criterion to its GPU
-            cModel._criterion.cuda(gpu)
-            cModel._criterion.search_loss.cuda(gpu)
-            # set mode to eval mode
-            cModel.eval()
-            # remove UNIQ save_state(), restore_state() hooks for all model ops
-            for layer in cModel.layersList:
-                for op in layer.getOps():
-                    # remove hooks
-                    for hook in op.hooks:
-                        hook.remove()
-                    # clear hooks list
-                    op.hooks.clear()
-            # add model to replications
-            self.replications.append((cModel, gpu))
+        for gpu in self.gpuIDs:
+            for _ in range(args.nCopies):
+                # set device to required gpu
+                set_device(gpu)
+                # create model new instance
+                cModel = modelClass(args)
+                # set model to cuda on specific GPU
+                cModel = cModel.cuda()
+                # set model criterion to its GPU
+                cModel._criterion.cuda()
+                # set mode to eval mode
+                cModel.eval()
+                # remove UNIQ save_state(), restore_state() hooks for all model ops
+                for layer in cModel.layersList:
+                    for op in layer.getOps():
+                        # remove hooks
+                        for hook in op.hooks:
+                            hook.remove()
+                        # clear hooks list
+                        op.hooks.clear()
+                # add model to replications
+                self.replications.append((cModel, gpu))
 
         # update replications weights + quantize weights
         self.updateModelWeights(model)
+        # restore original gpu
+        set_device(args.gpu[0])
 
     # build args for pool.map
     @abstractmethod
