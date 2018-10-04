@@ -122,7 +122,7 @@ class Block(Module):
 
 
 class MixedOp(Block):
-    def __init__(self, bitwidths, input_bitwidth, params, coutBopsParams, prevLayer, nOpsCopies=1):
+    def __init__(self, bitwidths, input_bitwidth, params, coutBopsParams, prevLayer):
         super(MixedOp, self).__init__()
 
         # assure bitwidths is a list of integers
@@ -130,8 +130,12 @@ class MixedOp(Block):
             bitwidths = bitwidths[0]
         # init operations mixture
         self.ops = ModuleList()
-        for _ in range(nOpsCopies):
-            self.ops.append(self.initOps(bitwidths, params))
+        # ops must have at least one copy
+        self.ops.append(self.initOps(bitwidths, params))
+        # add more copies if prevLayer exists
+        if prevLayer:
+            for _ in range(prevLayer.numOfOps() - 1):
+                self.ops.append(self.initOps(bitwidths, params))
 
         # init list of all operations (including copies) as single long list
         # for cases we have to modify all ops
@@ -284,13 +288,12 @@ class MixedLinear(MixedOp):
 
 
 class MixedConv(MixedOp):
-    def __init__(self, bitwidths, in_planes, out_planes, kernel_size, stride, input_size, input_bitwidth, prevLayer,
-                 nOpsCopies=1):
+    def __init__(self, bitwidths, in_planes, out_planes, kernel_size, stride, input_size, input_bitwidth, prevLayer):
         assert (isinstance(kernel_size, list))
         params = in_planes, out_planes, kernel_size, stride
         coutBopsParams = input_size, in_planes
 
-        super(MixedConv, self).__init__(bitwidths, input_bitwidth, params, coutBopsParams, prevLayer, nOpsCopies)
+        super(MixedConv, self).__init__(bitwidths, input_bitwidth, params, coutBopsParams, prevLayer)
 
         self.in_planes = in_planes
 
@@ -320,8 +323,7 @@ class MixedConv(MixedOp):
 
 
 class MixedConvWithReLU(MixedOp):
-    def __init__(self, bitwidths, in_planes, out_planes, kernel_size, stride,
-                 input_size, input_bitwidth, prevLayer, nOpsCopies=1, useResidual=False):
+    def __init__(self, bitwidths, in_planes, out_planes, kernel_size, stride, input_size, input_bitwidth, prevLayer, useResidual=False):
         assert (isinstance(kernel_size, list))
         params = in_planes, out_planes, kernel_size, stride, useResidual
         coutBopsParams = in_planes, input_size
@@ -331,8 +333,7 @@ class MixedConvWithReLU(MixedOp):
             # self.trainForward = self.trainResidualForward
             # self.evalForward = self.evalResidualForward
 
-        super(MixedConvWithReLU, self).__init__(bitwidths, input_bitwidth, params, coutBopsParams, prevLayer,
-                                                nOpsCopies)
+        super(MixedConvWithReLU, self).__init__(bitwidths, input_bitwidth, params, coutBopsParams, prevLayer)
 
         self.in_planes = in_planes
 
