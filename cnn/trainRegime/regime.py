@@ -29,7 +29,7 @@ class TrainRegime:
     lrKey = 'Optimizer lr'
 
     # init formats for keys
-    formats = {validLossKey: '{:.5f}', validAccKey: '{:.3f}', optBopsRatioKey: '{:.3f}', timeKey: '{:.5f}', archLossKey: '{:.5f}', lrKey: '{:.3f}',
+    formats = {validLossKey: '{:.5f}', validAccKey: '{:.3f}', optBopsRatioKey: '{:.3f}', timeKey: '{:.3f}', archLossKey: '{:.5f}', lrKey: '{:.3f}',
                trainLossKey: '{:.5f}', trainAccKey: '{:.3f}', pathBopsRatioKey: '{:.3f}'}
 
     initWeightsTrainTableTitle = 'Initial weights training'
@@ -307,13 +307,12 @@ class TrainRegime:
 
         # update model replications weights
         architect.modelReplicator.updateModelWeights(model)
+        # quantize all ops
+        architect.modelReplicator.quantize()
 
         if trainLogger:
             trainLogger.createDataTable('Epoch:[{}] - Alphas'.format(nEpoch), self.colsTrainAlphas)
             trainLogger.addInfoToDataTable('Model replications weights have been updated')
-
-        # quantize all ops
-        architect.modelReplicator.quantize()
 
         nBatches = len(search_queue)
 
