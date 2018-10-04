@@ -4,7 +4,7 @@
 #SBATCH -J "DropDarts"
 #SBATCH -t 04-00:00:00
 #SBATCH -p gip,all
-#SBATCH -w gaon2
+#SBATCH -w gaon4
 #SBATCH --mail-user=yochaiz@cs.technion.ac.il
 #SBATCH --mail-type=ALL # Valid values are NONE, BEGIN, END, FAIL, REQUEUE, ALL
 

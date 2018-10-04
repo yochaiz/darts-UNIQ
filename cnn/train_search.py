@@ -33,7 +33,7 @@ def parseArgs(lossFuncsLambda):
     parser.add_argument('--model', '-a', metavar='MODEL', default='tinynet', choices=modelNames,
                         help='model architecture: ' + ' | '.join(modelNames) + ' (default: alexnet)')
     parser.add_argument('--batch_size', type=int, default=256, help='batch size')
-    parser.add_argument('--learning_rate', type=float, default=0.001, help='init learning rate')
+    parser.add_argument('--learning_rate', type=float, default=0.01, help='init learning rate')
     parser.add_argument('--learning_rate_min', type=float, default=1E-5, help='min learning rate')
     parser.add_argument('--momentum', type=float, default=0.9, help='momentum')
     parser.add_argument('--weight_decay', type=float, default=1e-4, help='weight decay')
