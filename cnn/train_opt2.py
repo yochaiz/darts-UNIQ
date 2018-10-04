@@ -8,13 +8,8 @@ from cnn.utils import initLogger, printModelToFile, models, create_exp_dir, mode
 
 parser = ArgumentParser()
 parser.add_argument('--data', type=str, required=True, help='JSON file path')
-parser.add_argument('--epochs', type=str, default='5',
-                    help='num of training epochs per layer, as list, e.g. 5,4,3,8,6.'
-                         'If len(epochs)<len(layers) then last value is used for rest of the layers')
 
 scriptArgs = parser.parse_args()
-# convert epochs to list
-scriptArgs.epochs = [int(i) for i in scriptArgs.epochs.split(',')]
 
 # def G(scriptArgs):
 with open(scriptArgs.data, 'r') as f:
@@ -24,7 +19,6 @@ with open(scriptArgs.data, 'r') as f:
     # update values
     args.train_portion = 1.0
     args.batch_size = 250
-    args.epochs = scriptArgs.epochs
     # extract args JSON folder path
     folderName = path.dirname(scriptArgs.data)
     # convert model bitwidths to string

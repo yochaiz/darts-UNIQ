@@ -56,14 +56,13 @@ def logBaselineModel(args, logger, copyKeys=True):
     uniformBops = args.baselineBits[0]
     uniformKey = '{}_w:[{}]_a:[{}]'.format(args.model, uniformBops[0], uniformBops[-1])
     uniformPath = modelsRefs.get(uniformKey)
-    keysFromUniform = ['epochsPerStage', 'learning_rate']
+    keysFromUniform = ['epochs', 'learning_rate']
     loggerRows = []
 
     best_prec1 = None
     best_prec1_str = 'Not found'
     if uniformPath and path.exists(uniformPath):
-        uniform_checkpoint = loadModel(uniformPath,
-                                       map_location=lambda storage, loc: storage.cuda(args.gpu[0]))
+        uniform_checkpoint = loadModel(uniformPath, map_location=lambda storage, loc: storage.cuda(args.gpu[0]))
         # extract keys from uniform checkpoint
         if copyKeys:
             for key in keysFromUniform:
@@ -424,6 +423,7 @@ def logDominantQuantizedOp(model, k, loggerFuncs):
     for f in loggerFuncs:
         f(k, rows)
 
+
 def logDominantQuantizedOpOLD(model, k, logger):
     if not logger:
         return
@@ -447,6 +447,7 @@ def logDominantQuantizedOpOLD(model, k, logger):
         logger.info(message)
 
     logger.info('=============================================')
+
 
 def printModelToFile(model, save_path, fname='model'):
     filePath = '{}/{}.txt'.format(save_path, fname)
