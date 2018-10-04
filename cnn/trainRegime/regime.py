@@ -20,15 +20,27 @@ class TrainRegime:
     trainAccKey = 'Training acc'
     validLossKey = 'Validation loss'
     validAccKey = 'Validation acc'
+    archLossKey = 'Arch loss'
     epochNumKey = 'Epoch #'
     batchNumKey = 'Batch #'
     pathBopsRatioKey = 'Path bops ratio'
     optBopsRatioKey = 'Optimal bops ratio'
     timeKey = 'Time'
+    lrKey = 'Optimizer lr'
+
+    # init formats for keys
+    formats = {validLossKey: '{:.5f}', validAccKey: '{:.3f}', optBopsRatioKey: '{:.3f}', timeKey: '{:.5f}', archLossKey: '{:.5f}', lrKey: '{:.3f}',
+               trainLossKey: '{:.5f}', trainAccKey: '{:.3f}', pathBopsRatioKey: '{:.3f}'}
+
     initWeightsTrainTableTitle = 'Initial weights training'
+    alphasTableTitle = 'Alphas (top [{}])'
+    forwardCountersTitle = 'Forward counters'
+
     colsTrainWeights = [batchNumKey, trainLossKey, trainAccKey, pathBopsRatioKey, timeKey]
     colsMainInitWeightsTrain = [epochNumKey, trainLossKey, trainAccKey, validLossKey, validAccKey]
-    colsMainLogger = [epochNumKey, 'Arch loss', optBopsRatioKey, trainLossKey, trainAccKey, validLossKey, validAccKey, 'Optimizer lr']
+    colsTrainAlphas = [batchNumKey, archLossKey, alphasTableTitle, forwardCountersTitle, optBopsRatioKey, timeKey]
+    colsValidation = [batchNumKey, validLossKey, validAccKey, optBopsRatioKey, timeKey]
+    colsMainLogger = [epochNumKey, archLossKey, optBopsRatioKey, trainLossKey, trainAccKey, validLossKey, validAccKey, lrKey]
 
     def __init__(self, args, model, modelClass, logger):
         self.args = args
@@ -90,7 +102,7 @@ class TrainRegime:
             logger.addInfoTable(self.initWeightsTrainTableTitle, rows)
 
         # init logger data table
-        logger.createDataTable('A', self.colsMainLogger)
+        logger.createDataTable('Summary', self.colsMainLogger)
 
     @abstractmethod
     def train(self):
@@ -113,7 +125,7 @@ class TrainRegime:
     # wait for sending all queued jobs
     def waitForQueuedJobs(self):
         while len(self.optModelTrainingQueue) > 0:
-            self.logger.info('Waiting for queued jobs, queue size:[{}]'.format(len(self.optModelTrainingQueue)))
+            self.logger.addInfoToDataTable('Waiting for queued jobs, queue size:[{}]'.format(len(self.optModelTrainingQueue)))
             self.trySendQueuedJobs()
             sleep(60)
 
@@ -230,7 +242,7 @@ class TrainRegime:
 
             # training
             print('========== Epoch:[{}] =============='.format(epoch))
-            trainData = self.trainWeights(model.chooseRandomPath, optimizer, loggersDict)
+            trainData = self.trainWeights(model.chooseRandomPath, optimizer, epoch, loggersDict)
 
             # add epoch number
             trainData[self.epochNumKey] = epoch
@@ -240,7 +252,7 @@ class TrainRegime:
                 # create validation table
                 trainLogger.createDataTable('Validation', self.colsTrainWeights)
                 # validation
-                valid_acc, validData = self.infer(loggersDict)
+                valid_acc, validData = self.infer(epoch, loggersDict)
 
                 # merge trainData with validData
                 for k, v in validData.items():
@@ -280,9 +292,14 @@ class TrainRegime:
 
         sendDataEmail(self.model, self.args, content)
 
+    # apply defined formats on dict values by keys
+    def __applyFormats(self, dict):
+        for k in dict.keys():
+            if k in self.formats:
+                dict[k] = self.formats[k].format(dict[k])
+
     def trainAlphas(self, search_queue, model, architect, nEpoch, loggers):
         loss_container = AvgrageMeter()
-        optBopsRatio = -1
 
         trainLogger = loggers.get('train')
 
@@ -290,16 +307,30 @@ class TrainRegime:
 
         # update model replications weights
         architect.modelReplicator.updateModelWeights(model)
-        trainLogger.info('Model replications weights have been updated')
+
+        if trainLogger:
+            trainLogger.createDataTable('Epoch:[{}] - Alphas'.format(nEpoch), self.colsTrainAlphas)
+            trainLogger.addInfoToDataTable('Model replications weights have been updated')
 
         # quantize all ops
         architect.modelReplicator.quantize()
 
         nBatches = len(search_queue)
 
+        # init logger functions
+        def createInfoTable(dict, key, logger, rows):
+            dict[key] = logger.createInfoTable('Show', rows)
+
+        def alphasFunc(k, rows):
+            createInfoTable(dataRow, self.alphasTableTitle, trainLogger, rows)
+
+        def forwardCountersFunc(rows):
+            createInfoTable(dataRow, self.forwardCountersTitle, trainLogger, rows)
+
         for step, (input, target) in enumerate(search_queue):
             startTime = time()
             n = input.size(0)
+            dataRow = {}
 
             input = Variable(input, requires_grad=False).cuda()
             target = Variable(target, requires_grad=False).cuda(async=True)
@@ -310,10 +341,14 @@ class TrainRegime:
             optBopsRatio = self.trainOptimalModel(nEpoch, step)
             # add alphas data to statistics
             model.stats.addBatchData(model, optBopsRatio, nEpoch, step)
-            # log dominant QuantizedOp in each layer
-            logDominantQuantizedOp(model, k=2, loggerFuncs=trainLogger)
-            # log forward counters
-            logForwardCounters(model, trainLogger)
+
+            func = []
+            if trainLogger:
+                # log dominant QuantizedOp in each layer
+                logDominantQuantizedOp(model, k=2, loggerFuncs=[alphasFunc])
+                func = [forwardCountersFunc]
+            # log forward counters. if loggerFuncs==[] then it is just resets counters
+            logForwardCounters(model, loggerFuncs=func)
             # save alphas to csv
             model.save_alphas_to_csv(data=[nEpoch, step])
             # log allocations
@@ -326,31 +361,43 @@ class TrainRegime:
             # send email
             if (endTime - self.lastMailTime > self.secondsBetweenMails) or ((step + 1) % int(nBatches / 2) == 0):
                 self.sendEmail(nEpoch, step, nBatches)
-                # update last email time
-                self.lastMailTime = time()
-                # from now on we send every 5 hours
-                self.secondsBetweenMails = 5 * 3600
+            # update last email time
+            self.lastMailTime = time()
+            # from now on we send every 5 hours
+            self.secondsBetweenMails = 5 * 3600
 
             if trainLogger:
-                trainLogger.info('train [{}/{}] arch_loss:[{:.5f}] OptBopsRatio:[{:.3f}] time:[{:.5f}]'
-                                 .format(step, nBatches, loss_container.avg, optBopsRatio, endTime - startTime))
+                # collect missing keys
+                dataRow[self.batchNumKey] = '{}/{}'.format(step, nBatches)
+                dataRow[self.optBopsRatioKey] = optBopsRatio
+                dataRow[self.timeKey] = endTime - startTime
+                dataRow[self.archLossKey] = loss
+                # apply formats
+                self.__applyFormats(dataRow)
+                # add row to data table
+                trainLogger.addDataRow(dataRow)
 
         # restore quantization for all replications ops
         architect.modelReplicator.restore_quantize()
 
         # log accuracy, loss, etc.
-        message = 'Epoch:[{}] , arch loss:[{:.3f}] , OptBopsRatio:[{:.3f}] , lr:[{:.5f}]' \
-            .format(nEpoch, loss_container.avg, optBopsRatio, architect.lr)
+        summaryData = {self.epochNumKey: nEpoch, self.lrKey: architect.lr, self.batchNumKey: 'Summary', self.archLossKey: loss_container.avg,
+                       self.optBopsRatioKey: optBopsRatio}
+        self.__applyFormats(summaryData)
 
-        # for _, logger in loggers.items():
-        #     logger.info(message)
+        for _, logger in loggers.items():
+            logger.addSummaryDataRow(summaryData)
 
-    def trainWeights(self, modelChoosePathFunc, optimizer, loggers):
+        return summaryData
+
+    def trainWeights(self, modelChoosePathFunc, optimizer, epoch, loggers):
         loss_container = AvgrageMeter()
         top1 = AvgrageMeter()
         top5 = AvgrageMeter()
 
         trainLogger = loggers.get('train')
+        if trainLogger:
+            trainLogger.createDataTable('Epoch:[{}] - Training weights'.format(epoch), self.colsTrainWeights)
 
         model = self.model
         crit = self.cross_entropy
@@ -390,37 +437,41 @@ class TrainRegime:
             endTime = time()
 
             if trainLogger:
-                trainLogger.addDataRow({self.batchNumKey: '{}/{}'.format(step, nBatches),
-                                        self.trainLossKey: '{:.5f}'.format(loss_container.avg),
-                                        self.trainAccKey: '{:.3f}'.format(top1.avg),
-                                        self.pathBopsRatioKey: '{:.3f}'.format(bopsRatio),
-                                        self.timeKey: '{:.5f}'.format(endTime - startTime)
-                                        })
+                dataRow = {
+                    self.batchNumKey: '{}/{}'.format(step, nBatches), self.trainLossKey: loss, self.trainAccKey: prec1,
+                    self.pathBopsRatioKey: bopsRatio, self.timeKey: (endTime - startTime)
+                }
+                # apply formats
+                self.__applyFormats(dataRow)
+                # add row to data table
+                trainLogger.addDataRow(dataRow)
+                # add columns row
                 if (step + 1) % 10 == 0:
                     trainLogger.addColumnsRowToDataTable()
 
-            break
-
         # log accuracy, loss, etc.
-        summaryData = {self.trainLossKey: '{:.5f}'.format(loss_container.avg), self.trainAccKey: '{:.3f}'.format(top1.avg)}
+        summaryData = {self.trainLossKey: loss_container.avg, self.trainAccKey: top1.avg, self.batchNumKey: 'Summary'}
+        # apply formats
+        self.__applyFormats(summaryData)
 
         for _, logger in loggers.items():
             logger.addSummaryDataRow(summaryData)
 
         # log dominant QuantizedOp in each layer
-        logDominantQuantizedOp(model, k=2, loggerFuncs=[lambda k, rows: trainLogger.addInfoTable(title='Alphas (top [{}])'.format(k), rows=rows)])
+        if trainLogger:
+            logDominantQuantizedOp(model, k=2,
+                                   loggerFuncs=[lambda k, rows: trainLogger.addInfoTable(title=self.alphasTableTitle.format(k), rows=rows)])
 
-        # log forward counters
-        logForwardCounters(model, loggerFuncs=[lambda rows: trainLogger.addInfoTable(title='Forward counters', rows=rows)])
+        # log forward counters. if loggerFuncs==[] then it is just resets counters
+        func = [lambda rows: trainLogger.addInfoTable(title=self.forwardCountersTitle, rows=rows)] if trainLogger else []
+        logForwardCounters(model, loggerFuncs=func)
 
         return summaryData
 
-    def infer(self, loggers):
+    def infer(self, nEpoch, loggers):
         objs = AvgrageMeter()
         top1 = AvgrageMeter()
         top5 = AvgrageMeter()
-
-        trainLogger = loggers.get('train')
 
         model = self.model
         modelInferMode = model.evalMode
@@ -430,7 +481,9 @@ class TrainRegime:
         model.eval()
         bopsRatio = modelInferMode()
         # print eval layer index selection
+        trainLogger = loggers.get('train')
         if trainLogger:
+            trainLogger.createDataTable('Epoch:[{}] - Validation'.format(nEpoch), self.colsValidation)
             trainLogger.addInfoToDataTable('Layers optimal indices:{}'.format([layer.curr_alpha_idx for layer in model.layersList]))
 
         nBatches = len(valid_queue)
@@ -454,25 +507,50 @@ class TrainRegime:
                 endTime = time()
 
                 if trainLogger:
-                    trainLogger.addDataRow({self.batchNumKey: '{}/{}'.format(step, nBatches),
-                                            self.validLossKey: '{:.5f}'.format(objs.avg),
-                                            self.validAccKey: '{:.3f}'.format(top1.avg),
-                                            self.pathBopsRatioKey: '{:.3f}'.format(bopsRatio),
-                                            self.timeKey: '{:.5f}'.format(endTime - startTime)
-                                            })
+                    dataRow = {
+                        self.batchNumKey: '{}/{}'.format(step, nBatches), self.validLossKey: loss, self.validAccKey: prec1,
+                        self.optBopsRatioKey: bopsRatio, self.timeKey: endTime - startTime
+                    }
+                    # apply formats
+                    self.__applyFormats(dataRow)
+                    # add row to data table
+                    trainLogger.addDataRow(dataRow)
+                    # add columns row
                     if (step + 1) % 10 == 0:
                         trainLogger.addColumnsRowToDataTable()
 
-        # log accuracy, loss, etc.
-        summaryData = {self.validLossKey: '{:.5f}'.format(objs.avg), self.validAccKey: '{:.3f}'.format(top1.avg)}
+        # create summary row
+        summaryRow = {self.batchNumKey: 'Summary', self.validLossKey: objs.avg, self.validAccKey: top1.avg, self.optBopsRatioKey: bopsRatio}
+        # apply formats
+        self.__applyFormats(summaryRow)
 
         for _, logger in loggers.items():
-            logger.addSummaryDataRow(summaryData)
+            logger.addSummaryDataRow(summaryRow)
 
-        return top1.avg, summaryData
+        # log forward counters. if loggerFuncs==[] then it is just resets counters
+        func = []
+        if trainLogger:
+            colName = 'Values'
+            trainLogger.createDataTable('Validation forward counters', [colName])
+            func = [lambda rows: trainLogger.addDataRow({colName: trainLogger.createInfoTable('Show', rows)})]
+
+        logForwardCounters(model, loggerFuncs=func)
+
+        return top1.avg, summaryRow
 
     def logAllocations(self):
-        logger = initTrainLogger('allocations', self.args.save)
+        logger = HtmlLogger(self.args.save, 'allocations', overwrite=True)
+        allocationKey = 'Allocation'
+        nBatchesKey = 'Number of batches'
+        logger.createDataTable('Allocations', [allocationKey, nBatchesKey])
 
         for bitwidth, nBatches in self.optModelBitwidthCounter.items():
-            logger.info('{}:{}'.format(bitwidth, nBatches))
+            logger.addDataRow({allocationKey: bitwidth, nBatchesKey: nBatches})
+
+            # bitwidthList = bitwidth[1:-1].replace('),', ');')
+            # bitwidthList = bitwidthList.split('; ')
+            # bitwidthStr = ''
+            # for layerIdx, b in enumerate(bitwidthList):
+            #     bitwidthStr += 'Layer [{}]: {}\n'.format(layerIdx, b)
+            #
+            # logger.addDataRow({allocationKey: bitwidthStr, nBatchesKey: nBatches})
