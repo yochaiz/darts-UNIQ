@@ -128,6 +128,12 @@ class MixedOp(Block):
         # assure bitwidths is a list of integers
         if isinstance(bitwidths[0], list):
             bitwidths = bitwidths[0]
+
+        # init previous layer, put it in a list, in order to ignore it as a model in this instance
+        prevLayer = None
+        assert ((prevLayer is None) or (isinstance(prevLayer, MixedOp)))
+        self.prevLayer = [prevLayer]
+
         # init operations mixture
         self.ops = ModuleList()
         # ops must have at least one copy
@@ -152,9 +158,6 @@ class MixedOp(Block):
         self.alphas = tensor((ones(self.numOfOps()) * value).cuda(), requires_grad=False)
 
         self.curr_alpha_idx = 0
-        # init previous layer, put it in a list, in order to ignore it as a model in this instance
-        assert ((prevLayer is None) or (isinstance(prevLayer, MixedOp)))
-        self.prevLayer = [prevLayer]
 
         # init bops for operation
         self.bops = self.buildBopsMap(bitwidths, input_bitwidth, params, coutBopsParams)
