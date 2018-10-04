@@ -124,7 +124,6 @@ class BaseNet(Module):
     def loadPreTrained(self, path, logger, gpu):
         # init bool flag whether we loaded ops in the same layer with equal or different weights
         loadOpsWithDifferentWeights = False
-        loggerRows = []
         if path is not None:
             if exists(path):
                 # load checkpoint
@@ -152,13 +151,10 @@ class BaseNet(Module):
                     # use some function to map keys
                     self.loadUNIQPre_trained(chckpntStateDict)
 
-                loggerRows.append(['Path', '{}'.format(path)])
-                loggerRows.append(['Validation accuracy', '{:.5f}'.format(checkpoint['best_prec1'])])
+                logger.info('Loaded model from [{}]'.format(path))
+                logger.info('checkpoint validation accuracy:[{:.5f}]'.format(checkpoint['best_prec1']))
             else:
-                loggerRows.append(['Path', 'Failed to load pre-trained from [{}], path does not exists'.format(path)])
-
-            # load pre-trained model if we tried to load pre-trained
-            logger.addInfoTable('Pre-trained model', loggerRows)
+                logger.info('Failed to load pre-trained from [{}], path does not exists'.format(path))
 
         return loadOpsWithDifferentWeights
 
@@ -298,7 +294,7 @@ class BaseNet(Module):
 
     # def uniformMode(self):
     #     for l in self.layersList:
-    #         l.uniformMode(self._criterion.baselineBits)
+    #         l.uniformMode(self._criterion.maxBopsBits)
     #
     #     # calc bops ratio
     #     return self.calcBopsRatio()
