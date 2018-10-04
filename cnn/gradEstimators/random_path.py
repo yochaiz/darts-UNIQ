@@ -123,5 +123,4 @@ class RandomPath(ModelReplicator):
             # multiply each grad by its probability
             layer.alphas.grad *= probs
 
-        print('return totalLoss')
         return totalLoss
