@@ -14,7 +14,7 @@ from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
 class HtmlLogger:
     timestampColumnName = 'Timestamp'
 
-    def __init__(self, save_path, filename):
+    def __init__(self, save_path, filename, overwrite=False):
         self.save_path = save_path
         self.filename = filename
         self.fullPath = '{}/{}.html'.format(save_path, filename)
@@ -22,7 +22,7 @@ class HtmlLogger:
         if not path.exists(save_path):
             makedirs(save_path)
 
-        if path.exists(self.fullPath):
+        if (not overwrite) and path.exists(self.fullPath):
             with open(self.fullPath, 'r') as f:
                 content = f.read()
             # remove close tags in order to allow writing to data table
@@ -37,7 +37,7 @@ class HtmlLogger:
             self.script = ''
         else:
             self.head = '<!DOCTYPE html><html><head><style>' \
-                        'table { font-family: gisha; border-collapse: collapse;}' \
+                        'table { font-family: gisha; border-collapse: collapse; display: block;}' \
                         'td, th { border: 1px solid #dddddd; text-align: center; padding: 8px; white-space:pre;}' \
                         '.collapsible { background-color: #777; color: white; cursor: pointer; padding: 18px; border: none; text-align: left; outline: none; font-size: 15px; }' \
                         '.active, .collapsible:hover { background-color: #555; }' \
@@ -49,7 +49,6 @@ class HtmlLogger:
 
         self.end = '</body></html>'
         self.infoTables = ''
-        self.curInfoTable = None
         self.dataTable = ''
 
     # converts dictionary to rows with nElementPerRow (k,v) elements at most in each row
@@ -78,7 +77,7 @@ class HtmlLogger:
 
     def __writeToFile(self):
         # init elements write order to file
-        writeOrder = [self.head, self.infoTables, self.script, self.dataTable, '</table>', self.end]
+        writeOrder = [self.head, self.infoTables, self.dataTable, '</table>', self.script, self.end]
         # write elements
         with open(self.fullPath, 'w') as f:
             for elem in writeOrder:
@@ -107,30 +106,22 @@ class HtmlLogger:
         res += '</table>'
         return res
 
-    def __closeInfoTable(self):
-        if self.curInfoTable:
-            # add ending tags
-            self.curInfoTable += '</div>'
-            self.curInfoTable += '<h2></h2>'
-            # add current info table to all info tables
-            self.infoTables += self.curInfoTable
-            # reset current info table
-            self.curInfoTable = None
-
-    def createInfoTable(self, title):
-        # close current info table if exists
-        self.__closeInfoTable()
+    def createInfoTable(self, title, rows):
         # open a new table
         res = '<button class="collapsible"> {} </button>'.format(title)
         res += '<div class="content">'
-        self.curInfoTable = res
+        # add rows
+        res += self.__createTableFromRows(rows)
+        # close table
+        res += '</div><h2></h2>'
+
+        return res
 
     # title - a string for table title
     # rows - array of rows. each row is array of values.
     def addInfoTable(self, title, rows):
-        self.createInfoTable(title)
-        self.curInfoTable += self.__createTableFromRows(rows)
-        self.__closeInfoTable()
+        # create new table
+        self.infoTables += self.createInfoTable(title, rows)
         # write to file
         self.__writeToFile()
 
