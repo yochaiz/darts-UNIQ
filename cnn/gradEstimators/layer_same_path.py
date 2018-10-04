@@ -38,10 +38,11 @@ class LayerSamePath(RandomPath):
 
             # init loss samples list for layer alphas
             alphaLossSamples = [[] for _ in range(layer.numOfOps())]
+            # for each sample select path through the specific alpha and calc the path loss
             for _ in range(nSamplesPerAlpha):
                 # choose path in model based on alphas distribution, while current layer alpha is [i]
                 cModel.choosePathByAlphas()
-                for i, alpha in enumerate(layer.alphas):
+                for i in range(layer.numOfOps()):
                     # select the specific alpha in this layer
                     layer.curr_alpha_idx = i
                     # forward input in model
@@ -51,7 +52,8 @@ class LayerSamePath(RandomPath):
                     # add loss to statistics list
                     alphaLossSamples[i].append(loss.item())
 
-            for i, alpha in enumerate(layer.alphas):
+            # process loss results for layer alphas
+            for i in range(layer.numOfOps()):
                 # add layer alphas loss samples to all loss samples list
                 allLossSamples.extend(alphaLossSamples[i])
                 # calc alpha average loss
