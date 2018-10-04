@@ -222,7 +222,7 @@ class BaseNet(Module):
                 alphaLossSamples = []
                 for _ in range(nSamplesPerAlpha):
                     # forward through some path in model
-                    logits = self.forward(input)
+                    logits = self(input)
                     # alphaLoss += self._criterion(logits, target, self.countBops()).detach()
                     alphaLossSamples.append(self._criterion(logits, target, self.countBops()).detach())
 
