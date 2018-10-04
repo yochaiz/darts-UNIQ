@@ -63,12 +63,14 @@ class ModelReplicator:
 
     # quantize all replications ops
     def quantize(self):
+        print('model replicator quantize()')
         for cModel, _ in self.replications:
             for layer in cModel.layersList:
                 for op in layer.getOps():
                     save_state(op, None)
 
     def restore_quantize(self):
+        print('model replicator restore_quantize()')
         for cModel, _ in self.replications:
             for layer in cModel.layersList:
                 for op in layer.getOps():
