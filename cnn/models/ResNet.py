@@ -280,8 +280,7 @@ class ResNet(BaseNet):
                 # update layer ops
                 for j in range(layer.nOpsCopies()):
                     for i in range(layer.numOfOps()):
-                        newKey = map[prefix].replace(newKeyOp + token + '0.0.',
-                                                     newKeyOp + token + '{}.{}.'.format(j, i))
+                        newKey = map[prefix].replace(newKeyOp + token + '0.0.', newKeyOp + token + '{}.{}.'.format(j, i))
                         newStateDict[newKey + suffix] = chckpntDict[key]
 
         # load model weights
