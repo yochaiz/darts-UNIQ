@@ -163,7 +163,7 @@ class MinimalAlphaSamplesLoss(TrainRegime):
             logger.info(message)
 
         # log dominant QuantizedOp in each layer
-        logDominantQuantizedOp(model, k=2, logger=trainLogger)
+        logDominantQuantizedOp(model, k=2, loggerFuncs=trainLogger)
 
     # calc average samples loss for each alpha on given batch
     def calcBatchAlphaAvgLoss(self, input, target):
@@ -222,7 +222,7 @@ class MinimalAlphaSamplesLoss(TrainRegime):
         self.trainSamplesAlphas(loggersDict)
 
         # validation on current optimal model
-        valid_acc = self.infer(loggersDict)
+        valid_acc = self.infer('0', loggersDict)
 
         # save model checkpoint
         save_checkpoint(self.trainFolderPath, model, self.args, self.epoch, valid_acc, True)

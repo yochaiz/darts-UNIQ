@@ -31,7 +31,7 @@ class AlphasOnly(TrainRegime):
             # train alphas
             self.trainAlphas(self.search_queue, self.model, self.architect, epoch, loggersDict)
             # validation on current optimal model
-            valid_acc = self.infer(loggersDict)
+            valid_acc = self.infer(epoch, loggersDict)
 
             # save model checkpoint
             is_best = valid_acc > best_prec1
