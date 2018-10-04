@@ -19,6 +19,7 @@ class AlphasWeightsLoop(TrainRegime):
         epoch = self.epoch
         model = self.model
         args = self.args
+        logger = self.logger
         # init number of epochs
         nEpochs = self.model.nLayers()
         # init validation best precision value
@@ -29,19 +30,26 @@ class AlphasWeightsLoop(TrainRegime):
             model.turnOnAlphas()
             print('========== Epoch:[{}] =============='.format(epoch))
             # init epoch train logger
-            trainLogger = initTrainLogger(str(epoch), self.trainFolderPath, args.propagate)
+            trainLogger = HtmlLogger(self.trainFolderPath, str(epoch))
             # set loggers dictionary
-            loggersDict = dict(train=trainLogger, main=self.logger)
+            loggersDict = dict(train=trainLogger)
             # train alphas
-            self.trainAlphas(self.search_queue, model, self.architect, epoch, loggersDict)
+            alphaData = self.trainAlphas(self.search_queue, model, self.architect, epoch, loggersDict)
 
             # validation on current optimal model
-            valid_acc = self.infer(loggersDict)
+            valid_acc, validData = self.infer(epoch, loggersDict)
+
+            # merge trainData with validData
+            for k, v in validData.items():
+                alphaData[k] = v
 
             # save model checkpoint
             is_best = valid_acc > best_prec1
             best_prec1 = max(valid_acc, best_prec1)
             save_checkpoint(self.trainFolderPath, model, args, epoch, best_prec1, is_best)
+
+            # add data to main logger table
+            logger.addDataRow(alphaData)
 
             ## train weights ##
             # create epoch train weights folder
@@ -59,27 +67,35 @@ class AlphasWeightsLoop(TrainRegime):
             while switchStageFlag:
                 # init epoch train logger
                 trainLogger = HtmlLogger(epochFolderPath, '{}_{}'.format(epochName, wEpoch))
-                trainLogger.createDataTable('PP', self.colsTrainWeights)
                 # train stage weights
-                self.trainWeights(model.choosePathByAlphas, optimizer, dict(train=trainLogger))
+                self.trainWeights(model.choosePathByAlphas, optimizer, wEpoch, dict(train=trainLogger))
                 # switch stage
-                switchStageFlag = model.switch_stage(trainLogger)
+                switchStageFlag = model.switch_stage([lambda msg: trainLogger.addInfoToDataTable(msg)])
                 # update epoch number
                 wEpoch += 1
 
             # init epoch train logger for last epoch
-            trainLogger = initTrainLogger('{}_{}'.format(epochName, wEpoch), epochFolderPath, args.propagate)
+            trainLogger = HtmlLogger(epochFolderPath, '{}_{}'.format(epochName, wEpoch))
             # set loggers dictionary
-            loggersDict = dict(train=trainLogger, main=self.logger)
+            loggersDict = dict(train=trainLogger)
             # last weights training epoch we want to log also to main logger
-            self.trainWeights(model.choosePathByAlphas, optimizer, loggersDict)
+            trainData = self.trainWeights(model.choosePathByAlphas, optimizer, wEpoch, loggersDict)
             # validation on optimal model
-            valid_acc = self.infer(loggersDict)
+            valid_acc, validData = self.infer(wEpoch, loggersDict)
+
+            # update epoch
+            trainData[self.epochNumKey] = epoch
+            # merge trainData with validData
+            for k, v in validData.items():
+                trainData[k] = v
 
             # save model checkpoint
             is_best = valid_acc > best_prec1
             best_prec1 = max(valid_acc, best_prec1)
             save_checkpoint(self.trainFolderPath, model, args, epoch, best_prec1, is_best)
+
+            # add data to main logger table
+            logger.addDataRow(trainData)
 
         # send final email
         self.sendEmail('Final', 0, 0)
