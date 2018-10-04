@@ -1,7 +1,7 @@
-from torch import zeros
+from torch import zeros, tensor
 from torch.nn import functional as F
 
-from cnn.model_replicator import ModelReplicator
+from cnn.model_replicator import ModelReplicator, set_device
 
 
 class RandomPath(ModelReplicator):
@@ -12,15 +12,17 @@ class RandomPath(ModelReplicator):
         return args[0]
 
     def buildArgs(self, inputPerGPU, targetPerGPU, layersIndicesPerModel):
-        args = ((cModel, inputPerGPU[gpu], targetPerGPU[gpu], layersIndices)
+        args = ((cModel, inputPerGPU[gpu], targetPerGPU[gpu], layersIndices, gpu)
                 for layersIndices, (cModel, gpu) in zip(layersIndicesPerModel, self.replications))
 
         return args
 
     def lossPerReplication(self, args):
-        cModel, input, target, layersIndices = args
+        cModel, input, target, layersIndices, gpu = args
+        # switch to process GPU
+        set_device(gpu)
 
-        cModel.eval()
+        assert (cModel.training is False)
         # init total loss
         totalLoss = 0.0
         # init loss samples list for ALL alphas
@@ -37,7 +39,7 @@ class RandomPath(ModelReplicator):
             # turn off coin toss for this layer
             layer.alphas.requires_grad = False
             # init layer alphas gradient
-            layerAlphasGrad = zeros(len(layer.alphas)).cuda()
+            layerAlphasGrad = zeros(len(layer.alphas)).cuda(gpu)
             # calc layer alphas softmax
             probs = F.softmax(layer.alphas, dim=-1)
 
@@ -76,12 +78,12 @@ class RandomPath(ModelReplicator):
             # add gradNorm to statistics
             gradNorm.append((layerIdx, layerAlphasGrad.norm().item()))
 
-        return alphasGrad, allLossSamples, layersIndices, totalLoss.cuda(), gradNorm, alphaLossVariance
+        return alphasGrad, allLossSamples, layersIndices, totalLoss, gradNorm, alphaLossVariance
 
     def processResults(self, model, results):
         stats = model.stats
         # init total loss
-        totalLoss = 0.0
+        totalLoss = tensor(0.0).cuda()
         # init loss samples list for ALL alphas
         allLossSamples = []
         # process returned results
@@ -89,7 +91,7 @@ class RandomPath(ModelReplicator):
             # add alphas loss samples to all loss samples list
             allLossSamples.extend(partialLossSamples)
             # calc total loss & total number of samples
-            totalLoss += partialLoss
+            totalLoss += partialLoss.to(totalLoss.device)
             # update statistics
             for layerIdx, v in gradNorm:
                 stats.containers[stats.gradNormKey][layerIdx].append(v)
@@ -99,7 +101,7 @@ class RandomPath(ModelReplicator):
             # update layers alphas gradients
             for layerAlphasGrads, layerIdx in zip(alphasGrad, layersIndices):
                 alphas = model.layersList[layerIdx].alphas
-                alphas.grad = layerAlphasGrads
+                alphas.grad = layerAlphasGrads.to(alphas.device)
 
         # average total loss
         totalLoss /= model.nLayers()
@@ -108,7 +110,7 @@ class RandomPath(ModelReplicator):
         allLossSamplesAvg = sum(allLossSamples) / nTotalSamples
         # calc all loss samples variance
         allLossSamples = [((x - allLossSamplesAvg) ** 2) for x in allLossSamples]
-        allLossSamplesVariance = (sum(allLossSamples) / (nTotalSamples - 1)).item()
+        allLossSamplesVariance = (sum(allLossSamples) / (nTotalSamples - 1))
         # add all samples loss average & variance to statistics
         stats.containers[stats.allSamplesLossAvgKey][0].append(allLossSamplesAvg)
         stats.containers[stats.allSamplesLossVarianceKey][0].append(allLossSamplesVariance)
@@ -121,4 +123,5 @@ class RandomPath(ModelReplicator):
             # multiply each grad by its probability
             layer.alphas.grad *= probs
 
+        print('return totalLoss')
         return totalLoss

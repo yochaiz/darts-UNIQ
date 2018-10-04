@@ -1,6 +1,6 @@
-from .random_path import RandomPath
+from .random_path import RandomPath, set_device
 
-from torch import zeros
+from torch import zeros, tensor
 from torch.nn import functional as F
 
 
@@ -11,9 +11,11 @@ class LayerSamePath(RandomPath):
         super(LayerSamePath, self).__init__(model, modelClass, args)
 
     def lossPerReplication(self, args):
-        cModel, input, target, layersIndices = args
+        cModel, input, target, layersIndices, gpu = args
+        # switch to process GPU
+        set_device(gpu)
 
-        assert(cModel.training is False)
+        assert (cModel.training is False)
         # init total loss
         totalLoss = 0.0
         # init loss samples list for ALL alphas
@@ -44,14 +46,16 @@ class LayerSamePath(RandomPath):
                     layer.curr_alpha_idx = i
                     # forward input in model
                     logits = cModel(input)
-                    # alphaLoss += cModel._criterion(logits, target, cModel.countBops()).detach()
-                    alphaLossSamples[i].append(cModel._criterion(logits, target, cModel.countBops()).detach())
+                    # calc loss
+                    loss = cModel._criterion(logits, target, cModel.countBops()).detach()
+                    # add loss to statistics list
+                    alphaLossSamples[i].append(loss.item())
 
             for i, alpha in enumerate(layer.alphas):
                 # add layer alphas loss samples to all loss samples list
                 allLossSamples.extend(alphaLossSamples[i])
                 # calc alpha average loss
-                alphaAvgLoss = sum(alphaLossSamples[i]) / nSamplesPerAlpha
+                alphaAvgLoss = tensor(sum(alphaLossSamples[i]) / nSamplesPerAlpha).cuda()
                 layerAlphasGrad[i] = alphaAvgLoss
                 # add alpha loss to total loss
                 totalLoss += (alphaAvgLoss * probs[i])
@@ -69,4 +73,4 @@ class LayerSamePath(RandomPath):
             # add gradNorm to statistics
             gradNorm.append((layerIdx, layerAlphasGrad.norm().item()))
 
-        return alphasGrad, allLossSamples, layersIndices, totalLoss.cuda(), gradNorm, alphaLossVariance
+        return alphasGrad, allLossSamples, layersIndices, totalLoss, gradNorm, alphaLossVariance
