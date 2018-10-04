@@ -181,7 +181,7 @@ if __name__ == '__main__':
     # print args
     print(args)
     # # log model architecture to file
-    # printModelToFile(model, args.save)
+    printModelToFile(model, args.save)
 
     # load pre-trained full-precision model
     args.loadedOpsWithDiffWeights = model.loadPreTrained(args.pre_trained, logger, args.gpu[0])
