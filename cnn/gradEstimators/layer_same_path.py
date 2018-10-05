@@ -49,6 +49,7 @@ class LayerSamePath(RandomPath):
                     logits = cModel(input)
                     # calc loss
                     loss = cModel._criterion(logits, target, cModel.countBops()).detach()
+                    # print('{} - {:.5f}'.format([layer.getBitwidth() for layer in cModel.layersList], loss))
                     # add loss to statistics list
                     alphaLossSamples[i].append(loss.item())
 

@@ -324,6 +324,12 @@ class MixedConv(MixedOp):
         # it doesn't matter which copy of ops we take, the attributes are the same in all copies
         return self.ops[0][self.curr_alpha_idx].bitwidth[0], None
 
+    # from UNIQ.quantize import check_quantization
+    # op = self.ops[0][self.curr_alpha_idx]
+    # v1 = check_quantization(op.op[0].weight)
+    # v2 = 2 ** (op.bitwidth[0])
+    # assert (v1 <= v2)
+
 
 class MixedConvWithReLU(MixedOp):
     def __init__(self, bitwidths, in_planes, out_planes, kernel_size, stride, input_size, input_bitwidth, prevLayer, useResidual=False):
@@ -374,6 +380,11 @@ class MixedConvWithReLU(MixedOp):
         # it doesn't matter which copy of ops we take, the attributes are the same in all copies
         op = self.ops[0][self.curr_alpha_idx]
         return op.bitwidth[0], op.act_bitwidth[0]
+
+    # from UNIQ.quantize import check_quantization
+    # v1 = check_quantization(op.op[0][0].weight)
+    # v2 = 2 ** (op.bitwidth[0])
+    # assert (v1 <= v2)
 
     def getCurrentOutputBitwidth(self):
         return self.outputBitwidth[self.curr_alpha_idx]
