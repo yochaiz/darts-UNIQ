@@ -87,13 +87,17 @@ class ModelReplicator:
 
         return result, counters
 
-    def updateModelWeights(self, model):
+    def updateModelWeights(self, model, loggerFuncs=[]):
         # load model state dict
         modelStateDict = model.state_dict()
 
         # load model weights
         for cModel, _ in self.replications:
             cModel.load_state_dict(modelStateDict)
+
+        # apply loggers funcs
+        for f in loggerFuncs:
+            f('Model replications weights have been updated')
 
     def loss(self, model, input, target):
         nCopies = len(self.replications)
