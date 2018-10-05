@@ -20,6 +20,7 @@ with open(scriptArgs.data, 'r') as f:
     # update values
     args.train_portion = 1.0
     args.batch_size = 250
+    args.epochs = [5]
     # extract args JSON folder path
     folderName = path.dirname(scriptArgs.data)
     # convert model bitwidths to string
