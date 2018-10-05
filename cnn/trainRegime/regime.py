@@ -28,7 +28,7 @@ class TrainRegime:
     lrKey = 'Optimizer lr'
 
     # init formats for keys
-    formats = {validLossKey: '{:.5f}', validAccKey: '{:.3f}', optBopsRatioKey: '{:.3f}', timeKey: '{:.3f}', archLossKey: '{:.5f}', lrKey: '{:.3f}',
+    formats = {validLossKey: '{:.5f}', validAccKey: '{:.3f}', optBopsRatioKey: '{:.3f}', timeKey: '{:.3f}', archLossKey: '{:.5f}', lrKey: '{:.5f}',
                trainLossKey: '{:.5f}', trainAccKey: '{:.3f}', pathBopsRatioKey: '{:.3f}'}
 
     initWeightsTrainTableTitle = 'Initial weights training'
@@ -244,7 +244,7 @@ class TrainRegime:
             # add epoch number
             trainData[self.epochNumKey] = epoch
             # add learning rate
-            trainData[self.lrKey] = optimizer.param_groups[0]['lr']
+            trainData[self.lrKey] = self.formats[self.lrKey].format(optimizer.param_groups[0]['lr'])
 
             # switch stage, i.e. freeze one more layer
             if (epoch in self.epochsSwitchStage) or (epoch == nEpochs):
@@ -256,7 +256,7 @@ class TrainRegime:
                     trainData[k] = v
 
                 # switch stage
-                model.switch_stage()
+                model.switch_stage(loggerFuncs=[lambda msg: trainLogger.addInfoTable(title='Switching stage', rows=[[msg]])])
                 # update optimizer & scheduler due to update in learnable params
                 optimizer = SGD(model.parameters(), scheduler.get_lr()[0], momentum=args.momentum, weight_decay=args.weight_decay)
                 scheduler = CosineAnnealingLR(optimizer, float(nEpochs), eta_min=args.learning_rate_min)
