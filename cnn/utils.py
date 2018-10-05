@@ -170,7 +170,7 @@ def drop_path(x, drop_prob):
 
 def saveArgsToJSON(args):
     # save args to JSON
-    args.jsonPath = '{}/args.json'.format(args.save)
+    args.jsonPath = '{}/args.txt'.format(args.save)
     with open(args.jsonPath, 'w') as f:
         dump(vars(args), f)
 
