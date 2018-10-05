@@ -13,8 +13,7 @@ from torch import manual_seed as torch_manual_seed
 
 import cnn.trainRegime as trainRegimes
 from cnn.HtmlLogger import HtmlLogger
-from cnn.utils import create_exp_dir, count_parameters_in_MB, saveArgsToJSON, loadGradEstimatorsNames
-from cnn.utils import initLogger, printModelToFile, loadModelNames, models, sendEmail, logBaselineModel
+from cnn.utils import create_exp_dir, saveArgsToJSON, loadGradEstimatorsNames, logParameters, loadModelNames, models, sendEmail
 
 
 # collect possible alphas optimization
@@ -158,33 +157,11 @@ if __name__ == '__main__':
     # init model
     model = modelClass(args)
     model = model.cuda()
-
-    # log args
-    logger.addInfoTable('args', HtmlLogger.dictToRows(vars(args), nElementPerRow=3))
-    # log other parameters
-    permutationStr = model.nPerms
-    for p in [9, 6, 3]:
-        v = model.nPerms / (10 ** p)
-        if v > 1:
-            permutationStr = '{:.3f} * 10<sup>{}</sup>'.format(v, p)
-            break
-
-    logger.addInfoTable('Parameters', HtmlLogger.dictToRows(
-        {
-            'Parameters size': '{:.3f} MB'.format(count_parameters_in_MB(model)),
-            'Learnable params': len(model.learnable_params),
-            'Ops per layer': [layer.numOfOps() for layer in model.layersList],
-            'Permutations': permutationStr
-        }, nElementPerRow=2))
-    # log baseline model
-    logBaselineModel(args, logger, copyKeys=False)
-    # print args
-    print(args)
-    # # log model architecture to file
-    printModelToFile(model, args.save)
-
     # load pre-trained full-precision model
     args.loadedOpsWithDiffWeights = model.loadPreTrained(args.pre_trained, logger, args.gpu[0])
+
+    # log parameters
+    logParameters(logger, args, model)
 
     ## ======================================
     # # set optimal model bitwidth per layer
@@ -205,7 +182,7 @@ if __name__ == '__main__':
     #
     # t = Namespace(**t)
     # G(t)
-    ## ======================================
+    ## =====================================
 
     try:
         # build regime for alphas optimization
