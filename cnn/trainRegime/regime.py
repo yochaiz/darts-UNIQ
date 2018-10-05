@@ -9,8 +9,7 @@ from torch.optim import SGD
 from torch.autograd.variable import Variable
 from torch.nn import CrossEntropyLoss
 
-from cnn.utils import accuracy, AvgrageMeter, load_data, saveArgsToJSON
-from cnn.utils import initTrainLogger, logDominantQuantizedOp, save_checkpoint
+from cnn.utils import accuracy, AvgrageMeter, load_data, saveArgsToJSON, logDominantQuantizedOp, save_checkpoint
 from cnn.utils import sendDataEmail, logForwardCounters
 from cnn.HtmlLogger import HtmlLogger
 
@@ -37,7 +36,7 @@ class TrainRegime:
     forwardCountersTitle = 'Forward counters'
 
     colsTrainWeights = [batchNumKey, trainLossKey, trainAccKey, pathBopsRatioKey, timeKey]
-    colsMainInitWeightsTrain = [epochNumKey, trainLossKey, trainAccKey, validLossKey, validAccKey]
+    colsMainInitWeightsTrain = [epochNumKey, trainLossKey, trainAccKey, validLossKey, validAccKey, pathBopsRatioKey]
     colsTrainAlphas = [batchNumKey, archLossKey, alphasTableTitle, forwardCountersTitle, optBopsRatioKey, timeKey]
     colsValidation = [batchNumKey, validLossKey, validAccKey, optBopsRatioKey, timeKey]
     colsMainLogger = [epochNumKey, archLossKey, optBopsRatioKey, trainLossKey, trainAccKey, validLossKey, validAccKey, lrKey]
@@ -235,7 +234,6 @@ class TrainRegime:
                 ['optimizer_lr', '{:.5f}'.format(optimizer.param_groups[0]['lr'])],
                 ['scheduler_lr', '{:.5f}'.format(lr)]
             ])
-            trainLogger.createDataTable(self.initWeightsTrainTableTitle, self.colsTrainWeights)
 
             # set loggers dictionary
             loggersDict = dict(train=trainLogger)
@@ -249,8 +247,6 @@ class TrainRegime:
 
             # switch stage, i.e. freeze one more layer
             if (epoch in self.epochsSwitchStage) or (epoch == nEpochs):
-                # create validation table
-                trainLogger.createDataTable('Validation', self.colsTrainWeights)
                 # validation
                 valid_acc, validData = self.infer(epoch, loggersDict)
 
@@ -261,8 +257,7 @@ class TrainRegime:
                 # switch stage
                 model.switch_stage()
                 # update optimizer & scheduler due to update in learnable params
-                optimizer = SGD(model.parameters(), scheduler.get_lr()[0],
-                                momentum=args.momentum, weight_decay=args.weight_decay)
+                optimizer = SGD(model.parameters(), scheduler.get_lr()[0], momentum=args.momentum, weight_decay=args.weight_decay)
                 scheduler = CosineAnnealingLR(optimizer, float(nEpochs), eta_min=args.learning_rate_min)
                 scheduler.step()
 
@@ -279,6 +274,9 @@ class TrainRegime:
 
         # add optimal accuracy
         logger.addSummaryDataRow({self.epochNumKey: 'Optimal', self.validAccKey: '{:.3f}'.format(best_prec1)})
+
+        # save pre-trained checkpoint
+        save_checkpoint(self.trainFolderPath, model, args, epoch, best_prec1, is_best=False, filename='PP')
 
         args.best_prec1 = best_prec1
 
@@ -519,7 +517,7 @@ class TrainRegime:
                         trainLogger.addColumnsRowToDataTable()
 
         # create summary row
-        summaryRow = {self.batchNumKey: 'Summary', self.validLossKey: objs.avg, self.validAccKey: top1.avg, self.optBopsRatioKey: bopsRatio}
+        summaryRow = {self.batchNumKey: 'Summary', self.validLossKey: objs.avg, self.validAccKey: top1.avg, self.pathBopsRatioKey: bopsRatio}
         # apply formats
         self.__applyFormats(summaryRow)
 
