@@ -36,7 +36,7 @@ class TrainRegime:
     forwardCountersTitle = 'Forward counters'
 
     colsTrainWeights = [batchNumKey, trainLossKey, trainAccKey, pathBopsRatioKey, timeKey]
-    colsMainInitWeightsTrain = [epochNumKey, trainLossKey, trainAccKey, validLossKey, validAccKey, pathBopsRatioKey]
+    colsMainInitWeightsTrain = [epochNumKey, trainLossKey, trainAccKey, validLossKey, validAccKey, pathBopsRatioKey, lrKey]
     colsTrainAlphas = [batchNumKey, archLossKey, alphasTableTitle, forwardCountersTitle, optBopsRatioKey, timeKey]
     colsValidation = [batchNumKey, validLossKey, validAccKey, optBopsRatioKey, timeKey]
     colsMainLogger = [epochNumKey, archLossKey, optBopsRatioKey, trainLossKey, trainAccKey, validLossKey, validAccKey, lrKey]
@@ -213,8 +213,7 @@ class TrainRegime:
             makedirs(folderPath)
 
         # init optimizer
-        optimizer = SGD(model.parameters(), args.learning_rate, momentum=args.momentum,
-                        weight_decay=args.weight_decay)
+        optimizer = SGD(model.parameters(), args.learning_rate, momentum=args.momentum, weight_decay=args.weight_decay)
         # init scheduler
         scheduler = CosineAnnealingLR(optimizer, float(nEpochs), eta_min=args.learning_rate_min)
 
@@ -231,8 +230,8 @@ class TrainRegime:
 
             trainLogger = HtmlLogger(folderPath, str(epoch))
             trainLogger.addInfoTable('Learning rates', [
-                ['optimizer_lr', '{:.5f}'.format(optimizer.param_groups[0]['lr'])],
-                ['scheduler_lr', '{:.5f}'.format(lr)]
+                ['optimizer_lr', self.formats[self.lrKey].format(optimizer.param_groups[0]['lr'])],
+                ['scheduler_lr', self.formats[self.lrKey].format(lr)]
             ])
 
             # set loggers dictionary
@@ -244,6 +243,8 @@ class TrainRegime:
 
             # add epoch number
             trainData[self.epochNumKey] = epoch
+            # add learning rate
+            trainData[self.lrKey] = optimizer.param_groups[0]['lr']
 
             # switch stage, i.e. freeze one more layer
             if (epoch in self.epochsSwitchStage) or (epoch == nEpochs):
