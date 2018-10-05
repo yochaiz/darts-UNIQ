@@ -16,7 +16,6 @@ class AlphasWeightsLoop(TrainRegime):
         self.architect = Architect(replicator, args)
 
     def train(self):
-        epoch = self.epoch
         model = self.model
         args = self.args
         logger = self.logger
@@ -25,7 +24,7 @@ class AlphasWeightsLoop(TrainRegime):
         # init validation best precision value
         best_prec1 = 0.0
 
-        for epoch in range(epoch + 1, epoch + nEpochs + 1):
+        for epoch in range(1, nEpochs + 1):
             # turn on alphas
             model.turnOnAlphas()
             print('========== Epoch:[{}] =============='.format(epoch))
