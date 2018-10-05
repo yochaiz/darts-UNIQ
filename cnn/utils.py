@@ -180,8 +180,6 @@ def logParameters(logger, args, model):
     if not logger:
         return
 
-    # log args
-    logger.addInfoTable('args', HtmlLogger.dictToRows(vars(args), nElementPerRow=3))
     # calc number of permutations
     permutationStr = model.nPerms
     for p in [9, 6, 3]:
@@ -199,6 +197,8 @@ def logParameters(logger, args, model):
         }, nElementPerRow=2))
     # log baseline model
     uniform_best_prec1, uniformKey = logBaselineModel(args, logger, copyKeys=False)
+    # log args
+    logger.addInfoTable('args', HtmlLogger.dictToRows(vars(args), nElementPerRow=3))
     # print args
     print(args)
     # log model architecture to file
