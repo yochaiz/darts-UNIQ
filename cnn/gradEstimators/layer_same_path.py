@@ -32,7 +32,7 @@ class LayerSamePath(RandomPath):
             # turn off coin toss for this layer
             layer.alphas.requires_grad = False
             # init layer alphas gradient
-            layerAlphasGrad = zeros(len(layer.alphas)).cuda()
+            layerAlphasGrad = zeros(layer.numOfOps()).cuda()
             # calc layer alphas softmax
             probs = F.softmax(layer.alphas, dim=-1)
 
