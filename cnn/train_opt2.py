@@ -3,7 +3,8 @@ from json import loads
 from os import path, remove
 
 from cnn.trainRegime.regime import TrainRegime
-from cnn.utils import initLogger, printModelToFile, models, create_exp_dir, modelsRefs, logBaselineModel, sendEmail
+from cnn.HtmlLogger import HtmlLogger
+from cnn.utils import models, create_exp_dir, modelsRefs, sendEmail, logParameters
 
 
 parser = ArgumentParser()
@@ -31,7 +32,7 @@ with open(scriptArgs.data, 'r') as f:
     if not path.exists(args.save):
         create_exp_dir(args.save)
         # init logger
-        logger = initLogger(args.save, args.propagate)
+        logger = HtmlLogger(args.save, 'log')
         # select model constructor
         modelClass = models.__dict__.get(args.model)
         if modelClass:
@@ -49,21 +50,11 @@ with open(scriptArgs.data, 'r') as f:
             if pre_trained_path:
                 args.loadedOpsWithDiffWeights = model.loadPreTrained(pre_trained_path, logger, args.gpu[0])
                 if args.loadedOpsWithDiffWeights is False:
-                    # print some attributes
-                    print(args)
-                    printModelToFile(model, args.save)
-                    logger.info('GPU:{}'.format(args.gpu))
-                    logger.info("args = %s", args)
-                    logger.info('Ops per layer:{}'.format([layer.numOfOps() for layer in model.layersList]))
-                    logger.info('nPerms:[{}]'.format(model.nPerms))
-
-                    # load uniform model
-                    uniform_best_prec1, uniformKey = logBaselineModel(args, logger)
+                    # log parameters & load uniform model
+                    uniform_best_prec1, uniformKey = logParameters(logger, args, model)
                     # log bops ratio
-                    bopsRatioStr = 'Bops ratio:[{:.5f}]'.format(model.calcBopsRatio())
-                    logger.info(bopsRatioStr)
-                    # log learning rate
-                    logger.info('learning_rate:[{}]'.format(args.learning_rate))
+                    bopsRatioStr = '{:.3f}'.format(model.calcBopsRatio())
+                    logger.addInfoTable(title='Bops ratio', rows=[[bopsRatioStr]])
 
                     # build regime for alphas optimization, it performs initial weights training
                     TrainRegime(args, model, modelClass, logger)
@@ -77,14 +68,16 @@ with open(scriptArgs.data, 'r') as f:
                                 .format(uniformKey)
                             content += 'Validation acc: current:[{}] > uniform:[{}]\n' \
                                 .format(best_prec1, uniform_best_prec1)
-                            content += bopsRatioStr + '\n\n'
+                            content += 'Bops ratio:[{}]'.format(bopsRatioStr) + '\n\n'
                             # add model bitwidth allocation
                             for i, layerBitwidth in enumerate(args.bitwidth):
                                 content += 'Layer [{}]: {}\n'.format(i, layerBitwidth)
                             # send email
                             sendEmail(args.recipients, subject, content)
+                            # log to table
+                            logger.addInfoToDataTable(content)
 
-                    logger.info('Done !')
+                    logger.addInfoToDataTable('Done !')
 
 # remove the JSON file
 if path.exists(scriptArgs.data):
