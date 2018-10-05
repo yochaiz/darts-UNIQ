@@ -1,6 +1,6 @@
 from torch.optim import SGD
 
-from .regime import TrainRegime, initTrainLogger, save_checkpoint, HtmlLogger
+from .regime import TrainRegime, save_checkpoint, HtmlLogger
 from cnn.architect import Architect
 import cnn.gradEstimators as gradEstimators
 
