@@ -271,6 +271,9 @@ class TrainRegime:
 
             # add data to main logger table
             logger.addDataRow(trainData)
+            # add columns row from time to time
+            if epoch % 10 == 0:
+                logger.addColumnsRowToDataTable()
 
         # add optimal accuracy
         logger.addSummaryDataRow({self.epochNumKey: 'Optimal', self.validAccKey: '{:.3f}'.format(best_prec1)})
