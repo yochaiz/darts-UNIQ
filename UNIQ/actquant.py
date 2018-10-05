@@ -23,6 +23,7 @@ class ActQuant(nn.Module):
         if self.quant and (not self.training or (self.training and self.quatize_during_training)):
             x = act_quantize.apply(input, self.bitwidth)
         elif self.noise and self.training and self.noise_during_training:
+            assert(False)
             x = act_noise.apply(input, bitwidth=self.bitwidth, training=self.training)
         else:
             x = F.relu(input)
