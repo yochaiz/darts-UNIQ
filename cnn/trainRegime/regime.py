@@ -303,18 +303,19 @@ class TrainRegime:
     def trainAlphas(self, search_queue, model, architect, nEpoch, loggers):
         loss_container = AvgrageMeter()
 
-        trainLogger = loggers.get('train')
-
         model.train()
 
-        # update model replications weights
-        architect.modelReplicator.updateModelWeights(model)
-        # quantize all ops
-        architect.modelReplicator.quantize()
-
+        trainLogger = loggers.get('train')
+        # init updateModelWeights() logger func
+        loggerFunc = []
         if trainLogger:
             trainLogger.createDataTable('Epoch:[{}] - Alphas'.format(nEpoch), self.colsTrainAlphas)
-            trainLogger.addInfoToDataTable('Model replications weights have been updated')
+            loggerFunc = [lambda msg: trainLogger.addInfoToDataTable(msg)]
+
+        # update model replications weights
+        architect.modelReplicator.updateModelWeights(model, loggerFuncs=loggerFunc)
+        # quantize all ops
+        architect.modelReplicator.quantize()
 
         nBatches = len(search_queue)
 
