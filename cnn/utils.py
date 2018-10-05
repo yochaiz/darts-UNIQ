@@ -25,6 +25,7 @@ from UNIQ.preprocess import get_transform
 from UNIQ.data import get_dataset
 
 import cnn.models as models
+from cnn.HtmlLogger import HtmlLogger
 import cnn.gradEstimators as gradEstimators
 
 # import torchvision.transforms as transforms
@@ -173,6 +174,37 @@ def saveArgsToJSON(args):
     args.jsonPath = '{}/args.txt'.format(args.save)
     with open(args.jsonPath, 'w') as f:
         dump(vars(args), f)
+
+
+def logParameters(logger, args, model):
+    if not logger:
+        return
+
+    # log args
+    logger.addInfoTable('args', HtmlLogger.dictToRows(vars(args), nElementPerRow=3))
+    # calc number of permutations
+    permutationStr = model.nPerms
+    for p in [9, 6, 3]:
+        v = model.nPerms / (10 ** p)
+        if v > 1:
+            permutationStr = '{:.3f} * 10<sup>{}</sup>'.format(v, p)
+            break
+    # log other parameters
+    logger.addInfoTable('Parameters', HtmlLogger.dictToRows(
+        {
+            'Parameters size': '{:.3f} MB'.format(count_parameters_in_MB(model)),
+            'Learnable params': len(model.learnable_params),
+            'Ops per layer': [layer.numOfOps() for layer in model.layersList],
+            'Permutations': permutationStr
+        }, nElementPerRow=2))
+    # log baseline model
+    uniform_best_prec1, uniformKey = logBaselineModel(args, logger, copyKeys=False)
+    # print args
+    print(args)
+    # log model architecture to file
+    printModelToFile(model, args.save)
+
+    return uniform_best_prec1, uniformKey
 
 
 def zipFolder(p, zipf):
