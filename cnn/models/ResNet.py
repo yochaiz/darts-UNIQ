@@ -187,7 +187,7 @@ class ResNet(BaseNet):
         conditionFlag = self.nLayersQuantCompleted < len(self.layersList)
         if conditionFlag:
             layer = self.layersList[self.nLayersQuantCompleted]
-            assert (layer.alphas.requires_grad is False)
+            # assert (layer.alphas.requires_grad is False)
 
             for op in layer.getOps():
                 # turn off noise in op

@@ -77,7 +77,7 @@ class BaseNet(Module):
         # collect learnable params (weights)
         self.learnable_params = [param for param in self.parameters() if param.requires_grad]
         # init learnable alphas
-        self.learnable_alphas = []
+        self.learnable_alphas = self.getLearnableAlphas()
         # init number of layers we have completed its quantization
         self.nLayersQuantCompleted = 0
         # init number of samples of each alpha
@@ -121,6 +121,12 @@ class BaseNet(Module):
 
     def nLayers(self):
         return len(self.layersList)
+
+    def getLearnableAlphas(self):
+        return [layer.alphas for layer in self.layersList if layer.alphas.requires_grad is True]
+
+    def updateLearnableAlphas(self):
+        self.learnable_alphas = self.getLearnableAlphas()
 
     def arch_parameters(self):
         return self.learnable_alphas
@@ -187,17 +193,21 @@ class BaseNet(Module):
 
     def turnOffAlphas(self):
         for layer in self.layersList:
-            # turn off alphas gradients
-            layer.alphas.requires_grad = False
+            layer.alphas.grad = None
 
-        self.learnable_alphas = []
+    # def turnOffAlphas(self):
+    #     for layer in self.layersList:
+    #         # turn off alphas gradients
+    #         layer.alphas.requires_grad = False
+    #
+    #     self.learnable_alphas = []
 
     def turnOnAlphas(self):
-        self.learnable_alphas = []
+        # self.learnable_alphas = []
         for layer in self.layersList:
-            # turn on alphas gradients
-            layer.alphas.requires_grad = True
-            self.learnable_alphas.append(layer.alphas)
+            # # turn on alphas gradients
+            # layer.alphas.requires_grad = True
+            # self.learnable_alphas.append(layer.alphas)
 
             for op in layer.getOps():
                 # turn off noise in op
