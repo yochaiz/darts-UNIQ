@@ -50,6 +50,7 @@ modelsRefs = {
     'resnet_w:[4]_a:[4]': '/home/yochaiz/DropDarts/cnn/uniform/resnet_w:[4]_a:[4]/train/model_opt.pth.tar',
     'resnet_w:[4]_a:[32]': '/home/yochaiz/DropDarts/cnn/uniform/resnet_w:[4]_a:[32]/train/model_opt.pth.tar',
     'resnet_w:[5]_a:[5]': '/home/yochaiz/DropDarts/cnn/uniform/resnet_w:[5]_a:[5]/train/model_opt.pth.tar',
+    'resnet_w:[6]_a:[6]': '/home/yochaiz/DropDarts/cnn/uniform/resnet_w:[6]_a:[6]/train/model_opt.pth.tar',
     'resnet_w:[8]_a:[32]': '/home/yochaiz/DropDarts/cnn/uniform/resnet_w:[8]_a:[32]/train/model_checkpoint.pth.tar',
 }
 
