@@ -280,7 +280,7 @@ class TrainRegime:
         logger.addSummaryDataRow({self.epochNumKey: 'Optimal', self.validAccKey: '{:.3f}'.format(best_prec1)})
 
         # save pre-trained checkpoint
-        save_checkpoint(self.trainFolderPath, model, args, epoch, best_prec1, is_best=False, filename='PP')
+        save_checkpoint(self.trainFolderPath, model, args, epoch, best_prec1, is_best=False, filename='pre_trained')
 
         args.best_prec1 = best_prec1
 
