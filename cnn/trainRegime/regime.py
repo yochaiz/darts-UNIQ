@@ -378,6 +378,10 @@ class TrainRegime:
                 self.__applyFormats(dataRow)
                 # add row to data table
                 trainLogger.addDataRow(dataRow)
+                # add columns row
+                if (step + 1) % 10 == 0:
+                    trainLogger.addColumnsRowToDataTable()
+
 
         # restore quantization for all replications ops
         architect.modelReplicator.restore_quantize()
