@@ -195,29 +195,6 @@ class BaseNet(Module):
         for layer in self.layersList:
             layer.alphas.grad = None
 
-    # def turnOffAlphas(self):
-    #     for layer in self.layersList:
-    #         # turn off alphas gradients
-    #         layer.alphas.requires_grad = False
-    #
-    #     self.learnable_alphas = []
-
-    def turnOnAlphas(self):
-        # self.learnable_alphas = []
-        for layer in self.layersList:
-            # # turn on alphas gradients
-            # layer.alphas.requires_grad = True
-            # self.learnable_alphas.append(layer.alphas)
-
-            for op in layer.getOps():
-                # turn off noise in op
-                op.noise = False
-
-                ## ==== for tinyNet ====
-                # # set pre & post quantization hooks, from now on we want to quantize these ops
-                # op.register_forward_pre_hook(save_quant_state)
-                # op.register_forward_hook(restore_quant_state)
-
     def calcBopsRatio(self):
         return self._criterion.calcBopsRatio(self.countBops())
 
@@ -289,6 +266,30 @@ class BaseNet(Module):
             for i, elem in enumerate(layerAlphas):
                 a, _ = elem
                 layer.alphas[i] = a
+
+# def turnOffAlphas(self):
+#     for layer in self.layersList:
+#         # turn off alphas gradients
+#         layer.alphas.requires_grad = False
+#
+#     self.learnable_alphas = []
+
+# def turnOnAlphas(self):
+#     self.learnable_alphas = []
+#     for layer in self.layersList:
+#         # turn on alphas gradients
+#         layer.alphas.requires_grad = True
+#         self.learnable_alphas.append(layer.alphas)
+#
+#         for op in layer.getOps():
+#             # turn off noise in op
+#             op.noise = False
+#
+#             ## ==== for tinyNet ====
+#             # # set pre & post quantization hooks, from now on we want to quantize these ops
+#             # op.register_forward_pre_hook(save_quant_state)
+#             # op.register_forward_hook(restore_quant_state)
+
 
     # # convert current model to discrete, i.e. keep nOpsPerLayer optimal operations per layer
     # def toDiscrete(self, nOpsPerLayer=1):
