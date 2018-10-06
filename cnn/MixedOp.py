@@ -155,9 +155,11 @@ class MixedOp(Block):
 
         # init operations alphas (weights)
         value = 1.0 / self.numOfOps()
-        self.alphas = tensor((ones(self.numOfOps()) * value).cuda(), requires_grad=False)
+        self.alphas = tensor((ones(self.numOfOps()) * value).cuda(), requires_grad=True)
 
         self.curr_alpha_idx = 0
+        # init counter for number of consecutive times optimal alpha reached optimal probability limit
+        self.optLimitCounter = 0
 
         # init bops for operation
         self.bops = self.buildBopsMap(bitwidths, input_bitwidth, params, coutBopsParams)
