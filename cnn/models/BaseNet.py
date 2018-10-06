@@ -208,78 +208,6 @@ class BaseNet(Module):
                 # op.register_forward_pre_hook(save_quant_state)
                 # op.register_forward_hook(restore_quant_state)
 
-    def _loss(self, input, target):
-        # init how many samples per alpha
-        nSamplesPerAlpha = self.nSamplesPerAlpha
-        # init total loss
-        totalLoss = 0.0
-        # init loss samples list for ALL alphas
-        allLossSamples = []
-        for j, layer in enumerate(self.layersList):
-            # turn off coin toss for this layer
-            layer.alphas.requires_grad = False
-            # init layer alphas gradient
-            layerAlphasGrad = zeros(len(layer.alphas)).cuda()
-            # calc layer alphas softmax
-            probs = F.softmax(layer.alphas, dim=-1)
-
-            for i, alpha in enumerate(layer.alphas):
-                # select the specific alpha in this layer
-                layer.curr_alpha_idx = i
-                # init loss samples list
-                alphaLossSamples = []
-                for _ in range(nSamplesPerAlpha):
-                    # forward through some path in model
-                    logits = self(input)
-                    # alphaLoss += self._criterion(logits, target, self.countBops()).detach()
-                    alphaLossSamples.append(self._criterion(logits, target, self.countBops()).detach())
-
-                # add current alpha loss samples to all loss samples list
-                allLossSamples.extend(alphaLossSamples)
-                # calc alpha average loss
-                alphaAvgLoss = sum(alphaLossSamples) / nSamplesPerAlpha
-                layerAlphasGrad[i] = alphaAvgLoss
-                # add alpha loss to total loss
-                totalLoss += (alphaAvgLoss * probs[i])
-
-                # calc loss samples variance
-                lossVariance = [((x - alphaAvgLoss) ** 2) for x in alphaLossSamples]
-                lossVariance = sum(lossVariance) / (nSamplesPerAlpha - 1)
-                # add alpha loss average to statistics
-                self.stats.containers[self.stats.alphaLossAvgKey][j][i].append(alphaAvgLoss.item())
-                # add alpha loss variance to statistics
-                self.stats.containers[self.stats.alphaLossVarianceKey][j][i].append(lossVariance.item())
-
-            # turn in coin toss for this layer
-            layer.alphas.requires_grad = True
-            # set layer alphas gradient
-            layer.alphas.grad = layerAlphasGrad
-
-            # add gradNorm to statistics
-            self.stats.containers[self.stats.gradNormKey][j].append(layerAlphasGrad.norm().item())
-
-        # average total loss
-        totalLoss /= self.nLayers()
-        # calc all loss samples average
-        nTotalSamples = len(allLossSamples)
-        allLossSamplesAvg = sum(allLossSamples) / nTotalSamples
-        # calc all loss samples variance
-        allLossSamples = [((x - allLossSamplesAvg) ** 2) for x in allLossSamples]
-        allLossSamplesVariance = (sum(allLossSamples) / (nTotalSamples - 1)).item()
-        # add all samples average & loss variance to statistics
-        self.stats.containers[self.stats.allSamplesLossAvgKey][0].append(allLossSamplesAvg)
-        self.stats.containers[self.stats.allSamplesLossVarianceKey][0].append(allLossSamplesVariance)
-
-        # subtract average total loss from every alpha gradient
-        for layer in self.layersList:
-            layer.alphas.grad -= totalLoss
-            # calc layer alphas softmax
-            probs = F.softmax(layer.alphas, dim=-1)
-            # multiply each grad by its probability
-            layer.alphas.grad *= probs
-
-        return totalLoss
-
     def calcBopsRatio(self):
         return self._criterion.calcBopsRatio(self.countBops())
 
@@ -437,3 +365,75 @@ class BaseNet(Module):
 #
 #     # logits = self.forward(input)
 #     # return self._criterion(logits, target, self.countBops())
+
+# def _loss(self, input, target):
+#     # init how many samples per alpha
+#     nSamplesPerAlpha = self.nSamplesPerAlpha
+#     # init total loss
+#     totalLoss = 0.0
+#     # init loss samples list for ALL alphas
+#     allLossSamples = []
+#     for j, layer in enumerate(self.layersList):
+#         # turn off coin toss for this layer
+#         layer.alphas.requires_grad = False
+#         # init layer alphas gradient
+#         layerAlphasGrad = zeros(len(layer.alphas)).cuda()
+#         # calc layer alphas softmax
+#         probs = F.softmax(layer.alphas, dim=-1)
+#
+#         for i, alpha in enumerate(layer.alphas):
+#             # select the specific alpha in this layer
+#             layer.curr_alpha_idx = i
+#             # init loss samples list
+#             alphaLossSamples = []
+#             for _ in range(nSamplesPerAlpha):
+#                 # forward through some path in model
+#                 logits = self(input)
+#                 # alphaLoss += self._criterion(logits, target, self.countBops()).detach()
+#                 alphaLossSamples.append(self._criterion(logits, target, self.countBops()).detach())
+#
+#             # add current alpha loss samples to all loss samples list
+#             allLossSamples.extend(alphaLossSamples)
+#             # calc alpha average loss
+#             alphaAvgLoss = sum(alphaLossSamples) / nSamplesPerAlpha
+#             layerAlphasGrad[i] = alphaAvgLoss
+#             # add alpha loss to total loss
+#             totalLoss += (alphaAvgLoss * probs[i])
+#
+#             # calc loss samples variance
+#             lossVariance = [((x - alphaAvgLoss) ** 2) for x in alphaLossSamples]
+#             lossVariance = sum(lossVariance) / (nSamplesPerAlpha - 1)
+#             # add alpha loss average to statistics
+#             self.stats.containers[self.stats.alphaLossAvgKey][j][i].append(alphaAvgLoss.item())
+#             # add alpha loss variance to statistics
+#             self.stats.containers[self.stats.alphaLossVarianceKey][j][i].append(lossVariance.item())
+#
+#         # turn in coin toss for this layer
+#         layer.alphas.requires_grad = True
+#         # set layer alphas gradient
+#         layer.alphas.grad = layerAlphasGrad
+#
+#         # add gradNorm to statistics
+#         self.stats.containers[self.stats.gradNormKey][j].append(layerAlphasGrad.norm().item())
+#
+#     # average total loss
+#     totalLoss /= self.nLayers()
+#     # calc all loss samples average
+#     nTotalSamples = len(allLossSamples)
+#     allLossSamplesAvg = sum(allLossSamples) / nTotalSamples
+#     # calc all loss samples variance
+#     allLossSamples = [((x - allLossSamplesAvg) ** 2) for x in allLossSamples]
+#     allLossSamplesVariance = (sum(allLossSamples) / (nTotalSamples - 1)).item()
+#     # add all samples average & loss variance to statistics
+#     self.stats.containers[self.stats.allSamplesLossAvgKey][0].append(allLossSamplesAvg)
+#     self.stats.containers[self.stats.allSamplesLossVarianceKey][0].append(allLossSamplesVariance)
+#
+#     # subtract average total loss from every alpha gradient
+#     for layer in self.layersList:
+#         layer.alphas.grad -= totalLoss
+#         # calc layer alphas softmax
+#         probs = F.softmax(layer.alphas, dim=-1)
+#         # multiply each grad by its probability
+#         layer.alphas.grad *= probs
+#
+#     return totalLoss

@@ -149,10 +149,6 @@ class ResNet(BaseNet):
 
         return out
 
-    # def _loss(self, input, target):
-    #     logits = self(input)
-    #     return self._criterion(logits, target, self.countBops())
-
     def getLearnableParams(self):
         return self.learnable_params
 
