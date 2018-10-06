@@ -56,6 +56,8 @@ def parseArgs(lossFuncsLambda):
     parser.add_argument('--arch_weight_decay', type=float, default=1e-3, help='weight decay for arch encoding')
 
     parser.add_argument('--pre_trained', type=str, default=None, help='pre-trained model to copy weights from')
+    parser.add_argument('--init_weights_train', action='store_true', default=False,
+                        help='initial train model weights (if required) before alphas optimization')
 
     parser.add_argument('--nBitsMin', type=int, default=1, choices=range(1, 32 + 1), help='min number of bits')
     parser.add_argument('--nBitsMax', type=int, default=3, choices=range(1, 32 + 1), help='max number of bits')

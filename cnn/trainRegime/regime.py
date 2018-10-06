@@ -89,7 +89,7 @@ class TrainRegime:
 
         # if we loaded ops in the same layer with the same weights, then we loaded the optimal full precision model,
         # therefore we have to train the weights for each QuantizedOp
-        if args.loadedOpsWithDiffWeights is False:
+        if (args.loadedOpsWithDiffWeights is False) and args.init_weights_train:
             self.epoch = self.initialWeightsTraining(model, args, trainFolderName='init_weights_train')
         else:
             rows = [['Switching stage']]

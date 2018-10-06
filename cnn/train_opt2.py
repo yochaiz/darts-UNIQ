@@ -17,6 +17,7 @@ with open(scriptArgs.data, 'r') as f:
     args = loads(f.read())
     args = Namespace(**args)
     # update values
+    args.init_weights_train = True
     args.train_portion = 1.0
     args.batch_size = 250
     args.epochs = [5]
