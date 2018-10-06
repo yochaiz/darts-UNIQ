@@ -158,13 +158,17 @@ class Statistics:
         isPlotEmpty = True
 
         for i, layerData in enumerate(data):
-            if len(xValues) == len(layerData):
-                ax.plot(xValues, layerData, self.ptsStyle, label=labelFunc(i))
-                if axOther:
-                    axOther.plot(xValues, layerData, '-', label=labelFunc(i))
-                isPlotEmpty = False
-                dataMax = max(dataMax, max(layerData))
-                dataSum.append(sum(layerData) / len(layerData))
+            # plot by shortest length between xValues, layerData
+            plotLength = min(len(xValues), len(layerData))
+            xValues = xValues[:plotLength]
+            layerData = layerData[:plotLength]
+
+            ax.plot(xValues, layerData, self.ptsStyle, label=labelFunc(i))
+            if axOther:
+                axOther.plot(xValues, layerData, '-', label=labelFunc(i))
+            isPlotEmpty = False
+            dataMax = max(dataMax, max(layerData))
+            dataSum.append(sum(layerData) / len(layerData))
 
         if not isPlotEmpty:
             # add annotations if exists
