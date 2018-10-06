@@ -25,8 +25,6 @@ class AlphasWeightsLoop(TrainRegime):
         best_prec1 = 0.0
 
         for epoch in range(1, nEpochs + 1):
-            # turn on alphas
-            model.turnOnAlphas()
             print('========== Epoch:[{}] =============='.format(epoch))
             # init epoch train logger
             trainLogger = HtmlLogger(self.trainFolderPath, str(epoch))
