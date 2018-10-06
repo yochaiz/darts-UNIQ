@@ -69,7 +69,7 @@ class ModifiedResNet(ResNet):
         self.avgpool = AvgPool2d(8)
         self.fc = Linear(64, 10).cuda()
 
-    def loadUNIQPre_trained(self, chckpntDict):
+    def loadUNIQPreTrained(self, chckpntDict):
         def iterateKey(chckpntDict, map, key1, key2, dstKey):
             keyIdx = 0
             key = '{}.{}.{}'.format(key1, key2, keyIdx)

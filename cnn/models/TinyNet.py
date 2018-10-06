@@ -104,7 +104,7 @@ class TinyNet(BaseNet):
         self.learnable_params = [param for param in self.parameters() if param.requires_grad]
 
     # load original pre_trained model of UNIQ
-    def loadUNIQPre_trained(self, chckpntDict):
+    def loadUNIQPreTrained(self, chckpntDict):
         map = {}
         map['features.0'] = 'features.0.ops.0.op.0.0'
         map['features.1'] = 'features.0.ops.0.op.0.1'

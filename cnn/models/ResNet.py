@@ -233,7 +233,7 @@ class ResNet(BaseNet):
         return conditionFlag
 
     # load original pre_trained model of UNIQ
-    def loadUNIQPre_trained(self, chckpntDict):
+    def loadUNIQPreTrained(self, chckpntDict):
         newStateDict = OrderedDict()
 
         map = {}

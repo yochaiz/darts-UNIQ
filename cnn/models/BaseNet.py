@@ -108,8 +108,8 @@ class BaseNet(Module):
         raise NotImplementedError('subclasses must override switch_stage()!')
 
     @abstractmethod
-    def loadUNIQPre_trained(self, chckpntDict):
-        raise NotImplementedError('subclasses must override loadUNIQPre_trained()!')
+    def loadUNIQPreTrained(self, chckpntDict):
+        raise NotImplementedError('subclasses must override loadUNIQPreTrained()!')
 
     @abstractmethod
     def turnOnWeights(self):
@@ -150,7 +150,7 @@ class BaseNet(Module):
                     self.load_state_dict(chckpntStateDict)
                 else:
                     # use some function to map keys
-                    self.loadUNIQPre_trained(chckpntStateDict)
+                    self.loadUNIQPreTrained(chckpntStateDict)
 
                 loggerRows.append(['Path', '{}'.format(path)])
                 loggerRows.append(['Validation accuracy', '{:.5f}'.format(checkpoint['best_prec1'])])
