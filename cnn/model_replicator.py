@@ -3,12 +3,15 @@ from multiprocessing import Pool
 from abc import abstractmethod
 
 from torch.cuda import set_device
+from torch.nn import functional as F
 from UNIQ.uniq import save_state, restore_state
 
 
 class ModelReplicator:
     def __init__(self, model, modelClass, args):
         self.gpuIDs = args.gpu
+        self.alphaLimit = args.alpha_limit
+        self.alphaLimitCounter = args.alpha_limit_counter
         # init replications list
         self.replications = []
 
@@ -99,6 +102,41 @@ class ModelReplicator:
         for f in loggerFuncs:
             f('Model replications weights have been updated')
 
+    def updateLayersAlphaOptimization(self, model):
+        # init list of layers indices we still have to optimize their alphas
+        optimizeLayerIdx = []
+        # update layers alphas training status, if optimal alpha reached training limit then stop training
+        for idx, layer in enumerate(model.layersList):
+            if layer.alphas.requires_grad is True:
+                # calc layer alphas softmax
+                probs = F.softmax(layer.alphas, dim=-1)
+                optProb = probs.max().item()
+
+                # update layer limit counter or reset it
+                if optProb >= self.alphaLimit:
+                    layer.optLimitCounter += 1
+                else:
+                    layer.optLimitCounter = 0
+
+                # check if counter is enough or not
+                if layer.optLimitCounter >= self.alphaLimitCounter:
+                    # reset gradient
+                    layer.alphas.grad = None
+                    # then turn off requires_grad
+                    layer.alphas.requires_grad = False
+                    # set optimal alpha probability to 1 and the rest to zero
+                    optIdx = probs.argmax().item()
+                    print('Stopped training alphas in layer [{}]: idx:[{}], prob:[{:.3f}]'.format(idx, optIdx, optProb))
+                    layer.alphas.data.fill_(0.0)
+                    layer.alphas.data[optIdx] = 1000.0
+                else:
+                    optimizeLayerIdx.append(idx)
+
+        # update list of learnable alphas
+        model.updateLearnableAlphas()
+
+        return optimizeLayerIdx
+
     def loss(self, model, input, target):
         nCopies = len(self.replications)
         if nCopies > 0:
@@ -109,8 +147,10 @@ class ModelReplicator:
                 inputPerGPU[id] = input if (id == input.device.index) else input.clone().cuda(id)
                 targetPerGPU[id] = target if (id == target.device.index) else target.clone().cuda(id)
 
+            # update model layers alphas optimization status
+            optimizeLayerIdx = self.updateLayersAlphaOptimization(model)
             # split layers indices between models
-            layersIndicesPerModel = array_split(range(model.nLayers()), nCopies)
+            layersIndicesPerModel = array_split(optimizeLayerIdx, nCopies)
 
             # copy model alphas
             for cModel, _ in self.replications:
