@@ -116,11 +116,19 @@ class RandomPath(ModelReplicator):
         stats.containers[stats.allSamplesLossVarianceKey][0].append(allLossSamplesVariance)
 
         # subtract average total loss from every alpha gradient
-        for layer in model.layersList:
-            layer.alphas.grad -= totalLoss
+        for layerAlphas in model.arch_parameters():
+            layerAlphas.grad -= totalLoss
             # calc layer alphas softmax
-            probs = F.softmax(layer.alphas, dim=-1)
+            probs = F.softmax(layerAlphas, dim=-1)
             # multiply each grad by its probability
-            layer.alphas.grad *= probs
+            layerAlphas.grad *= probs
 
         return totalLoss
+
+# subtract average total loss from every alpha gradient
+# for layer in model.layersList:
+#     layer.alphas.grad -= totalLoss
+#     # calc layer alphas softmax
+#     probs = F.softmax(layer.alphas, dim=-1)
+#     # multiply each grad by its probability
+#     layer.alphas.grad *= probs
