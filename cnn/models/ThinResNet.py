@@ -49,7 +49,7 @@ class ThinResNet(ResNet):
         return [(MixedConvWithReLU, 3, 16, 32), (BasicBlock, 16, 16, [32]),
                 (BasicBlock, 16, 32, [32, 16]), (BasicBlock, 32, 64, [16, 8])]
 
-    def loadUNIQPre_trained(self, chckpntDict):
+    def buildStateDictMap(self, chckpntDict):
         def iterateKey(chckpntDict, map, key1, key2, dstKey):
             keyIdx = 0
             key = '{}.{}.{}'.format(key1, key2, keyIdx)
@@ -65,10 +65,9 @@ class ThinResNet(ResNet):
         # =============================================================================
         map = {
             'block1.0': 'layers.0.ops.0.0.op.0.0',
-            'block1.1': 'layers.0.ops.0.0.op.0.1'
+            'block1.1': 'layers.0.ops.0.0.op.0.1',
+            'fc': 'fc'
         }
-
-        newStateDict = OrderedDict()
 
         for i, layer in enumerate(self.layers[1:]):
             dstPrefix = 'layers.{}.'.format(i + 1)
@@ -87,31 +86,7 @@ class ThinResNet(ResNet):
             if c:
                 iterateKey(chckpntDict, map, key1, key2, dstPrefix + '{}.ops.0.0.op.{}')
 
-        token = '.ops.'
-        for key in chckpntDict.keys():
-            if key.startswith('fc.'):
-                newStateDict[key] = chckpntDict[key]
-                continue
-
-            prefix = key[:key.rindex('.')]
-            suffix = key[key.rindex('.'):]
-            newKey = map[prefix]
-            # find new key layer
-            newKeyOp = newKey[:newKey.index(token)]
-            # init path to layer
-            layerPath = [p for p in newKeyOp.split('.')]
-            # get layer by walking through path
-            layer = self
-            for p in layerPath:
-                layer = getattr(layer, p)
-            # update layer ops
-            for j in range(layer.nOpsCopies()):
-                for i in range(layer.numOfOps()):
-                    newKey = map[prefix].replace(newKeyOp + token + '0.0.', newKeyOp + token + '{}.{}.'.format(j, i))
-                    newStateDict[newKey + suffix] = chckpntDict[key]
-
-        # load model weights
-        self.load_state_dict(newStateDict)
+        return map
 
 # # ====================================================
 # # for training pre_trained, i.e. full precision
@@ -141,7 +116,7 @@ class ThinResNet(ResNet):
 # def countBops(self):
 #     return 10
 #
-# def loadUNIQPre_trained(self, path, logger, gpu):
+# def loadUNIQPreTrained(self, path, logger, gpu):
 #     checkpoint = loadModel(path, map_location=lambda storage, loc: storage.cuda(gpu))
 #     chckpntDict = checkpoint['state_dict']
 #

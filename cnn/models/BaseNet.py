@@ -112,6 +112,10 @@ class BaseNet(Module):
         raise NotImplementedError('subclasses must override loadUNIQPreTrained()!')
 
     @abstractmethod
+    def loadSingleOpPreTrained(self, chckpntDict):
+        raise NotImplementedError('subclasses must override loadSingleOpPreTrained()!')
+
+    @abstractmethod
     def turnOnWeights(self):
         raise NotImplementedError('subclasses must override turnOnWeights()!')
 
@@ -150,7 +154,11 @@ class BaseNet(Module):
                     self.load_state_dict(chckpntStateDict)
                 else:
                     # use some function to map keys
-                    self.loadUNIQPreTrained(chckpntStateDict)
+                    loadFuncs = [self.loadUNIQPreTrained, self.loadSingleOpPreTrained]
+                    for func in loadFuncs:
+                        loadSuccess = func(chckpntStateDict)
+                        if loadSuccess is not False:
+                            break
 
                 loggerRows.append(['Path', '{}'.format(path)])
                 loggerRows.append(['Validation accuracy', '{:.5f}'.format(checkpoint['best_prec1'])])

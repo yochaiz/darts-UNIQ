@@ -232,10 +232,7 @@ class ResNet(BaseNet):
 
         return conditionFlag
 
-    # load original pre_trained model of UNIQ
-    def loadUNIQPreTrained(self, chckpntDict):
-        newStateDict = OrderedDict()
-
+    def buildStateDictMap(self, chckpntDict):
         map = {}
         map['conv1'] = 'layers.0.ops.0.0.op.0.0'
         map['bn1'] = 'layers.0.ops.0.0.op.0.1'
@@ -256,7 +253,20 @@ class ResNet(BaseNet):
             map['layer{}.{}.downsample.0'.format(n1, n2)] = 'layers.{}.downsample.ops.0.0.op.0'.format(m)
             map['layer{}.{}.downsample.1'.format(n1, n2)] = 'layers.{}.downsample.ops.0.0.op.1'.format(m)
 
-        # map['fc'] = 'fc'
+        map['fc'] = 'fc'
+
+        return map
+
+    # load original pre_trained model of UNIQ
+    def loadUNIQPreTrained(self, chckpntDict):
+        map = self.buildStateDictMap(chckpntDict)
+        newStateDict = OrderedDict()
+
+        # make sure all chckpntDict keys exist in map, otherwise quit
+        for key in chckpntDict.keys():
+            prefix = key[:key.rindex('.')]
+            if prefix not in map:
+                return False
 
         token = '.ops.'
         for key in chckpntDict.keys():
@@ -286,114 +296,32 @@ class ResNet(BaseNet):
         # load model weights
         self.load_state_dict(newStateDict)
 
-    # def loadPreTrainedModel(self, path, logger, gpu):
-    #     checkpoint = loadModel(path, map_location=lambda storage, loc: storage.cuda(gpu))
-    #     chckpntDict = checkpoint['state_dict']
-    #     curStateDict = self.state_dict()
-    #     newStateDict = OrderedDict()
-    #     # split state_dict keys by model layers
-    #     layerKeys = {}  # collect ALL layer keys in state_dict
-    #     layerOp0Keys = {}  # collect ONLY layer.ops.0. keys in state_dict, for duplication to the rest of layer ops
-    #     token = '.ops.'
-    #     for key, item in chckpntDict.items():
-    #         prefix = key[:key.index(token)]
-    #         isKey0 = prefix + token + '0.' in key
-    #         if prefix in layerKeys:
-    #             layerKeys[prefix].append(key)
-    #             if isKey0: layerOp0Keys[prefix].append(key)
-    #         else:
-    #             layerKeys[prefix] = [key]
-    #             if isKey0: layerOp0Keys[prefix] = [key]
-    #     # duplicate state_dict values according to number of ops in each model layer
-    #     for layerKey in layerKeys.keys():
-    #         # init path to layer
-    #         layerPath = [p for p in layerKey.split('.')]
-    #         # get layer by walking through path
-    #         layer = self
-    #         for p in layerPath:
-    #             layer = getattr(layer, p)
-    #         # init stateKey prefix
-    #         srcPrefix = layerKey + token + '0.op.'
-    #         dstPrefix = layerKey + token + '{}.op.'
-    #         # add missing layer operations to state_dict
-    #         for stateKey in layerOp0Keys[layerKey]:
-    #             if srcPrefix not in stateKey:
-    #                 srcPrefix = layerKey + token + '0.'
-    #                 dstPrefix = layerKey + token + '{}.'
-    #             for i in range(len(layer.ops)):
-    #                 # update newKey to fit current model structure, i.e. with '.op.' in keys
-    #                 newKey = stateKey.replace(srcPrefix, layerKey + token + '{}.op.'.format(i))
-    #                 j = 0
-    #                 keyOldFormat = stateKey.replace(srcPrefix, dstPrefix.format(j))
-    #                 foundMatch = False
-    #                 while (keyOldFormat in layerKeys[layerKey]) and (not foundMatch):
-    #                     if chckpntDict[keyOldFormat].size() == curStateDict[newKey].size():
-    #                         newStateDict[newKey] = chckpntDict[keyOldFormat]
-    #                         foundMatch = True
-    #                     j += 1
-    #                     keyOldFormat = stateKey.replace(srcPrefix, dstPrefix.format(j))
-    #
-    #     # load model weights
-    #     self.load_state_dict(newStateDict)
-    #
-    #     # # load model alphas
-    #     # if 'alphas' in checkpoint:
-    #     #     chkpntAlphas = checkpoint['alphas']
-    #     #     for i, l in enumerate(self.layersList):
-    #     #         layerChkpntAlphas = chkpntAlphas[i]
-    #     #         # init corresponding layers with its alphas
-    #     #         jStart = 0
-    #     #         jEnd = len(layerChkpntAlphas)
-    #     #         while jEnd < len(l.alphas):
-    #     #             l.alphas[jStart:jEnd].copy_(layerChkpntAlphas)
-    #     #             jStart = jEnd
-    #     #             jEnd += len(layerChkpntAlphas)
-    #
-    #     logger.info('Loaded model from [{}]'.format(path))
-    #     logger.info('checkpoint validation accuracy:[{:.5f}]'.format(checkpoint['best_prec1']))
-    #
-    # def loadFromCheckpoint(self, path, logger, gpu):
-    #     checkpoint = loadModel(path, map_location=lambda storage, loc: storage.cuda(gpu))
-    #     # split state_dict keys by model layers
-    #     layerKeys = {}  # collect ALL layer keys in state_dict
-    #     layerOp0Keys = {}  # collect ONLY layer.ops.0. keys in state_dict, for duplication to the rest of layer ops
-    #     token = '.ops.'
-    #     for key in checkpoint['state_dict'].keys():
-    #         prefix = key[:key.index(token)]
-    #         isKey0 = prefix + token + '0.' in key
-    #         if prefix in layerKeys:
-    #             layerKeys[prefix].append(key)
-    #             if isKey0: layerOp0Keys[prefix].append(key)
-    #         else:
-    #             layerKeys[prefix] = [key]
-    #             if isKey0: layerOp0Keys[prefix] = [key]
-    #     # duplicate state_dict values according to number of ops in each model layer
-    #     for layerKey in layerKeys.keys():
-    #         # init path to layer
-    #         layerPath = [p for p in layerKey.split('.')]
-    #         # get layer by walking through path
-    #         layer = self
-    #         for p in layerPath:
-    #             layer = getattr(layer, p)
-    #         # add missing layer operations to state_dict
-    #         for stateKey in layerOp0Keys[layerKey]:
-    #             for i in range(len(layer.ops)):
-    #                 newKey = stateKey.replace(layerKey + token + '0.', layerKey + token + '{}.'.format(i))
-    #                 if newKey not in layerKeys[layerKey]:
-    #                     checkpoint['state_dict'][newKey] = checkpoint['state_dict'][stateKey]
-    #
-    #     # load model weights
-    #     self.load_state_dict(checkpoint['state_dict'])
-    #     # load model alphas
-    #     # if 'alphas' in checkpoint:
-    #     #     for i, l in enumerate(self.layersList):
-    #     #         layerChkpntAlphas = checkpoint['alphas'][i]
-    #     #         assert (layerChkpntAlphas.size() <= l.alphas.size())
-    #     #         l.alphas = layerChkpntAlphas.expand_as(l.alphas)
-    #
-    #     # load nLayersQuantCompleted
-    #     # if 'nLayersQuantCompleted' in checkpoint:
-    #     #     self.nLayersQuantCompleted = checkpoint['nLayersQuantCompleted']
-    #
-    #     logger.info('Loaded model from [{}]'.format(path))
-    #     logger.info('checkpoint validation accuracy:[{:.5f}]'.format(checkpoint['best_prec1']))
+    # load weights from the same model but with single operation per layer, like a uniform bitwidth trained model
+    def loadSingleOpPreTrained(self, chckpntDict):
+        newStateDict = OrderedDict()
+
+        token = '.ops.'
+        for key in chckpntDict.keys():
+            if key.startswith('fc.'):
+                newStateDict[key] = chckpntDict[key]
+                continue
+
+            prefix = key[:key.rindex('.')]
+            suffix = key[key.rindex('.'):]
+
+            # find new key layer
+            newKeyOp = prefix[:prefix.index(token)]
+            # init path to layer
+            layerPath = [p for p in newKeyOp.split('.')]
+            # get layer by walking through path
+            layer = self
+            for p in layerPath:
+                layer = getattr(layer, p)
+            # update layer ops
+            for j in range(layer.nOpsCopies()):
+                for i in range(layer.numOfOps()):
+                    newKey = prefix.replace(newKeyOp + token + '0.0.', newKeyOp + token + '{}.{}.'.format(j, i))
+                    newStateDict[newKey + suffix] = chckpntDict[key]
+
+        # load model weights
+        self.load_state_dict(newStateDict)
