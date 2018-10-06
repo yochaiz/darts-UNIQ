@@ -68,8 +68,10 @@ def parseArgs(lossFuncsLambda):
                         help='alphas optimization method')
     parser.add_argument('--grad_estimator', default='random_path', choices=gradEstimatorsNames,
                         help='gradient estimation method')
-    parser.add_argument('--nSamplesPerAlpha', type=int, default=20,
-                        help='How many paths to sample in order to calculate average alpha loss')
+    parser.add_argument('--nSamplesPerAlpha', type=int, default=20, help='How many paths to sample in order to calculate average alpha loss')
+    parser.add_argument('--alpha_limit', type=float, default=0.8, help='if a layer opt alpha reached alpha_limit, then stop optimize layer alphas')
+    parser.add_argument('--alpha_limit_counter', type=int, default=10,
+                        help='how many consecutive steps the optimal alpha has to be over limit in order to stop layer alphas optimization')
 
     parser.add_argument('--loss', type=str, default='UniqLoss', choices=[key for key in lossFuncsLambda.keys()])
     parser.add_argument('--lmbda', type=float, default=1.0, help='Lambda value for UniqLoss')
