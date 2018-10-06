@@ -2,10 +2,9 @@ from argparse import ArgumentParser, Namespace
 from json import loads
 from os import path, remove
 
-from cnn.trainRegime.regime import TrainRegime
+from cnn.trainRegime.optimalModel import OptimalModel
 from cnn.HtmlLogger import HtmlLogger
 from cnn.utils import models, create_exp_dir, modelsRefs, sendEmail, logParameters
-
 
 parser = ArgumentParser()
 parser.add_argument('--data', type=str, required=True, help='JSON file path')
@@ -58,7 +57,7 @@ with open(scriptArgs.data, 'r') as f:
                     logger.addInfoTable(title='Bops ratio', rows=[[bopsRatioStr]])
 
                     # build regime for alphas optimization, it performs initial weights training
-                    TrainRegime(args, model, modelClass, logger)
+                    OptimalModel(args, model, modelClass, logger)
                     # load model best_prec1
                     best_prec1 = getattr(args, 'best_prec1', None)
                     # send mail if model beats uniform model
