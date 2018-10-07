@@ -175,7 +175,7 @@ def saveArgsToJSON(args):
     # save args to JSON
     args.jsonPath = '{}/args.txt'.format(args.save)
     with open(args.jsonPath, 'w') as f:
-        dump(vars(args), f)
+        dump(vars(args), f, indent=4, sort_keys=True)
 
 
 def logParameters(logger, args, model):
