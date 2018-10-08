@@ -46,7 +46,7 @@ class ThinResNet(ResNet):
 
     # init layers (type, in_planes, out_planes)
     def initLayersPlanes(self):
-        return [(MixedConvWithReLU, 3, 16, 32), (BasicBlock, 16, 16, [32]),
+        return [(self.createMixedLayer, 3, 16, 32), (BasicBlock, 16, 16, [32]),
                 (BasicBlock, 16, 32, [32, 16]), (BasicBlock, 32, 64, [16, 8])]
 
     def buildStateDictMap(self, chckpntDict):
