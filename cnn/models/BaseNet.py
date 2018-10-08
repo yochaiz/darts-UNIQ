@@ -8,7 +8,7 @@ from torch.nn import Module
 from torch.nn import functional as F
 from torch import load as loadModel
 
-from cnn.MixedOp import MixedOp
+from cnn.MixedLayer import MixedLayer
 from cnn.uniq_loss import UniqLoss
 from cnn.statistics import Statistics
 
@@ -64,7 +64,7 @@ class BaseNet(Module):
         # init layers
         self.layers = self.initLayers(initLayersParams)
         # build mixture layers list
-        self.layersList = [m for m in self.modules() if isinstance(m, MixedOp)]
+        self.layersList = [m for m in self.modules() if isinstance(m, MixedLayer)]
         # set bops counter function
         self.countBopsFunc = self.countBopsFuncs[args.bopsCounter]
         # init criterion
@@ -237,7 +237,7 @@ class BaseNet(Module):
             wSorted = wSorted[:k]
             wIndices = wIndices[:k]
             # add to top
-            top.append([(i, w.item(), layer.alphas[i], layer.ops[0][i]) for w, i in zip(wSorted, wIndices)])
+            top.append([(i, w.item(), layer.alphas[i], layer.filters[0].ops[0][i]) for w, i in zip(wSorted, wIndices)])
 
         return top
 
