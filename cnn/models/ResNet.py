@@ -11,9 +11,9 @@ from cnn.models.BaseNet import save_quant_state, restore_quant_state
 
 
 # init layers creation functions
-def createMixedConvWithReLU(bitwidths, in_planes, kernel_size, stride, input_size, input_bitwidth, prevLayer, useResidual=False):
+def createMixedConvWithReLU(bitwidths, in_planes, kernel_size, stride, input_size, input_bitwidth, prevLayer):
     def f():
-        return MixedConvWithReLU(bitwidths, in_planes, 1, kernel_size, stride, input_size, input_bitwidth, prevLayer, useResidual)
+        return MixedConvWithReLU(bitwidths, in_planes, 1, kernel_size, stride, input_size, input_bitwidth, prevLayer)
 
     return f
 
@@ -33,8 +33,7 @@ class BasicBlock(Block):
 
         self.block1 = MixedLayer(out_planes,
                                  createMixedConvWithReLU(bitwidths[0] if isinstance(bitwidths[0], list) else bitwidths, in_planes, kernel_size,
-                                                         stride1, input_size[0], input_bitwidth, prevLayer, useResidual=False),
-                                 useResidual=False)
+                                                         stride1, input_size[0], input_bitwidth, prevLayer), useResidual=False)
 
         bitwidthIdx = 1
         self.downsample = None
@@ -47,8 +46,7 @@ class BasicBlock(Block):
         self.block2 = MixedLayer(out_planes,
                                  createMixedConvWithReLU(bitwidths[bitwidthIdx] if isinstance(bitwidths[0], list) else bitwidths, out_planes,
                                                          kernel_size, stride, input_size[-1], self.block1.getOutputBitwidthList(),
-                                                         prevLayer=self.block1, useResidual=True),
-                                 useResidual=True)
+                                                         prevLayer=self.block1), useResidual=True)
 
     def forward(self, x):
         residual = self.downsample(x) if self.downsample else x
