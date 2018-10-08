@@ -315,10 +315,7 @@ def count_flops(model, input_size, in_channels):
     batch = randn(batch_size, in_channels, input_size, input_size).cuda()
     net.start_flops_count()
 
-    if net.useResidual:
-        _ = net(batch, batch)
-    else:
-        _ = net(batch)
+    _ = net(batch)
 
     flops, bops = net.compute_average_flops_cost() / 2, net.compute_average_bops_cost()
     net.stop_flops_count()
