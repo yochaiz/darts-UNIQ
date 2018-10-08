@@ -45,17 +45,8 @@ class Statistics:
         self.saveFolder = plotFolderPath
         # init list of batch labels for y axis
         self.batchLabels = []
-        # collect op bitwidth per layer in model
-        # self.layersBitwidths = [tensor([op.bitwidth[0] for op in layer.ops[0]], dtype=float32).cuda()
-        #                         for layer in layersList]
-        self.layersBitwidths = []
-        for layer in layersList:
-            filter = layer.filters[0]
-            bitwidth = []
-            for i in range(filter.numOfOps()):
-                op = filter.ops[0][i]
-                bitwidth.append('({},{})'.format(op.bitwidth, op.act_bitwidth))
-            self.layersBitwidths.append(bitwidth)
+        # collect ops bitwidth per layer in model
+        self.layersBitwidths = [layer.getAllBitwidths() for layer in layersList]
         # # plot bops plot
         # self.plotBops(layersList)
         # init containers
