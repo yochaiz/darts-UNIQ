@@ -50,60 +50,55 @@ class MixedLayer(Module):
                 self.filters[idx].curr_alpha_idx = i
                 idx += 1
 
-    def forward(self, x):
-        out1 = []
+    def forwardConv(self, x):
+        out = []
         # apply selected op in each filter
         for f in self.filters:
-            f.preForward()
-            op = f.getCurrentOp().op
-            res = op[0](x)
-            out1.append(res)
+            res = f.forwardConv(x)
+            out.append(res)
         # concat filters output
-        out1 = cat(out1, 1)
+        out = cat(out, 1)
+
+        return out
+
+    def forwardReLU(self, x):
+        out = []
+        # apply selected op in each filter
+        for i, f in enumerate(self.filters):
+            res = f.forwardReLU(x[i])
+            out.append(res)
+        # concat filters output
+        out = cat(out, 1)
+
+        return out
+
+    def preResidualForward(self, x):
+        out = self.forwardConv(x)
         # apply batch norm
-        out1 = self.bn(out1)
-        out = out1
-        # apply op 2nd part if exists
-        if len(op) > 1:
-            out2 = []
+        out = self.bn(out)
+
+        return out
+
+    def postResidualForward(self, out):
+        # apply ReLU if exists
+        if self.filters[0].forwardReLU:
             # split out1 to chunks again
-            out1 = chunk(out1, self.nFilters(), dim=1)
-            for i, f in enumerate(self.filters):
-                op = f.getCurrentOp().op
-                res = op[1](out1[i])
-                out2.append(res)
-            # concat filters output
-            out2 = cat(out2, 1)
-            out = out2
+            out = chunk(out, self.nFilters(), dim=1)
+            out = self.forwardReLU(out)
+
+        return out
+
+    def forward(self, x):
+        out = self.preResidualForward(x)
+        out = self.postResidualForward(out)
 
         return out
 
     def residualForward(self, x, residual):
-        out1 = []
-        # apply selected op in each filter
-        for f in self.filters:
-            f.preForward()
-            op = f.getCurrentOp().op
-            res = op[0](x)
-            out1.append(res)
-        # concat filters output
-        out1 = cat(out1, 1)
-        # apply batch norm
-        out1 = self.bn(out1)
-        out1 += residual
-        out = out1
-        # apply op 2nd part if exists
-        if len(op) > 1:
-            out2 = []
-            # split out1 to chunks again
-            out1 = chunk(out1, self.nFilters(), dim=1)
-            for i, f in enumerate(self.filters):
-                op = f.getCurrentOp().op
-                res = op[1](out1[i])
-                out2.append(res)
-            # concat filters output
-            out2 = cat(out2, 1)
-            out = out2
+        out = self.preResidualForward(x)
+        # add residual
+        out += residual
+        out = self.postResidualForward(out)
 
         return out
 
