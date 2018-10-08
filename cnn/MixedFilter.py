@@ -14,15 +14,13 @@ from abc import abstractmethod
 
 
 class QuantizedOp(UNIQNet):
-    def __init__(self, op, bitwidth=[], act_bitwidth=[], useResidual=False):
+    def __init__(self, op, bitwidth=[], act_bitwidth=[]):
         # noise=False because we want to noise only specific layer in the entire (ResNet) model
-        super(QuantizedOp, self).__init__(quant=True, noise=False, quant_edges=True,
-                                          act_quant=True, act_noise=False,
-                                          step_setup=[1, 1],
-                                          bitwidth=bitwidth, act_bitwidth=act_bitwidth)
+        super(QuantizedOp, self).__init__(quant=True, noise=False, quant_edges=True, act_quant=True, act_noise=False,
+                                          step_setup=[1, 1], bitwidth=bitwidth, act_bitwidth=act_bitwidth)
 
-        self.useResidual = useResidual
-        self.forward = self.residualForward if useResidual else self.standardForward
+        # self.useResidual = useResidual
+        # self.forward = self.residualForward if useResidual else self.standardForward
         self.hookHandlers = []
 
         self.op = op.cuda()
@@ -43,15 +41,18 @@ class QuantizedOp(UNIQNet):
     def compute_average_bops_cost(self):
         pass
 
-    def standardForward(self, x):
+    def forward(self, x):
         return self.op(x)
 
-    def residualForward(self, x, residual):
-        out = self.op[0](x)
-        out += residual
-        out = self.op[1](out)
-
-        return out
+    # def standardForward(self, x):
+    #     return self.op(x)
+    #
+    # def residualForward(self, x, residual):
+    #     out = self.op[0](x)
+    #     out += residual
+    #     out = self.op[1](out)
+    #
+    #     return out
 
 
 class Block(Module):
@@ -236,10 +237,10 @@ class MixedFilter(Block):
 
         return prev_alpha_idx
 
-    def forward(self, x):
-        prev_alpha_idx = self.preForward()
-        op = self.ops[prev_alpha_idx][self.curr_alpha_idx]
-        return op(x)
+    # def forward(self, x):
+    #     prev_alpha_idx = self.preForward()
+    #     op = self.ops[prev_alpha_idx][self.curr_alpha_idx]
+    #     return op(x)
 
     def getCurrentOp(self):
         prevLayer = self.prevLayer[0]
@@ -309,6 +310,7 @@ class MixedConv(MixedFilter):
         super(MixedConv, self).__init__(bitwidths, input_bitwidth, params, coutBopsParams, prevLayer)
 
         self.in_planes = in_planes
+        self.forwardReLU = None
 
     def initOps(self, bitwidths, params):
         in_planes, out_planes, kernel_size, stride = params
@@ -323,6 +325,11 @@ class MixedConv(MixedFilter):
                 ops.append(op)
 
         return ops
+
+    def forwardConv(self, x):
+        prev_alpha_idx = self.preForward()
+        op = self.ops[prev_alpha_idx][self.curr_alpha_idx].op[0]
+        return op(x)
 
     def countOpsBops(self, ops, coutBopsParams):
         input_size, in_planes = coutBopsParams
@@ -340,9 +347,9 @@ class MixedConv(MixedFilter):
 
 
 class MixedConvWithReLU(MixedFilter):
-    def __init__(self, bitwidths, in_planes, out_planes, kernel_size, stride, input_size, input_bitwidth, prevLayer, useResidual=False):
+    def __init__(self, bitwidths, in_planes, out_planes, kernel_size, stride, input_size, input_bitwidth, prevLayer):
         assert (isinstance(kernel_size, list))
-        params = in_planes, out_planes, kernel_size, stride, useResidual
+        params = in_planes, out_planes, kernel_size, stride
         coutBopsParams = in_planes, input_size
 
         # if useResidual:
@@ -359,7 +366,7 @@ class MixedConvWithReLU(MixedFilter):
             self.outputBitwidth.extend(op.act_bitwidth)
 
     def initOps(self, bitwidths, params):
-        in_planes, out_planes, kernel_size, stride, useResidual = params
+        in_planes, out_planes, kernel_size, stride = params
 
         ops = ModuleList()
         for bitwidth, act_bitwidth in bitwidths:
@@ -368,10 +375,20 @@ class MixedConvWithReLU(MixedFilter):
                     Conv2d(in_planes, out_planes, kernel_size=ker_sz, stride=stride, padding=floor(ker_sz / 2), bias=False),
                     ActQuant(quant=True, noise=False, bitwidth=act_bitwidth)
                 )
-                op = QuantizedOp(op, bitwidth=[bitwidth], act_bitwidth=[act_bitwidth], useResidual=useResidual)
+                op = QuantizedOp(op, bitwidth=[bitwidth], act_bitwidth=[act_bitwidth])
                 ops.append(op)
 
         return ops
+
+    def forwardConv(self, x):
+        prev_alpha_idx = self.preForward()
+        op = self.ops[prev_alpha_idx][self.curr_alpha_idx].op[0]
+        return op(x)
+
+    def forwardReLU(self, x):
+        prev_alpha_idx = self.preForward()
+        op = self.ops[prev_alpha_idx][self.curr_alpha_idx].op[1]
+        return op(x)
 
     def countOpsBops(self, ops, coutBopsParams):
         in_planes, input_size = coutBopsParams
