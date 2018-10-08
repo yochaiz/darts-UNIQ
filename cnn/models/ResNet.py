@@ -1,12 +1,28 @@
 from collections import OrderedDict
 
-from torch.nn import Module, Conv2d, AvgPool2d, Linear, ModuleList
+from torch.nn import Conv2d, AvgPool2d, Linear, ModuleList
 
 from UNIQ.actquant import ActQuant
 
-from cnn.MixedOp import MixedOp, MixedConv, MixedConvWithReLU, MixedLinear, Block
+from cnn.MixedFilter import MixedFilter, MixedConv, MixedConvWithReLU, Block
+from cnn.MixedLayer import MixedLayer
 from cnn.models import BaseNet
 from cnn.models.BaseNet import save_quant_state, restore_quant_state
+
+
+# init layers creation functions
+def createMixedConvWithReLU(bitwidths, in_planes, kernel_size, stride, input_size, input_bitwidth, prevLayer, useResidual=False):
+    def f():
+        return MixedConvWithReLU(bitwidths, in_planes, 1, kernel_size, stride, input_size, input_bitwidth, prevLayer, useResidual)
+
+    return f
+
+
+def createMixedConv(bitwidths, in_planes, kernel_size, stride, input_size, input_bitwidth, prevLayer):
+    def f():
+        return MixedConv(bitwidths, in_planes, 1, kernel_size, stride, input_size, input_bitwidth, prevLayer)
+
+    return f
 
 
 class BasicBlock(Block):
@@ -15,19 +31,24 @@ class BasicBlock(Block):
 
         stride1 = stride if in_planes == out_planes else (stride + 1)
 
-        self.block1 = MixedConvWithReLU(bitwidths[0] if isinstance(bitwidths[0], list) else bitwidths, in_planes, out_planes, kernel_size, stride1,
-                                        input_size[0], input_bitwidth, prevLayer, useResidual=False)
+        self.block1 = MixedLayer(out_planes,
+                                 createMixedConvWithReLU(bitwidths[0] if isinstance(bitwidths[0], list) else bitwidths, in_planes, kernel_size,
+                                                         stride1, input_size[0], input_bitwidth, prevLayer, useResidual=False),
+                                 useResidual=False)
 
         bitwidthIdx = 1
         self.downsample = None
         if in_planes != out_planes:
             downsampleBitwidth = [(b, None) for b, _ in (bitwidths[1] if isinstance(bitwidths[0], list) else bitwidths)]
-            self.downsample = MixedConv(downsampleBitwidth, in_planes, out_planes, [1], stride1, input_size[0], input_bitwidth, prevLayer)
+            self.downsample = MixedLayer(out_planes,
+                                         createMixedConv(downsampleBitwidth, in_planes, [1], stride1, input_size[0], input_bitwidth, prevLayer))
             bitwidthIdx += 1
 
-        self.block2 = MixedConvWithReLU(bitwidths[bitwidthIdx] if isinstance(bitwidths[0], list) else bitwidths,
-                                        out_planes, out_planes, kernel_size, stride, input_size[-1], self.block1.getOutputBitwidthList(),
-                                        prevLayer=self.block1, useResidual=True)
+        self.block2 = MixedLayer(out_planes,
+                                 createMixedConvWithReLU(bitwidths[bitwidthIdx] if isinstance(bitwidths[0], list) else bitwidths, out_planes,
+                                                         kernel_size, stride, input_size[-1], self.block1.getOutputBitwidthList(),
+                                                         prevLayer=self.block1, useResidual=True),
+                                 useResidual=True)
 
     def forward(self, x):
         residual = self.downsample(x) if self.downsample else x
@@ -95,9 +116,16 @@ class ResNet(BaseNet):
         # update model parameters() function
         self.parameters = self.getLearnableParams
 
+    @staticmethod
+    def createMixedLayer(bitwidths, in_planes, out_planes, kernel_sizes, stride, input_size, input_bitwidth, prevLayer):
+        f = createMixedConvWithReLU(bitwidths, in_planes, kernel_sizes, stride, input_size, input_bitwidth, prevLayer)
+        layer = MixedLayer(out_planes, f)
+        layer.setFiltersRatio([0., 0., 0., 0.25, 0.75])
+        return layer
+
     # init layers (type, in_planes, out_planes)
     def initLayersPlanes(self):
-        return [(MixedConvWithReLU, 3, 16, 32),
+        return [(self.createMixedLayer, 3, 16, 32),
                 (BasicBlock, 16, 16, [32]), (BasicBlock, 16, 16, [32]), (BasicBlock, 16, 16, [32]),
                 (BasicBlock, 16, 32, [32, 16]), (BasicBlock, 32, 32, [16]), (BasicBlock, 32, 32, [16]),
                 (BasicBlock, 32, 64, [16, 8]), (BasicBlock, 64, 64, [8]), (BasicBlock, 64, 64, [8])]
@@ -123,14 +151,14 @@ class ResNet(BaseNet):
             # add layer to layers list
             layers.append(l)
             # remove layer specific bitwidths, in case of different bitwidths to layers
-            if isinstance(bitwidths[0], list):
-                nMixedOpLayers = 1 if isinstance(l, MixedOp) \
-                    else sum(1 for _, m in l._modules.items() if isinstance(m, MixedOp))
-                del bitwidths[:nMixedOpLayers]
-            # update input_bitwidth for next layer
-            input_bitwidth = l.getOutputBitwidthList()
-            # update previous layer
-            prevLayer = l.outputLayer()
+            # if isinstance(bitwidths[0], list):
+            #     nMixedOpLayers = 1 if isinstance(l, MixedFilter) \
+            #         else sum(1 for _, m in l._modules.items() if isinstance(m, MixedFilter))
+            #     del bitwidths[:nMixedOpLayers]
+            # # update input_bitwidth for next layer
+            # input_bitwidth = l.getOutputBitwidthList()
+            # # update previous layer
+            # prevLayer = l.outputLayer()
 
         self.avgpool = AvgPool2d(8)
         # self.fc = MixedLinear(bitwidths, 64, 10)
@@ -217,6 +245,7 @@ class ResNet(BaseNet):
                 layer = self.layersList[self.nLayersQuantCompleted]
                 # turn on noise in the new layer we want to quantize
                 for op in layer.getOps():
+                    assert (op.noise is False)
                     op.noise = True
 
             logMsg = 'nLayersQuantCompleted:[{}], learnable_params:[{}], learnable_alphas:[{}]' \
