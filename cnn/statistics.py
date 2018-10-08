@@ -46,10 +46,18 @@ class Statistics:
         # init list of batch labels for y axis
         self.batchLabels = []
         # collect op bitwidth per layer in model
-        self.layersBitwidths = [tensor([op.bitwidth[0] for op in layer.ops[0]], dtype=float32).cuda()
-                                for layer in layersList]
-        # plot bops plot
-        self.plotBops(layersList)
+        # self.layersBitwidths = [tensor([op.bitwidth[0] for op in layer.ops[0]], dtype=float32).cuda()
+        #                         for layer in layersList]
+        self.layersBitwidths = []
+        for layer in layersList:
+            filter = layer.filters[0]
+            bitwidth = []
+            for i in range(filter.numOfOps()):
+                op = filter.ops[0][i]
+                bitwidth.append('({},{})'.format(op.bitwidth, op.act_bitwidth))
+            self.layersBitwidths.append(bitwidth)
+        # # plot bops plot
+        # self.plotBops(layersList)
         # init containers
         self.containers = {
             self.entropyKey: [[] for _ in range(nLayers)],
@@ -239,7 +247,7 @@ class Statistics:
             for i, layerData in enumerate(data):
                 layerFig = self.__plotContainer(layerData, xValues, xLabel='Batch #', axOther=ax[axRow, axCol],
                                                 title='{} --layer:[{}]-- over epochs'.format(fileName, i), yLabel=fileName,
-                                                labelFunc=lambda x: int(self.layersBitwidths[i][x].item()))
+                                                labelFunc=lambda x: self.layersBitwidths[i][x])
                 figs.append(layerFig)
                 # update next axes indices
                 axCol = (axCol + 1) % nCols
@@ -271,7 +279,7 @@ class Statistics:
         colors = {}
         for i, (xLayerValues, yLayerValues) in enumerate(zip(xValues, yValues)):
             for j, (x, y) in enumerate(zip(xLayerValues, yLayerValues)):
-                label = int(self.layersBitwidths[i][j].item())
+                label = self.layersBitwidths[i][j]
                 if label in colors.keys():
                     ax.plot(x, y, 'o', label=label, color=colors[label])
                 else:
