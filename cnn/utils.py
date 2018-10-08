@@ -340,8 +340,9 @@ def save_state(state, is_best, path, filename):
 
 def save_checkpoint(path, model, args, epoch, best_prec1, is_best=False, filename=None):
     # set state dictionary
-    state = dict(nextEpoch=epoch + 1, state_dict=model.state_dict(), alphas=model.alphas_state(), epochs=args.epochs,
+    state = dict(nextEpoch=epoch + 1, state_dict=model.state_dict(), epochs=args.epochs,
                  nLayersQuantCompleted=model.nLayersQuantCompleted, best_prec1=best_prec1, learning_rate=args.learning_rate)
+    # # # alphas = model.alphas_state()
     # set state filename
     filename = filename or stateFilenameDefault
     # save state to file
@@ -389,8 +390,9 @@ def initTrainLogger(logger_file_name, folder_path, propagate=False):
 def logForwardCounters(model, loggerFuncs):
     if (not loggerFuncs) or (len(loggerFuncs) == 0):
         for layerIdx, layer in enumerate(model.layersList):
-            # reset layer counters
-            layer.resetOpsForwardCounters()
+            for filter in layer.filters:
+                # reset filter counters
+                filter.resetOpsForwardCounters()
 
         return
 
@@ -398,13 +400,23 @@ def logForwardCounters(model, loggerFuncs):
     counterCols = ['Prev idx', 'Current idx', 'Counter']
 
     for layerIdx, layer in enumerate(model.layersList):
+        filter = layer.filters[0]
+        # sum counters of all filters by indices
+        countersByIndices = [[0] * len(filter.opsForwardCounters[0]) for _ in range(len(filter.opsForwardCounters))]
+        for filter in layer.filters:
+            for i, counterList in enumerate(filter.opsForwardCounters):
+                for j, counter in enumerate(counterList):
+                    countersByIndices[i][j] += counter
+            # reset filter counters
+            filter.resetOpsForwardCounters()
+
         # collect layer counters to 2 arrays:
         # counters holds the counters values
         # indices holds the corresponding counter value indices
         counters, indices = [], []
-        for i, counterList in enumerate(layer.opsForwardCounters):
-            for j, counter in enumerate(counterList):
-                counters.append(counter)
+        for i in range(len(countersByIndices)):
+            for j in range(len(countersByIndices[0])):
+                counters.append(countersByIndices[i][j])
                 indices.append((i, j))
 
         # for each layer, sort counters in descending order
@@ -423,9 +435,6 @@ def logForwardCounters(model, loggerFuncs):
 
         # add layer row to model table
         rows.append([layerIdx, layerRow])
-
-        # reset layer counters
-        layer.resetOpsForwardCounters()
 
     # apply loggers functions
     for f in loggerFuncs:
