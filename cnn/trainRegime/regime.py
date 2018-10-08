@@ -8,6 +8,7 @@ from torch import no_grad
 from torch.optim import SGD
 from torch.autograd.variable import Variable
 from torch.nn import CrossEntropyLoss
+from torch.nn.parallel.data_parallel import DataParallel
 
 from cnn.utils import accuracy, AvgrageMeter, load_data, saveArgsToJSON, logDominantQuantizedOp, save_checkpoint
 from cnn.utils import sendDataEmail, logForwardCounters
@@ -42,6 +43,10 @@ class TrainRegime:
     colsMainLogger = [epochNumKey, archLossKey, optBopsRatioKey, trainLossKey, trainAccKey, validLossKey, validAccKey, lrKey]
 
     def __init__(self, args, model, modelClass, logger):
+        self.modelParallel = model
+        if isinstance(model, DataParallel):
+            model = model.module
+
         self.args = args
         self.model = model
         self.modelClass = modelClass
@@ -90,7 +95,7 @@ class TrainRegime:
         # if we loaded ops in the same layer with the same weights, then we loaded the optimal full precision model,
         # therefore we have to train the weights for each QuantizedOp
         if (args.loadedOpsWithDiffWeights is False) and args.init_weights_train:
-            self.epoch = self.initialWeightsTraining(model, args, trainFolderName='init_weights_train')
+            self.epoch = self.initialWeightsTraining(trainFolderName='init_weights_train')
         else:
             rows = [['Switching stage']]
             # we loaded ops in the same layer with different weights, therefore we just have to switch_stage
@@ -203,7 +208,10 @@ class TrainRegime:
 
         return optBopsRatio
 
-    def initialWeightsTraining(self, model, args, trainFolderName, filename=None):
+    def initialWeightsTraining(self, trainFolderName, filename=None):
+        modelParallel = self.modelParallel
+        model = self.model
+        args = self.args
         nEpochs = self.nEpochs
         logger = self.logger
 
@@ -339,9 +347,10 @@ class TrainRegime:
 
             loss = architect.step(model, input, target)
 
-            # train optimal model
-            optBopsRatio = self.trainOptimalModel(nEpoch, step)
+            # # train optimal model
+            # optBopsRatio = self.trainOptimalModel(nEpoch, step)
             # add alphas data to statistics
+            optBopsRatio = model.evalMode()
             model.stats.addBatchData(model, optBopsRatio, nEpoch, step)
 
             func = []
@@ -361,12 +370,13 @@ class TrainRegime:
             endTime = time()
 
             # send email
-            if (endTime - self.lastMailTime > self.secondsBetweenMails) or ((step + 1) % int(nBatches / 2) == 0):
+            diffTime = endTime - self.lastMailTime
+            if (diffTime > self.secondsBetweenMails) or ((step + 1) % int(nBatches / 2) == 0):
                 self.sendEmail(nEpoch, step, nBatches)
-            # update last email time
-            self.lastMailTime = time()
-            # from now on we send every 5 hours
-            self.secondsBetweenMails = 5 * 3600
+                # update last email time
+                self.lastMailTime = time()
+                # from now on we send every 5 hours
+                self.secondsBetweenMails = 5 * 3600
 
             if trainLogger:
                 # collect missing keys
@@ -381,7 +391,6 @@ class TrainRegime:
                 # add columns row
                 if (step + 1) % 10 == 0:
                     trainLogger.addColumnsRowToDataTable()
-
 
         # restore quantization for all replications ops
         architect.modelReplicator.restore_quantize()
@@ -405,12 +414,13 @@ class TrainRegime:
         if trainLogger:
             trainLogger.createDataTable('Epoch:[{}] - Training weights'.format(epoch), self.colsTrainWeights)
 
+        modelParallel = self.modelParallel
         model = self.model
         crit = self.cross_entropy
         train_queue = self.train_queue
         grad_clip = self.args.grad_clip
 
-        model.train()
+        modelParallel.train()
 
         nBatches = len(train_queue)
 
@@ -426,7 +436,7 @@ class TrainRegime:
             bopsRatio = model.calcBopsRatio()
             # optimize model weights
             optimizer.zero_grad()
-            logits = model(input)
+            logits = modelParallel(input)
             # calc loss
             loss = crit(logits, target)
             # back propagate
@@ -479,18 +489,19 @@ class TrainRegime:
         top1 = AvgrageMeter()
         top5 = AvgrageMeter()
 
+        modelParallel = self.modelParallel
         model = self.model
         modelInferMode = model.evalMode
         valid_queue = self.valid_queue
         crit = self.cross_entropy
 
-        model.eval()
+        modelParallel.eval()
         bopsRatio = modelInferMode()
         # print eval layer index selection
         trainLogger = loggers.get('train')
         if trainLogger:
             trainLogger.createDataTable('Epoch:[{}] - Validation'.format(nEpoch), self.colsValidation)
-            trainLogger.addInfoToDataTable('Layers optimal indices:{}'.format([layer.curr_alpha_idx for layer in model.layersList]))
+            # trainLogger.addInfoToDataTable('Layers optimal indices:{}'.format([layer.curr_alpha_idx for layer in model.layersList]))
 
         nBatches = len(valid_queue)
 
@@ -501,7 +512,7 @@ class TrainRegime:
                 input = Variable(input).cuda()
                 target = Variable(target).cuda(async=True)
 
-                logits = model(input)
+                logits = modelParallel(input)
                 loss = crit(logits, target)
 
                 prec1, prec5 = accuracy(logits, target, topk=(1, 5))
