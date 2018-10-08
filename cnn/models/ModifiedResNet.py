@@ -3,7 +3,7 @@ from collections import OrderedDict
 from torch.nn import Sequential, Conv2d, BatchNorm2d, ReLU, Module, AvgPool2d, Linear
 
 from .ResNet import ResNet, BasicBlock
-from cnn.MixedOp import MixedConvWithReLU
+from cnn.MixedFilter import MixedConvWithReLU
 
 
 class BasicBlockFullPrecision(Module):
