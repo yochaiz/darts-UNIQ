@@ -10,7 +10,6 @@ class ActQuant(nn.Module):
         super(ActQuant, self).__init__()
         self.quant = quant
         self.noise = noise
-        assert (isinstance(bitwidth, int))
         self.bitwidth = bitwidth
         self.quatize_during_training = quatize_during_training
         self.noise_during_training = noise_during_training
@@ -21,9 +20,10 @@ class ActQuant(nn.Module):
 
     def forward(self, input):
         if self.quant and (not self.training or (self.training and self.quatize_during_training)):
+            assert (isinstance(self.bitwidth, int))
             x = act_quantize.apply(input, self.bitwidth)
         elif self.noise and self.training and self.noise_during_training:
-            assert(False)
+            assert (False)
             x = act_noise.apply(input, bitwidth=self.bitwidth, training=self.training)
         else:
             x = F.relu(input)
