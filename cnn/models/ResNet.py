@@ -11,42 +11,41 @@ from cnn.models.BaseNet import save_quant_state, restore_quant_state
 
 
 # init layers creation functions
-def createMixedConvWithReLU(bitwidths, in_planes, kernel_size, stride, input_size, input_bitwidth, prevLayer):
+def createMixedConvWithReLU(bitwidths, in_planes, kernel_size, stride, input_size, prevLayer):
     def f():
-        return MixedConvWithReLU(bitwidths, in_planes, 1, kernel_size, stride, input_size, input_bitwidth, prevLayer)
+        return MixedConvWithReLU(bitwidths, in_planes, 1, kernel_size, stride, input_size, prevLayer)
 
     return f
 
 
-def createMixedConv(bitwidths, in_planes, kernel_size, stride, input_size, input_bitwidth, prevLayer):
+def createMixedConv(bitwidths, in_planes, kernel_size, stride, input_size, prevLayer):
     def f():
-        return MixedConv(bitwidths, in_planes, 1, kernel_size, stride, input_size, input_bitwidth, prevLayer)
+        return MixedConv(bitwidths, in_planes, 1, kernel_size, stride, input_size, prevLayer)
 
     return f
 
 
 class BasicBlock(Block):
-    def __init__(self, bitwidths, in_planes, out_planes, kernel_size, stride, input_size, input_bitwidth, prevLayer):
+    def __init__(self, bitwidths, in_planes, out_planes, kernel_size, stride, input_size, prevLayer):
         super(BasicBlock, self).__init__()
 
         stride1 = stride if in_planes == out_planes else (stride + 1)
 
         self.block1 = MixedLayer(out_planes,
                                  createMixedConvWithReLU(bitwidths[0] if isinstance(bitwidths[0], list) else bitwidths, in_planes, kernel_size,
-                                                         stride1, input_size[0], input_bitwidth, prevLayer), useResidual=False)
+                                                         stride1, input_size[0], prevLayer), useResidual=False)
 
         bitwidthIdx = 1
         self.downsample = None
         if in_planes != out_planes:
             downsampleBitwidth = [(b, None) for b, _ in (bitwidths[1] if isinstance(bitwidths[0], list) else bitwidths)]
             self.downsample = MixedLayer(out_planes,
-                                         createMixedConv(downsampleBitwidth, in_planes, [1], stride1, input_size[0], input_bitwidth, prevLayer))
+                                         createMixedConv(downsampleBitwidth, in_planes, [1], stride1, input_size[0], prevLayer))
             bitwidthIdx += 1
 
         self.block2 = MixedLayer(out_planes,
                                  createMixedConvWithReLU(bitwidths[bitwidthIdx] if isinstance(bitwidths[0], list) else bitwidths, out_planes,
-                                                         kernel_size, stride, input_size[-1], self.block1.getOutputBitwidthList(),
-                                                         prevLayer=self.block1), useResidual=True)
+                                                         kernel_size, stride, input_size[-1], prevLayer=self.block1), useResidual=True)
 
     def forward(self, x):
         residual = self.downsample(x) if self.downsample else x
@@ -116,8 +115,8 @@ class ResNet(BaseNet):
         self.parameters = self.getLearnableParams
 
     @staticmethod
-    def createMixedLayer(bitwidths, in_planes, out_planes, kernel_sizes, stride, input_size, input_bitwidth, prevLayer):
-        f = createMixedConvWithReLU(bitwidths, in_planes, kernel_sizes, stride, input_size, input_bitwidth, prevLayer)
+    def createMixedLayer(bitwidths, in_planes, out_planes, kernel_sizes, stride, input_size, prevLayer):
+        f = createMixedConvWithReLU(bitwidths, in_planes, kernel_sizes, stride, input_size, prevLayer)
         layer = MixedLayer(out_planes, f)
 
         if layer.numOfOps() > 1:
@@ -138,8 +137,6 @@ class ResNet(BaseNet):
 
         layersPlanes = self.initLayersPlanes()
 
-        # init 1st layer input bitwidth which is 8-bits
-        input_bitwidth = [self.modelInputBitwidth]
         # init previous layer
         prevLayer = None
 
@@ -149,7 +146,7 @@ class ResNet(BaseNet):
         layers = ModuleList()
         for i, (layerType, in_planes, out_planes, input_size) in enumerate(layersPlanes):
             # build layer
-            l = layerType(bitwidths, in_planes, out_planes, kernel_sizes, 1, input_size, input_bitwidth, prevLayer)
+            l = layerType(bitwidths, in_planes, out_planes, kernel_sizes, 1, input_size, prevLayer)
             # add layer to layers list
             layers.append(l)
             # remove layer specific bitwidths, in case of different bitwidths to layers
@@ -157,8 +154,6 @@ class ResNet(BaseNet):
             #     nMixedOpLayers = 1 if isinstance(l, MixedFilter) \
             #         else sum(1 for _, m in l._modules.items() if isinstance(m, MixedFilter))
             #     del bitwidths[:nMixedOpLayers]
-            # update input_bitwidth for next layer
-            input_bitwidth = l.getOutputBitwidthList()
             # # update previous layer
             # prevLayer = l.outputLayer()
 
