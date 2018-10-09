@@ -203,26 +203,27 @@ class BaseNet(Module):
     def calcBopsRatio(self):
         return self._criterion.calcBopsRatio(self.countBops())
 
-    # select random alpha
-    def chooseRandomPath(self):
-        for l in self.layers:
-            l.chooseRandomPath()
-
+    # # select random alpha
+    # def chooseRandomPath(self):
+    #     for l in self.layers:
+    #         l.chooseRandomPath()
+    #
     # layerIdx, alphaIdx meaning: self.layersList[layerIdx].curr_alpha_idx = alphaIdx
-    def choosePathByAlphas(self, layerIdx=None, alphaIdx=None):
+    # def choosePathByAlphas(self, layerIdx=None, alphaIdx=None):
+    def choosePathByAlphas(self):
         for l in self.layers:
             l.choosePathByAlphas()
-
-        if (layerIdx is not None) and (alphaIdx is not None):
-            layer = self.layersList[layerIdx]
-            layer.curr_alpha_idx = alphaIdx
-
-    def evalMode(self):
-        for l in self.layers:
-            l.evalMode()
-
-        # calc bops ratio
-        return self.calcBopsRatio()
+        #
+        # if (layerIdx is not None) and (alphaIdx is not None):
+        #     layer = self.layersList[layerIdx]
+        #     layer.curr_alpha_idx = alphaIdx
+    #
+    # def evalMode(self):
+    #     for l in self.layers:
+    #         l.evalMode()
+    #
+    #     # calc bops ratio
+    #     return self.calcBopsRatio()
 
     # def uniformMode(self):
     #     for l in self.layersList:
