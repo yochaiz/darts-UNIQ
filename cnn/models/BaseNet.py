@@ -165,7 +165,8 @@ class BaseNet(Module):
                     self.load_state_dict(chckpntStateDict)
                 else:
                     # use some function to map keys
-                    loadFuncs = [self.loadUNIQPreTrained, self.loadSingleOpPreTrained]
+                    # loadFuncs = [self.loadUNIQPreTrained, self.loadSingleOpPreTrained]
+                    loadFuncs = [self.loadSingleOpPreTrained]
                     for func in loadFuncs:
                         loadSuccess = func(chckpntStateDict)
                         if loadSuccess is not False:
@@ -217,6 +218,7 @@ class BaseNet(Module):
         # if (layerIdx is not None) and (alphaIdx is not None):
         #     layer = self.layersList[layerIdx]
         #     layer.curr_alpha_idx = alphaIdx
+
     #
     # def evalMode(self):
     #     for l in self.layers:
