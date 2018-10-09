@@ -172,5 +172,5 @@ class MixedLayer(Block):
         partition = dist.sample().type(IntTensor)
         self.__setFiltersPartition(partition)
 
-    def evalMode(self):
-        pass
+    # def evalMode(self):
+    #     pass
