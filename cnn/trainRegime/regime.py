@@ -120,7 +120,7 @@ class TrainRegime:
         model = self.model
         args = self.args
 
-        args.optModel_bitwidth = [layer.getBitwidth() for layer in model.layersList]
+        args.optModel_bitwidth = [layer.getCurrentBitwidth() for layer in model.layersList]
         # check if current bitwidth has already been sent for training
         bitwidthKey = self.__getBitwidthKey(args.optModel_bitwidth)
 
