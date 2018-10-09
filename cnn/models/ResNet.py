@@ -75,13 +75,13 @@ class BasicBlock(Block):
     def getOutputBitwidthList(self):
         return self.block2.getOutputBitwidthList()
 
-    # select random alpha
-    def chooseRandomPath(self):
-        if self.downsample:
-            self.downsample.chooseRandomPath()
-
-        self.block1.chooseRandomPath()
-        self.block2.chooseRandomPath()
+    # # select random alpha
+    # def chooseRandomPath(self):
+    #     if self.downsample:
+    #         self.downsample.chooseRandomPath()
+    #
+    #     self.block1.chooseRandomPath()
+    #     self.block2.chooseRandomPath()
 
     # select alpha based on alphas distribution
     def choosePathByAlphas(self):
@@ -120,7 +120,8 @@ class ResNet(BaseNet):
         layer = MixedLayer(out_planes, f)
 
         if layer.numOfOps() > 1:
-            layer.setFiltersRatio([0., 0., 0., 0.25, 0.75])
+            layer.setAlphas([0., 0., 0., 0.25, 0.75])
+            # layer.setFiltersPartition()
 
         return layer
 
