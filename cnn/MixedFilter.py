@@ -2,11 +2,11 @@ from UNIQ.uniq import UNIQNet
 from UNIQ.actquant import ActQuant
 from UNIQ.flops_benchmark import count_flops
 
-from torch import tensor, ones, zeros, sum, LongTensor, cat
-from torch.nn import Module, ModuleList, Conv2d, Sequential, Linear
+from torch.nn import ModuleList, Conv2d, Sequential, Linear
 from torch.distributions.categorical import Categorical
 import torch.nn.functional as F
-from torch.autograd.function import Function
+
+from cnn.block import Block
 
 from math import floor
 from random import randint
@@ -55,40 +55,6 @@ class QuantizedOp(UNIQNet):
     #     return out
 
 
-class Block(Module):
-    @abstractmethod
-    def getBops(self, input_bitwidth):
-        raise NotImplementedError('subclasses must override getBops()!')
-
-    @abstractmethod
-    def getCurrentOutputBitwidth(self):
-        raise NotImplementedError('subclasses must override getCurrentOutputBitwidth()!')
-
-    @abstractmethod
-    def getOutputBitwidthList(self):
-        raise NotImplementedError('subclasses must override getOutputBitwidthList()!')
-
-    @abstractmethod
-    def chooseRandomPath(self):
-        raise NotImplementedError('subclasses must override chooseRandomPath()!')
-
-    @abstractmethod
-    def choosePathByAlphas(self):
-        raise NotImplementedError('subclasses must override choosePathByAlphas()!')
-
-    @abstractmethod
-    def evalMode(self):
-        raise NotImplementedError('subclasses must override evalMode()!')
-
-    @abstractmethod
-    def numOfOps(self):
-        raise NotImplementedError('subclasses must override numOfOps()!')
-
-    @abstractmethod
-    def outputLayer(self):
-        raise NotImplementedError('subclasses must override outputLayer()!')
-
-
 # class Chooser(Function):
 #     chosen = None
 #
@@ -123,8 +89,12 @@ class Block(Module):
 
 
 class MixedFilter(Block):
-    def __init__(self, bitwidths, input_bitwidth, params, coutBopsParams, prevLayer):
+    def __init__(self, bitwidths, params, coutBopsParams, prevLayer):
         super(MixedFilter, self).__init__()
+
+        # save params for counting bops
+        self.initOpsParams = params
+        self.coutBopsParams = coutBopsParams
 
         # assure bitwidths is a list of integers
         if isinstance(bitwidths[0], list):
@@ -158,10 +128,6 @@ class MixedFilter(Block):
         # init counter for number of consecutive times optimal alpha reached optimal probability limit
         self.optLimitCounter = 0
 
-        # init bops for operation
-        self.bops = self.buildBopsMap(bitwidths, input_bitwidth, params, coutBopsParams)
-        self.countBops = None
-
     @abstractmethod
     def initOps(self, bitwidths, params):
         raise NotImplementedError('subclasses must override initOps()!')
@@ -171,8 +137,8 @@ class MixedFilter(Block):
         raise NotImplementedError('subclasses must override countBops()!')
 
     @abstractmethod
-    def getBitwidth(self):
-        raise NotImplementedError('subclasses must override getBitwidth()!')
+    def getOpBitwidth(self, op):
+        raise NotImplementedError('subclasses must override getOpBitwidth()!')
 
     @abstractmethod
     def getCurrentOutputBitwidth(self):
@@ -188,24 +154,37 @@ class MixedFilter(Block):
     def resetOpsForwardCounters(self):
         self.opsForwardCounters = self.buildOpsForwardCounters()
 
-    def buildBopsMap(self, bitwidths, input_bitwidth, initOpsParams, coutBopsParams):
-        # init bops map
-        bops = {}
-
-        # build ops
-        for in_bitwidth in input_bitwidth:
-            bops_bitwidth = [(b, in_bitwidth) for b, _ in bitwidths]
-            ops = self.initOps(bops_bitwidth, initOpsParams)
-            # bops[in_bitwidth] = self.countOpsBops(ops, coutBopsParams)
-            bops[in_bitwidth] = [10] * self.numOfOps()
-
-        return bops
-
     def outputLayer(self):
         return self
 
+    # input_bitwidth is a list of input feature maps bitwidth
     def getBops(self, input_bitwidth):
-        return self.bops[input_bitwidth][self.curr_alpha_idx]
+        # get filter current bitwidth
+        bitwidth, _ = self.getCurrentBitwidth()
+        # create (bitwidth, act_bitwidth) tuple for count_flops(), act_bitwidth is a list of input feature maps bitwidth
+        bops_bitwidth = [(bitwidth, input_bitwidth)]
+        # generate op with this bitwidth
+        ops = self.initOps(bops_bitwidth, self.initOpsParams)
+        op = ops[0]
+        # count op bops
+        bops = self.countOpsBops(op, self.coutBopsParams)
+
+        return bops
+
+    # return list of tuples of all filter bitwidths
+    def getAllBitwidths(self):
+        return [self.getOpBitwidth(op) for op in self.ops[0]]
+
+    # returns current op bitwidth
+    def getCurrentBitwidth(self):
+        # it doesn't matter which copy of ops we take, the attributes are the same in all copies
+        return self.getOpBitwidth(self.ops[0][self.curr_alpha_idx])
+
+    # from UNIQ.quantize import check_quantization
+    # op = self.ops[0][self.curr_alpha_idx]
+    # v1 = check_quantization(op.op[0].weight)
+    # v2 = 2 ** (op.bitwidth[0])
+    # assert (v1 <= v2)
 
     # select random alpha
     def chooseRandomPath(self):
@@ -242,11 +221,6 @@ class MixedFilter(Block):
     #     op = self.ops[prev_alpha_idx][self.curr_alpha_idx]
     #     return op(x)
 
-    def getCurrentOp(self):
-        prevLayer = self.prevLayer[0]
-        prev_alpha_idx = prevLayer.curr_alpha_idx if prevLayer else 0
-        return self.ops[prev_alpha_idx][self.curr_alpha_idx]
-
     def numOfOps(self):
         # it doesn't matter which copy of ops we take, length is the same in all copies
         return len(self.ops[0])
@@ -281,10 +255,10 @@ class MixedFilter(Block):
 
 
 class MixedLinear(MixedFilter):
-    def __init__(self, bitwidths, in_features, out_features, input_bitwidth):
+    def __init__(self, bitwidths, in_features, out_features):
         params = in_features, out_features
 
-        super(MixedLinear, self).__init__(bitwidths, input_bitwidth, params, coutBopsParams=in_features)
+        super(MixedLinear, self).__init__(bitwidths, params, coutBopsParams=in_features)
 
     def initOps(self, bitwidths, params):
         in_features, out_features = params
@@ -302,12 +276,12 @@ class MixedLinear(MixedFilter):
 
 
 class MixedConv(MixedFilter):
-    def __init__(self, bitwidths, in_planes, out_planes, kernel_size, stride, input_size, input_bitwidth, prevLayer):
+    def __init__(self, bitwidths, in_planes, out_planes, kernel_size, stride, input_size, prevLayer):
         assert (isinstance(kernel_size, list))
         params = in_planes, out_planes, kernel_size, stride
         coutBopsParams = input_size, in_planes
 
-        super(MixedConv, self).__init__(bitwidths, input_bitwidth, params, coutBopsParams, prevLayer)
+        super(MixedConv, self).__init__(bitwidths, params, coutBopsParams, prevLayer)
 
         self.in_planes = in_planes
         self.forwardReLU = None
@@ -331,23 +305,16 @@ class MixedConv(MixedFilter):
         op = self.ops[prev_alpha_idx][self.curr_alpha_idx].op[0]
         return op(x)
 
-    def countOpsBops(self, ops, coutBopsParams):
+    def countOpsBops(self, op, coutBopsParams):
         input_size, in_planes = coutBopsParams
-        return [count_flops(op, input_size, in_planes) for op in ops]
+        return count_flops(op, input_size, in_planes)
 
-    def getBitwidth(self):
-        # it doesn't matter which copy of ops we take, the attributes are the same in all copies
-        return self.ops[0][self.curr_alpha_idx].bitwidth[0], None
-
-    # from UNIQ.quantize import check_quantization
-    # op = self.ops[0][self.curr_alpha_idx]
-    # v1 = check_quantization(op.op[0].weight)
-    # v2 = 2 ** (op.bitwidth[0])
-    # assert (v1 <= v2)
+    def getOpBitwidth(self, op):
+        return op.bitwidth[0], None
 
 
 class MixedConvWithReLU(MixedFilter):
-    def __init__(self, bitwidths, in_planes, out_planes, kernel_size, stride, input_size, input_bitwidth, prevLayer):
+    def __init__(self, bitwidths, in_planes, out_planes, kernel_size, stride, input_size, prevLayer):
         assert (isinstance(kernel_size, list))
         params = in_planes, out_planes, kernel_size, stride
         coutBopsParams = in_planes, input_size
@@ -355,11 +322,11 @@ class MixedConvWithReLU(MixedFilter):
         # if useResidual:
         #     self.forward = self.residualForward
 
-        super(MixedConvWithReLU, self).__init__(bitwidths, input_bitwidth, params, coutBopsParams, prevLayer)
+        super(MixedConvWithReLU, self).__init__(bitwidths, params, coutBopsParams, prevLayer)
 
         self.in_planes = in_planes
 
-        # init output bitwidths list
+        # init output (activations) bitwidths list
         self.outputBitwidth = []
         # it doesn't matter which copy of ops we take, the attributes are the same in all copies
         for op in self.ops[0]:
@@ -390,23 +357,15 @@ class MixedConvWithReLU(MixedFilter):
         op = self.ops[prev_alpha_idx][self.curr_alpha_idx].op[1]
         return op(x)
 
-    def countOpsBops(self, ops, coutBopsParams):
-        in_planes, input_size = coutBopsParams
-        return [count_flops(op, input_size, in_planes) for op in ops]
+    def countOpsBops(self, op, coutBopsParams):
+        input_planes, input_size = coutBopsParams
+        return count_flops(op, input_size, input_planes)
 
-    def getBitwidth(self):
-        # it doesn't matter which copy of ops we take, the attributes are the same in all copies
-        op = self.ops[0][self.curr_alpha_idx]
+    def getOpBitwidth(self, op):
         return op.bitwidth[0], op.act_bitwidth[0]
 
-    # from UNIQ.quantize import check_quantization
-    # v1 = check_quantization(op.op[0][0].weight)
-    # v2 = 2 ** (op.bitwidth[0])
-    # assert (v1 <= v2)
-
     def getCurrentOutputBitwidth(self):
-        # return self.outputBitwidth[self.curr_alpha_idx]
-        return self.outputBitwidth[0]
+        return self.outputBitwidth[self.curr_alpha_idx]
 
     def getOutputBitwidthList(self):
         return self.outputBitwidth
@@ -433,3 +392,19 @@ class MixedConvWithReLU(MixedFilter):
     #
     # def evalResidualForward(self, x, residual):
     #     return self.ops[self.prev_alpha_idx][self.curr_alpha_idx](x, residual)
+
+    # # count bops for 1d filter, i.e. each value in map is the #bops for a 1d feature map in input
+    # def buildBopsMap(self, bitwidths, input_bitwidth_list, params):
+    #     initOpsParams, coutBopsParams = params
+    #     # init bops map
+    #     bops = {}
+    #     # create set of input bitwidth
+    #     input_bitwidth = set(input_bitwidth_list)
+    #
+    #     # build ops
+    #     for in_bitwidth in input_bitwidth:
+    #         bops_bitwidth = [(b, in_bitwidth) for b, _ in bitwidths]
+    #         ops = self.initOps(bops_bitwidth, initOpsParams)
+    #         bops[in_bitwidth] = self.countOpsBops(ops, coutBopsParams)
+    #
+    #     return bops
