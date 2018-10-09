@@ -67,13 +67,15 @@ def logBaselineModel(args, logger, copyKeys=True):
     if uniformPath and path.exists(uniformPath):
         uniform_checkpoint = loadModel(uniformPath, map_location=lambda storage, loc: storage.cuda(args.gpu[0]))
         # extract keys from uniform checkpoint
-        if copyKeys:
-            for key in keysFromUniform:
-                if key in uniform_checkpoint:
-                    value = uniform_checkpoint.get(key)
+        for key in keysFromUniform:
+            if key in uniform_checkpoint:
+                value = uniform_checkpoint.get(key)
+                if copyKeys:
                     setattr(args, key, value)
                     if logger:
                         loggerRows.append(['Loaded key', '{} from checkpoint:[{}]'.format(key, value)])
+                elif logger:
+                    loggerRows.append(['{}'.format(key), '{}'.format(value)])
         # extract best_prec1 from uniform checkpoint
         best_prec1 = uniform_checkpoint.get('best_prec1')
         if best_prec1:
