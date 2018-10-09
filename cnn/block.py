@@ -15,9 +15,9 @@ class Block(Module):
     def getOutputBitwidthList(self):
         raise NotImplementedError('subclasses must override getOutputBitwidthList()!')
 
-    @abstractmethod
-    def chooseRandomPath(self):
-        raise NotImplementedError('subclasses must override chooseRandomPath()!')
+    # @abstractmethod
+    # def chooseRandomPath(self):
+    #     raise NotImplementedError('subclasses must override chooseRandomPath()!')
 
     @abstractmethod
     def choosePathByAlphas(self):
