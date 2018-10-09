@@ -4,7 +4,7 @@ from torch.nn import Conv2d, AvgPool2d, Linear, ModuleList
 
 from UNIQ.actquant import ActQuant
 
-from cnn.MixedFilter import MixedFilter, MixedConv, MixedConvWithReLU, Block
+from cnn.MixedFilter import MixedConv, MixedConvWithReLU, Block
 from cnn.MixedLayer import MixedLayer
 from cnn.models import BaseNet
 from cnn.models.BaseNet import save_quant_state, restore_quant_state
@@ -59,6 +59,7 @@ class BasicBlock(Block):
     def outputLayer(self):
         return self.block2
 
+    # input_bitwidth is a list of bitwidth per feature map
     def getBops(self, input_bitwidth):
         bops = self.block1.getBops(input_bitwidth)
         if self.downsample:
@@ -118,7 +119,10 @@ class ResNet(BaseNet):
     def createMixedLayer(bitwidths, in_planes, out_planes, kernel_sizes, stride, input_size, input_bitwidth, prevLayer):
         f = createMixedConvWithReLU(bitwidths, in_planes, kernel_sizes, stride, input_size, input_bitwidth, prevLayer)
         layer = MixedLayer(out_planes, f)
-        layer.setFiltersRatio([0., 0., 0., 0.25, 0.75])
+
+        if layer.numOfOps() > 1:
+            layer.setFiltersRatio([0., 0., 0., 0.25, 0.75])
+
         return layer
 
     # init layers (type, in_planes, out_planes)
@@ -135,7 +139,7 @@ class ResNet(BaseNet):
         layersPlanes = self.initLayersPlanes()
 
         # init 1st layer input bitwidth which is 8-bits
-        input_bitwidth = [8]
+        input_bitwidth = [self.modelInputBitwidth]
         # init previous layer
         prevLayer = None
 
@@ -153,8 +157,8 @@ class ResNet(BaseNet):
             #     nMixedOpLayers = 1 if isinstance(l, MixedFilter) \
             #         else sum(1 for _, m in l._modules.items() if isinstance(m, MixedFilter))
             #     del bitwidths[:nMixedOpLayers]
-            # # update input_bitwidth for next layer
-            # input_bitwidth = l.getOutputBitwidthList()
+            # update input_bitwidth for next layer
+            input_bitwidth = l.getOutputBitwidthList()
             # # update previous layer
             # prevLayer = l.outputLayer()
 
@@ -246,8 +250,8 @@ class ResNet(BaseNet):
                     assert (op.noise is False)
                     op.noise = True
 
-            logMsg = 'nLayersQuantCompleted:[{}], learnable_params:[{}], learnable_alphas:[{}]' \
-                .format(self.nLayersQuantCompleted, len(self.learnable_params), len(self.learnable_alphas))
+            logMsg = 'nLayersQuantCompleted:[{}/{}], learnable_params:[{}], learnable_alphas:[{}]' \
+                .format(self.nLayersQuantCompleted, self.nLayers(), len(self.learnable_params), len(self.learnable_alphas))
 
             # log message to all loggers
             for f in loggerFuncs:
