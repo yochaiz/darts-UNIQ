@@ -1,5 +1,6 @@
-from torch import cat, chunk, tensor, ones
-from torch.nn import Module, ModuleList, BatchNorm2d
+from torch import cat, chunk, tensor, ones, IntTensor
+from torch.nn import ModuleList, BatchNorm2d
+from torch.distributions.multinomial import Multinomial
 
 from cnn.MixedFilter import MixedFilter
 from cnn.block import Block
@@ -23,16 +24,16 @@ class MixedLayer(Block):
         value = 1.0 / self.numOfOps()
         self.alphas = tensor((ones(self.numOfOps()) * value).cuda(), requires_grad=True)
 
+        # set filters distribution
+        if self.numOfOps() > 1:
+            self.setAlphas([0.3125, 0.3125, 0.1875, 0.125, 0.0625])
+            # self.setFiltersPartition()
+
         # init list of all operations (including copies) as single long list
         # for cases we have to modify all ops
         self.opsList = []
         for filter in self.filters:
             self.opsList.extend(filter.getOps())
-
-        # set filters allocation
-        if self.numOfOps() > 1:
-            ratio = [0.3125, 0.3125, 0.1875, 0.125, 0.0625]
-            self.setFiltersRatio(ratio)
 
         # set forward function
         if useResidual:
@@ -41,14 +42,35 @@ class MixedLayer(Block):
     def nFilters(self):
         return len(self.filters)
 
-    def setFiltersRatio(self, ratio):
-        ratio = [int(r * self.nFilters()) for r in ratio]
-        ratio[-1] = self.nFilters() - sum(ratio[:-1])
+    # ratio is a list
+    def setAlphas(self, ratio):
+        self.alphas.data = tensor(ratio)
+
+    # set filters curr_alpha_idx based on partition tensor
+    # partition is IntTensor
+    def __setFiltersPartition(self, partition):
+        assert (partition.sum().item() == self.nFilters())
+        # update filters curr_alpha_idx
         idx = 0
-        for i, r in enumerate(ratio):
+        for i, r in enumerate(partition):
             for _ in range(r):
                 self.filters[idx].curr_alpha_idx = i
                 idx += 1
+
+    # set filters partition based on ratio
+    # ratio is a tensor
+    def __setFiltersPartitionFromRatio(self, ratio):
+        # calc partition
+        partition = (ratio * self.nFilters()).type(IntTensor)
+        # fix last ratio value to sum to nFilters
+        if partition.sum().item() < self.nFilters():
+            partition[-1] = self.nFilters() - partition[:-1].sum().item()
+
+        self.__setFiltersPartition(partition)
+
+    # set filters partition based on alphas ratio
+    def setFiltersPartition(self):
+        self.__setFiltersPartitionFromRatio(self.alphas)
 
     # perform the convolution operation
     def forwardConv(self, x):
@@ -140,13 +162,15 @@ class MixedLayer(Block):
     def getOutputBitwidthList(self):
         return self.filters[0].getOutputBitwidthList()
 
-    # select random alpha
-    def chooseRandomPath(self):
-        pass
+    # # select random alpha
+    # def chooseRandomPath(self):
+    #     pass
 
     # select alpha based on alphas distribution
     def choosePathByAlphas(self):
-        assert (False)
+        dist = Multinomial(total_count=self.nFilters(), probs=self.alphas)
+        partition = dist.sample().type(IntTensor)
+        self.__setFiltersPartition(partition)
 
     def evalMode(self):
         pass
