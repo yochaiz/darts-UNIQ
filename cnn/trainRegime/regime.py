@@ -247,7 +247,7 @@ class TrainRegime:
 
             # training
             print('========== Epoch:[{}] =============='.format(epoch))
-            trainData = self.trainWeights(model.chooseRandomPath, optimizer, epoch, loggersDict)
+            trainData = self.trainWeights(model.choosePathByAlphas, optimizer, epoch, loggersDict)
 
             # add epoch number
             trainData[self.epochNumKey] = epoch
@@ -423,6 +423,7 @@ class TrainRegime:
         modelParallel.train()
 
         nBatches = len(train_queue)
+        bopsRatio = 0.0
 
         for step, (input, target) in enumerate(train_queue):
             startTime = time()
@@ -433,7 +434,7 @@ class TrainRegime:
 
             # choose alpha per layer
             modelChoosePathFunc()
-            bopsRatio = model.calcBopsRatio()
+            # bopsRatio = model.calcBopsRatio()
             # optimize model weights
             optimizer.zero_grad()
             logits = modelParallel(input)
@@ -491,12 +492,12 @@ class TrainRegime:
 
         modelParallel = self.modelParallel
         model = self.model
-        modelInferMode = model.evalMode
         valid_queue = self.valid_queue
         crit = self.cross_entropy
 
         modelParallel.eval()
-        bopsRatio = modelInferMode()
+        bopsRatio = 0.0
+        # bopsRatio = model.evalMode()
         # print eval layer index selection
         trainLogger = loggers.get('train')
         if trainLogger:
