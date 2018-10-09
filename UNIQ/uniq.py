@@ -152,13 +152,14 @@ class UNIQNet(nn.Module):
         #             if (not isinstance(step[ind], ActQuant)) and (isinstance(step[ind + 1], ActQuant)):
         #                 self.act_list.append(step[ind])
 
+        assert (self.act_noise is False)
         if self.act_noise:
             for layer in self.layers_steps[0]:  # Turn on noise for first stage
                 if isinstance(layer, ActQuant):
                     layer.noise_during_training = True
 
-        if (self.quant is False) or (len(self.bitwidth) == 0):
-            self.bitwidth = [32] * len(self.layers_steps)
+        # if (self.quant is False) or (len(self.bitwidth) == 0):
+        #     self.bitwidth = [32] * len(self.layers_steps)
 
         # if (self.act_quant is False) or (len(self.act_bitwidth) == 0):
         #     self.act_bitwidth = [32] * len(self.act_list)
@@ -167,8 +168,7 @@ class UNIQNet(nn.Module):
         for index, step in enumerate(self.layers_steps):
             for layer in step:
                 layer.__param_bitwidth__ = self.bitwidth[index]
-                act_bitwidth = self.act_bitwidth[index] if len(self.act_bitwidth) > index else 32
-                layer.__act_bitwidth__ = act_bitwidth
+                layer.__act_bitwidth__ = self.act_bitwidth
 
         # # set qunatization bitwidth for activations we want to quantize
         # for index, layer in enumerate(self.act_list):
