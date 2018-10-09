@@ -38,10 +38,15 @@ def restore_quant_state(self, _, __):
 
 
 class BaseNet(Module):
+    # init bitwidth of input to model
+    modelInputBitwidth = 8
+    modelInputnFeatureMaps = 3
+
     # counts the entire model bops in discrete mode
     def countBopsDiscrete(self):
         totalBops = 0
-        input_bitwidth = 8
+        # input_bitwidth is a list of bitwidth per feature map
+        input_bitwidth = [self.modelInputBitwidth] * self.modelInputnFeatureMaps
 
         for layer in self.layers:
             totalBops += layer.getBops(input_bitwidth)
@@ -291,26 +296,26 @@ class BaseNet(Module):
 #             # op.register_forward_hook(restore_quant_state)
 
 
-    # # convert current model to discrete, i.e. keep nOpsPerLayer optimal operations per layer
-    # def toDiscrete(self, nOpsPerLayer=1):
-    #     for layer in self.layersList:
-    #         # calc weights from alphas and sort them
-    #         weights = F.softmax(layer.alphas, dim=-1)
-    #         _, wIndices = weights.sort(descending=True)
-    #         # update layer alphas
-    #         layer.alphas = layer.alphas[wIndices[:nOpsPerLayer]]
-    #         #        layer.alphas = tensor(tensor(layer.alphas.tolist()).cuda(), requires_grad=True)
-    #         layer.alphas = tensor(tensor(layer.alphas.tolist()).cuda())
-    #         # take indices of ops we want to remove from layer
-    #         wIndices = wIndices[nOpsPerLayer:]
-    #         # convert to list
-    #         wIndices = wIndices.tolist()
-    #         # sort indices ascending
-    #         wIndices.sort()
-    #         # remove ops and corresponding bops from layer
-    #         for w in reversed(wIndices):
-    #             del layer.ops[w]
-    #             del layer.bops[w]
+# # convert current model to discrete, i.e. keep nOpsPerLayer optimal operations per layer
+# def toDiscrete(self, nOpsPerLayer=1):
+#     for layer in self.layersList:
+#         # calc weights from alphas and sort them
+#         weights = F.softmax(layer.alphas, dim=-1)
+#         _, wIndices = weights.sort(descending=True)
+#         # update layer alphas
+#         layer.alphas = layer.alphas[wIndices[:nOpsPerLayer]]
+#         #        layer.alphas = tensor(tensor(layer.alphas.tolist()).cuda(), requires_grad=True)
+#         layer.alphas = tensor(tensor(layer.alphas.tolist()).cuda())
+#         # take indices of ops we want to remove from layer
+#         wIndices = wIndices[nOpsPerLayer:]
+#         # convert to list
+#         wIndices = wIndices.tolist()
+#         # sort indices ascending
+#         wIndices.sort()
+#         # remove ops and corresponding bops from layer
+#         for w in reversed(wIndices):
+#             del layer.ops[w]
+#             del layer.bops[w]
 
 # def loadBitwidthWeigths(self, stateDict, MaxBopsBits, bitwidth):
 #     # check idx of MaxBopsBits inside bitwidths
