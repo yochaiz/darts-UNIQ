@@ -212,20 +212,36 @@ def conv_flops_counter_hook(conv_module, input, output):
 
     # Bops code
     param_bitwidth = conv_module.__param_bitwidth__
-    act_bitwidth = conv_module.__act_bitwidth__
+    # act bitwidth is now a list of input feature maps bitwidth
+    act_bitwidth = conv_module.__act_bitwidth__[0]
+    assert (isinstance(act_bitwidth, list))
+    assert (len(act_bitwidth) == in_channels)
 
     bit_ops = 0
-    num_of_conv_mults = batch_size * output_height * output_width * out_channels * in_channels * kernel_height * kernel_width
-    num_of_conv_adds = batch_size * output_height * output_width * out_channels * (
-            in_channels * kernel_height * kernel_width - 1)
+    # num_of_conv_mults = batch_size * output_height * output_width * out_channels * in_channels * kernel_height * kernel_width
+    # each in_channel has now its own bitwidth, therefore we have to sum them
+    num_of_conv_mults = batch_size * output_height * output_width * out_channels * kernel_height * kernel_width
+    num_of_conv_adds = batch_size * output_height * output_width * out_channels * (in_channels * kernel_height * kernel_width - 1)
+
+    # each in_channel has now its own bitwidth, therefore we have to sum them
+    max_mac_value = 0
     if param_bitwidth != 1:
-        max_mac_value = (2 ** act_bitwidth - 1) * (in_channels * kernel_height * kernel_width) / (groups ** 2) * (2 ** (
-                param_bitwidth - 1) - 1)  # param_bitwidth-1 becuase 1 bit is sign bit and not really participate in the multiplication
+        # param_bitwidth-1 becuase 1 bit is sign bit and not really participate in the multiplication
+        for v in act_bitwidth:
+            max_mac_value += (2 ** v - 1) * (kernel_height * kernel_width) / (groups ** 2) * (2 ** (param_bitwidth - 1) - 1)
+        # max_mac_value = (2 ** act_bitwidth - 1) * (in_channels * kernel_height * kernel_width) / (groups ** 2) * (2 ** (param_bitwidth - 1) - 1)
     else:
-        max_mac_value = (2 ** act_bitwidth - 1) * (in_channels * kernel_height * kernel_width) / (
-                groups ** 2)  # param_bitwidth-1 becuase 1 bit is sign bit and not really participate in the multiplication
+        # param_bitwidth-1 becuase 1 bit is sign bit and not really participate in the multiplication
+        for v in act_bitwidth:
+            max_mac_value += (2 ** v - 1) * (kernel_height * kernel_width) / (groups ** 2)
+        # max_mac_value = (2 ** act_bitwidth - 1) * (in_channels * kernel_height * kernel_width) / (groups ** 2)
+
     log2_max_mac_value = ceil(log2(max_mac_value))
-    bit_ops += num_of_conv_mults * (param_bitwidth - 1) * act_bitwidth
+    # bit_ops += num_of_conv_mults * (param_bitwidth - 1) * act_bitwidth
+    # each in_channel has now its own bitwidth, therefore we have to sum them
+    for v in act_bitwidth:
+        bit_ops += num_of_conv_mults * (param_bitwidth - 1) * v
+
     bit_ops += num_of_conv_adds * (log2_max_mac_value)
     conv_module.__bops__ += bit_ops
 
@@ -297,6 +313,7 @@ def add_bitwidths_attr(model, param_bitwidth, act_bitwidth):
     for module in model.modules():
         if isinstance(module, Conv2d):
             module.__param_bitwidth__ = param_bitwidth[i]
+            assert (isinstance(act_bitwidth, list))
             module.__act_bitwidth__ = act_bitwidth
             i += 1
 
