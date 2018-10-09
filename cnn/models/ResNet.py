@@ -325,7 +325,7 @@ class ResNet(BaseNet):
 
         token = '.ops.'
         for key in chckpntDict.keys():
-            if key.startswith('fc.'):
+            if (key.startswith('fc.')) or (token not in key):
                 newStateDict[key] = chckpntDict[key]
                 continue
 
