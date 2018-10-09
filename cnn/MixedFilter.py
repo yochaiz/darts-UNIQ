@@ -186,28 +186,28 @@ class MixedFilter(Block):
     # v2 = 2 ** (op.bitwidth[0])
     # assert (v1 <= v2)
 
-    # select random alpha
-    def chooseRandomPath(self):
-        self.curr_alpha_idx = randint(0, len(self.alphas) - 1)
+    # # select random alpha
+    # def chooseRandomPath(self):
+    #     self.curr_alpha_idx = randint(0, len(self.alphas) - 1)
 
-    # select alpha based on alphas distribution
-    def choosePathByAlphas(self):
-        dist = Categorical(logits=self.alphas)
-        chosen = dist.sample()
-        self.curr_alpha_idx = chosen.item()
-
-    def evalMode(self):
-        # update current alpha to max alpha value
-        dist = F.softmax(self.alphas, dim=-1)
-        self.curr_alpha_idx = dist.argmax().item()
-
-    # select op index based on desired bitwidth
-    def uniformMode(self, bitwidth):
-        # it doesn't matter which copy of ops we take, the attributes are the same in all copies
-        for i, op in enumerate(self.ops[0]):
-            if bitwidth in op.bitwidth:
-                self.curr_alpha_idx = i
-                break
+    # # select alpha based on alphas distribution
+    # def choosePathByAlphas(self):
+    #     dist = Categorical(logits=self.alphas)
+    #     chosen = dist.sample()
+    #     self.curr_alpha_idx = chosen.item()
+    #
+    # def evalMode(self):
+    #     # update current alpha to max alpha value
+    #     dist = F.softmax(self.alphas, dim=-1)
+    #     self.curr_alpha_idx = dist.argmax().item()
+    #
+    # # select op index based on desired bitwidth
+    # def uniformMode(self, bitwidth):
+    #     # it doesn't matter which copy of ops we take, the attributes are the same in all copies
+    #     for i, op in enumerate(self.ops[0]):
+    #         if bitwidth in op.bitwidth:
+    #             self.curr_alpha_idx = i
+    #             break
 
     def preForward(self):
         prevLayer = self.prevLayer[0]
@@ -325,6 +325,7 @@ class MixedConvWithReLU(MixedFilter):
         super(MixedConvWithReLU, self).__init__(bitwidths, params, coutBopsParams, prevLayer)
 
         self.in_planes = in_planes
+        self.prev_alpha_idx = 0
 
         # init output (activations) bitwidths list
         self.outputBitwidth = []
@@ -348,13 +349,12 @@ class MixedConvWithReLU(MixedFilter):
         return ops
 
     def forwardConv(self, x):
-        prev_alpha_idx = self.preForward()
-        op = self.ops[prev_alpha_idx][self.curr_alpha_idx].op[0]
+        self.prev_alpha_idx = self.preForward()
+        op = self.ops[self.prev_alpha_idx][self.curr_alpha_idx].op[0]
         return op(x)
 
     def forwardReLU(self, x):
-        prev_alpha_idx = self.preForward()
-        op = self.ops[prev_alpha_idx][self.curr_alpha_idx].op[1]
+        op = self.ops[self.prev_alpha_idx][self.curr_alpha_idx].op[1]
         return op(x)
 
     def countOpsBops(self, op, coutBopsParams):
