@@ -422,21 +422,26 @@ def logForwardCounters(model, loggerFuncs):
                 indices.append((i, j))
 
         # for each layer, sort counters in descending order
-        layerRow = [counterCols]
+        layerRows = [counterCols]
+        countersTotal = 0
         while len(counters) > 0:
             # find max counter and print it
             maxIdx = argmax(counters)
             i, j = indices[maxIdx]
 
             # add counter as new row
-            layerRow.append([i, j, counters[maxIdx]])
+            layerRows.append([i, j, counters[maxIdx]])
 
+            # update countersTotal
+            countersTotal += counters[maxIdx]
             # remove max counter from lists
             del counters[maxIdx]
             del indices[maxIdx]
 
+        # add counters total row
+        layerRows.append(['Total', '', countersTotal])
         # add layer row to model table
-        rows.append([layerIdx, layerRow])
+        rows.append([layerIdx, layerRows])
 
     # apply loggers functions
     for f in loggerFuncs:
