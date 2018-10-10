@@ -21,7 +21,7 @@ class QuantizedOp(UNIQNet):
 
         # self.useResidual = useResidual
         # self.forward = self.residualForward if useResidual else self.standardForward
-        self.hookHandlers = []
+        # self.hookHandlers = []
 
         self.op = op.cuda()
         self.prepare_uniq()
@@ -87,6 +87,25 @@ class QuantizedOp(UNIQNet):
 #         # print('grad x: ', grads_x)
 #         return grads_x, grads_alpha
 
+def preForward(self, _):
+    # update previous layer index
+    prevLayer = self.prevLayer[0]
+    self.prev_alpha_idx = prevLayer.curr_alpha_idx if prevLayer else 0
+    # update forward counter
+    self.opsForwardCounters[self.prev_alpha_idx][self.curr_alpha_idx] += 1
+    # get current op
+    op = self.ops[self.prev_alpha_idx][self.curr_alpha_idx]
+    # check if we need to add noise
+    if op.noise is True:
+        op.add_noise()
+
+
+def postForward(self, _, __):
+    op = self.ops[self.prev_alpha_idx][self.curr_alpha_idx]
+    # check if we need to remove noise
+    if op.noise is True:
+        op.restore_state()
+
 
 class MixedFilter(Block):
     def __init__(self, bitwidths, params, coutBopsParams, prevLayer):
@@ -125,8 +144,13 @@ class MixedFilter(Block):
         self.opsForwardCounters = self.buildOpsForwardCounters()
 
         self.curr_alpha_idx = 0
+        self.prev_alpha_idx = 0
         # init counter for number of consecutive times optimal alpha reached optimal probability limit
         self.optLimitCounter = 0
+
+        # assign pre & post forward hooks
+        self.register_forward_pre_hook(preForward)
+        self.register_forward_hook(postForward)
 
     @abstractmethod
     def initOps(self, bitwidths, params):
@@ -209,13 +233,6 @@ class MixedFilter(Block):
     #             self.curr_alpha_idx = i
     #             break
 
-    def preForward(self):
-        prevLayer = self.prevLayer[0]
-        prev_alpha_idx = prevLayer.curr_alpha_idx if prevLayer else 0
-        self.opsForwardCounters[prev_alpha_idx][self.curr_alpha_idx] += 1
-
-        return prev_alpha_idx
-
     # def forward(self, x):
     #     prev_alpha_idx = self.preForward()
     #     op = self.ops[prev_alpha_idx][self.curr_alpha_idx]
@@ -281,9 +298,12 @@ class MixedConv(MixedFilter):
         params = in_planes, out_planes, kernel_size, stride
         coutBopsParams = input_size, in_planes
 
+        self.forward = self.forwardConv
+
         super(MixedConv, self).__init__(bitwidths, params, coutBopsParams, prevLayer)
 
         self.in_planes = in_planes
+
         self.forwardReLU = None
 
     def initOps(self, bitwidths, params):
@@ -301,8 +321,7 @@ class MixedConv(MixedFilter):
         return ops
 
     def forwardConv(self, x):
-        prev_alpha_idx = self.preForward()
-        op = self.ops[prev_alpha_idx][self.curr_alpha_idx].op[0]
+        op = self.ops[self.prev_alpha_idx][self.curr_alpha_idx].op[0]
         return op(x)
 
     def countOpsBops(self, op, coutBopsParams):
@@ -319,13 +338,13 @@ class MixedConvWithReLU(MixedFilter):
         params = in_planes, out_planes, kernel_size, stride
         coutBopsParams = in_planes, input_size
 
+        self.forward = self.forwardConv
         # if useResidual:
         #     self.forward = self.residualForward
 
         super(MixedConvWithReLU, self).__init__(bitwidths, params, coutBopsParams, prevLayer)
 
         self.in_planes = in_planes
-        self.prev_alpha_idx = 0
 
         # init output (activations) bitwidths list
         self.outputBitwidth = []
@@ -349,7 +368,6 @@ class MixedConvWithReLU(MixedFilter):
         return ops
 
     def forwardConv(self, x):
-        self.prev_alpha_idx = self.preForward()
         op = self.ops[self.prev_alpha_idx][self.curr_alpha_idx].op[0]
         return op(x)
 
