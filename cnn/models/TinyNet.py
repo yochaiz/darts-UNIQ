@@ -3,7 +3,7 @@ from collections import OrderedDict
 from torch.nn import Sequential, Conv2d, Linear
 
 from cnn.MixedFilter import MixedConvWithReLU, MixedLinear
-from cnn.models.BaseNet import BaseNet, save_quant_state, restore_quant_state
+from cnn.models.BaseNet import BaseNet
 
 from UNIQ.actquant import ActQuant
 
