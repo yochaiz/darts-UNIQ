@@ -76,8 +76,11 @@ class TrainRegime:
         epochsSwitchStage = [0]
         for e in args.epochs:
             epochsSwitchStage.append(e + epochsSwitchStage[-1])
+        # on epochs we learn only Linear layer, infer in every epoch
+        for _ in range(args.epochs[-1]):
+            epochsSwitchStage.append(epochsSwitchStage[-1] + 1)
         # total number of epochs is the last value in epochsSwitchStage
-        nEpochs = epochsSwitchStage[-1] + 1
+        nEpochs = epochsSwitchStage[-1]
         # remove epoch 0 from list, we don't want to switch stage at the beginning
         epochsSwitchStage = epochsSwitchStage[1:]
 
@@ -259,11 +262,13 @@ class TrainRegime:
                     trainData[k] = v
 
                 # switch stage
-                model.switch_stage(loggerFuncs=[lambda msg: trainLogger.addInfoTable(title='Switching stage', rows=[[msg]])])
-                # update optimizer & scheduler due to update in learnable params
-                optimizer = SGD(model.parameters(), scheduler.get_lr()[0], momentum=args.momentum, weight_decay=args.weight_decay)
-                scheduler = CosineAnnealingLR(optimizer, float(nEpochs), eta_min=args.learning_rate_min)
-                scheduler.step()
+                switchStageFlag = model.switch_stage(loggerFuncs=[lambda msg: trainLogger.addInfoTable(title='Switching stage', rows=[[msg]])])
+                # update optimizer only if we changed model learnable params
+                if switchStageFlag:
+                    # update optimizer & scheduler due to update in learnable params
+                    optimizer = SGD(model.parameters(), scheduler.get_lr()[0], momentum=args.momentum, weight_decay=args.weight_decay)
+                    scheduler = CosineAnnealingLR(optimizer, float(nEpochs), eta_min=args.learning_rate_min)
+                    scheduler.step()
 
                 # save model checkpoint
                 is_best = valid_acc > best_prec1
