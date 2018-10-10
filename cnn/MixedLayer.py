@@ -1,3 +1,5 @@
+from itertools import groupby
+
 from torch import cat, chunk, tensor, ones, IntTensor
 from torch.nn import ModuleList, BatchNorm2d
 from torch.distributions.multinomial import Multinomial
@@ -137,6 +139,20 @@ class MixedLayer(Block):
             bops += f.getBops(input_bitwidth)
 
         return bops
+
+    # returns filters current op bitwidth
+    def getCurrentBitwidth(self):
+        # collect filters current bitwidths
+        bitwidths = [f.getCurrentBitwidth() for f in self.filters]
+        # group bitwidths
+        groups = groupby(bitwidths, lambda x: x)
+        # create a list of tuples [bitwidth, number of filters]
+        res = []
+        for _, g in groups:
+            g = list(g)
+            res.append([g[0], len(g)])
+
+        return res
 
     # create a list of layer output feature maps bitwidth
     def getCurrentOutputBitwidth(self):
