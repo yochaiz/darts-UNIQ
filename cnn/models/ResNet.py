@@ -2,12 +2,9 @@ from collections import OrderedDict
 
 from torch.nn import Conv2d, AvgPool2d, Linear, ModuleList
 
-from UNIQ.actquant import ActQuant
-
 from cnn.MixedFilter import MixedConv, MixedConvWithReLU, Block
 from cnn.MixedLayer import MixedLayer
 from cnn.models import BaseNet
-from cnn.models.BaseNet import save_quant_state, restore_quant_state
 
 
 # init layers creation functions
