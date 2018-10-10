@@ -1,8 +1,6 @@
-from collections import OrderedDict
-
 from torch.nn import Sequential, Conv2d, BatchNorm2d, ReLU, Module
 
-from .ResNet import ResNet, BasicBlock, MixedConvWithReLU
+from .ResNet import ResNet, BasicBlock
 
 
 class BasicBlockFullPrecision(Module):
