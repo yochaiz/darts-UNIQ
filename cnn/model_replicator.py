@@ -4,7 +4,6 @@ from abc import abstractmethod
 
 from torch.cuda import set_device
 from torch.nn import functional as F
-from UNIQ.uniq import save_state, restore_state
 
 
 class ModelReplicator:
@@ -24,18 +23,21 @@ class ModelReplicator:
                 cModel = modelClass(args)
                 # set model to cuda on specific GPU
                 cModel = cModel.cuda()
+                # turn off noise in 1st layer
+                layerIdx = 0
+                cModel.layersList[layerIdx].turnOffNoise(layerIdx)
                 # set model criterion to its GPU
                 cModel._criterion.cuda()
                 # set mode to eval mode
                 cModel.eval()
-                # remove UNIQ save_state(), restore_state() hooks for all model ops
-                for layer in cModel.layersList:
-                    for op in layer.getOps():
-                        # remove hooks
-                        for hook in op.hooks:
-                            hook.remove()
-                        # clear hooks list
-                        op.hooks.clear()
+                # # remove UNIQ save_state(), restore_state() hooks for all model ops
+                # for layer in cModel.layersList:
+                #     for op in layer.getOps():
+                #         # remove hooks
+                #         for hook in op.hooks:
+                #             hook.remove()
+                #         # clear hooks list
+                #         op.hooks.clear()
                 # add model to replications
                 self.replications.append((cModel, gpu))
 
@@ -68,16 +70,18 @@ class ModelReplicator:
     def quantize(self):
         print('model replicator quantize()')
         for cModel, _ in self.replications:
-            for layer in cModel.layersList:
-                for op in layer.getOps():
-                    save_state(op, None)
+            for layerIdx, layer in enumerate(cModel.layersList):
+                layer.quantize(layerIdx)
+                # for op in layer.getOps():
+                #     save_state(op, None)
 
     def restore_quantize(self):
         print('model replicator restore_quantize()')
         for cModel, _ in self.replications:
-            for layer in cModel.layersList:
-                for op in layer.getOps():
-                    restore_state(op, None, None)
+            for layerIdx, layer in enumerate(cModel.layersList):
+                layer.unQuantize(layerIdx)
+                # for op in layer.getOps():
+                #     restore_state(op, None, None)
 
     # Wrapper function per process, i.e. per replication
     def replicationFunc(self, args):
