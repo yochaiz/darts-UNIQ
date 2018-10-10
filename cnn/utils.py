@@ -342,9 +342,8 @@ def save_state(state, is_best, path, filename):
 
 def save_checkpoint(path, model, args, epoch, best_prec1, is_best=False, filename=None):
     # set state dictionary
-    state = dict(nextEpoch=epoch + 1, state_dict=model.state_dict(), epochs=args.epochs,
+    state = dict(nextEpoch=epoch + 1, state_dict=model.state_dict(), epochs=args.epochs, alphas=model.save_alphas_state(),
                  nLayersQuantCompleted=model.nLayersQuantCompleted, best_prec1=best_prec1, learning_rate=args.learning_rate)
-    # # # alphas = model.alphas_state()
     # set state filename
     filename = filename or stateFilenameDefault
     # save state to file

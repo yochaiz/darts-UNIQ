@@ -252,20 +252,13 @@ class BaseNet(Module):
             # save DataFrame
             self.alphas_df.to_csv(self.alphasCsvFileName)
 
-    # create list of lists of alpha with its corresponding operation
-    def alphas_state(self):
-        res = []
-        for layer in self.layersList:
-            layerAlphas = [(a, op) for a, op in zip(layer.alphas, layer.ops[0])]
-            res.append(layerAlphas)
-
-        return res
+    # create list of tuples (layer index, layer alphas)
+    def save_alphas_state(self):
+        return [(i, layer.alphas) for i, layer in enumerate(self.layersList)]
 
     def load_alphas_state(self, state):
-        for layer, layerAlphas in zip(self.layersList, state):
-            for i, elem in enumerate(layerAlphas):
-                a, _ = elem
-                layer.alphas[i] = a
+        for layerIdx, alphas in state:
+            self.layersList[layerIdx].alphas.data = alphas
 
 # def turnOffAlphas(self):
 #     for layer in self.layersList:
