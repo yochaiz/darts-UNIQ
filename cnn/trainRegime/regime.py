@@ -27,6 +27,7 @@ class TrainRegime:
     optBopsRatioKey = 'Optimal bops ratio'
     timeKey = 'Time'
     lrKey = 'Optimizer lr'
+    bitwidthKey = 'Bitwidth'
 
     # init formats for keys
     formats = {validLossKey: '{:.5f}', validAccKey: '{:.3f}', optBopsRatioKey: '{:.3f}', timeKey: '{:.3f}', archLossKey: '{:.5f}', lrKey: '{:.5f}',
@@ -36,8 +37,8 @@ class TrainRegime:
     alphasTableTitle = 'Alphas (top [{}])'
     forwardCountersTitle = 'Forward counters'
 
-    colsTrainWeights = [batchNumKey, trainLossKey, trainAccKey, pathBopsRatioKey, timeKey]
-    colsMainInitWeightsTrain = [epochNumKey, trainLossKey, trainAccKey, validLossKey, validAccKey, pathBopsRatioKey, lrKey]
+    colsTrainWeights = [batchNumKey, trainLossKey, trainAccKey, bitwidthKey, timeKey]
+    colsMainInitWeightsTrain = [epochNumKey, trainLossKey, trainAccKey, validLossKey, validAccKey, lrKey]
     colsTrainAlphas = [batchNumKey, archLossKey, alphasTableTitle, forwardCountersTitle, optBopsRatioKey, timeKey]
     colsValidation = [batchNumKey, validLossKey, validAccKey, optBopsRatioKey, timeKey]
     colsMainLogger = [epochNumKey, archLossKey, optBopsRatioKey, trainLossKey, trainAccKey, validLossKey, validAccKey, lrKey]
@@ -423,7 +424,13 @@ class TrainRegime:
         modelParallel.train()
 
         nBatches = len(train_queue)
-        bopsRatio = 0.0
+
+        def bitwidthsTable(model, logger, bitwidthKey):
+            # collect model layers bitwidths groups
+            table = [[i, [[bitwidthKey, '#Filters']] + layer.getCurrentBitwidth()] for i, layer in enumerate(model.layersList)]
+            table.insert(0, ['Layer #', bitwidthKey])
+            # create InfoTable
+            return logger.createInfoTable(bitwidthKey, table)
 
         for step, (input, target) in enumerate(train_queue):
             startTime = time()
@@ -434,7 +441,6 @@ class TrainRegime:
 
             # choose alpha per layer
             modelChoosePathFunc()
-            # bopsRatio = model.calcBopsRatio()
             # optimize model weights
             optimizer.zero_grad()
             logits = modelParallel(input)
@@ -456,7 +462,7 @@ class TrainRegime:
             if trainLogger:
                 dataRow = {
                     self.batchNumKey: '{}/{}'.format(step, nBatches), self.trainLossKey: loss, self.trainAccKey: prec1,
-                    self.pathBopsRatioKey: bopsRatio, self.timeKey: (endTime - startTime)
+                    self.timeKey: (endTime - startTime), self.bitwidthKey: bitwidthsTable(model, trainLogger, self.bitwidthKey)
                 }
                 # apply formats
                 self.__applyFormats(dataRow)
