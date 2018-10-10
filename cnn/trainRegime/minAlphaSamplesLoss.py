@@ -212,8 +212,8 @@ class MinimalAlphaSamplesLoss(TrainRegime):
 
     def train(self):
         model = self.model
-        # turn on alphas
-        model.turnOnAlphas()
+        # # turn on alphas
+        # model.turnOnAlphas()
 
         trainLogger = initTrainLogger(str(self.epoch), self.trainFolderPath, self.args.propagate)
         # set loggers dictionary

@@ -19,8 +19,8 @@ class AlphasOnly(TrainRegime):
         nEpochs = self.model.nLayers()
         # init validation best precision value
         best_prec1 = 0.0
-        # turn on alphas
-        self.model.turnOnAlphas()
+        # # turn on alphas
+        # self.model.turnOnAlphas()
 
         for epoch in range(self.epoch + 1, self.epoch + nEpochs + 1):
             print('========== Epoch:[{}] =============='.format(epoch))
