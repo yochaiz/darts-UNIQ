@@ -106,10 +106,12 @@ class ResNet(BaseNet):
     def __init__(self, args):
         super(ResNet, self).__init__(args, initLayersParams=(args.bitwidth, args.kernel))
 
-        # set noise=True for 1st layer
+        # turn on noise in 1st layer
         if len(self.layersList) > 0:
-            for op in self.layersList[0].getOps():
-                op.noise = op.quant
+            layerIdx = 0
+            self.layersList[layerIdx].turnOnNoise(layerIdx)
+            # for op in self.layersList[0].getOps():
+            #     op.noise = op.quant
 
         # update model parameters() function
         self.parameters = self.getLearnableParams
@@ -121,7 +123,7 @@ class ResNet(BaseNet):
 
         if layer.numOfOps() > 1:
             layer.setAlphas([0., 0., 0., 0.25, 0.75])
-            # layer.setFiltersPartition()
+            layer.setFiltersPartition()
 
         return layer
 
@@ -179,59 +181,87 @@ class ResNet(BaseNet):
         return self.learnable_params
 
     def turnOnWeights(self):
-        for layer in self.layersList:
-            for op in layer.getOps():
-                # turn off operations noise
-                op.noise = False
-                # remove hooks
-                for handler in op.hookHandlers:
-                    handler.remove()
-                # clear hooks handlers list
-                op.hookHandlers.clear()
-                # turn on operations gradients
-                for m in op.modules():
-                    if isinstance(m, Conv2d):
-                        for param in m.parameters():
-                            param.requires_grad = True
-                    elif isinstance(m, ActQuant):
-                        m.quatize_during_training = False
-                        m.noise_during_training = True
+        for layerIdx, layer in enumerate(self.layersList):
+            assert (layer.added_noise is False)
+            assert (layer.quantized is True)
+            # remove quantization
+            layer.unQuantize(layerIdx)
+            # turn on gradients
+            layer.turnOnGradients(layerIdx)
 
-        # set noise=True for 1st layer
+        # turn on noise in 1st layer
         if len(self.layersList) > 0:
-            layer = self.layersList[0]
-            for op in layer.getOps():
-                op.noise = op.quant
+            layerIdx = 0
+            layer = self.layersList[layerIdx]
+            layer.turnOnNoise(layerIdx)
 
         # update learnable parameters
         self.learnable_params = [param for param in self.parameters() if param.requires_grad]
         # reset nLayersQuantCompleted
         self.nLayersQuantCompleted = 0
 
+    # def turnOnWeights(self):
+    #     for layer in self.layersList:
+    #         for op in layer.getOps():
+    #             # turn off operations noise
+    #             op.noise = False
+    #             # remove hooks
+    #             for handler in op.hookHandlers:
+    #                 handler.remove()
+    #             # clear hooks handlers list
+    #             op.hookHandlers.clear()
+    #             # turn on operations gradients
+    #             for m in op.modules():
+    #                 if isinstance(m, Conv2d):
+    #                     for param in m.parameters():
+    #                         param.requires_grad = True
+    #                 elif isinstance(m, ActQuant):
+    #                     m.quatize_during_training = False
+    #                     m.noise_during_training = True
+    #
+    #     # set noise=True for 1st layer
+    #     if len(self.layersList) > 0:
+    #         layer = self.layersList[0]
+    #         for op in layer.getOps():
+    #             op.noise = op.quant
+    #
+    #     # update learnable parameters
+    #     self.learnable_params = [param for param in self.parameters() if param.requires_grad]
+    #     # reset nLayersQuantCompleted
+    #     self.nLayersQuantCompleted = 0
+
     def switch_stage(self, loggerFuncs=[]):
+        print('*** switch_stage() ***')
         # check whether we have to perform a switching stage, or there are no more stages left
         conditionFlag = self.nLayersQuantCompleted < len(self.layersList)
         if conditionFlag:
             layer = self.layersList[self.nLayersQuantCompleted]
             # assert (layer.alphas.requires_grad is False)
 
-            for op in layer.getOps():
-                # turn off noise in op
-                assert (op.noise is True)
-                op.noise = False
+            # turn off noise in layers ops
+            layer.turnOffNoise(self.nLayersQuantCompleted)
+            # quantize layer
+            layer.quantize(self.nLayersQuantCompleted)
+            # turn off gradients
+            layer.turnOffGradients(self.nLayersQuantCompleted)
 
-                # set pre & post quantization hooks, from now on we want to quantize these ops
-                op.hookHandlers.append(op.register_forward_pre_hook(save_quant_state))
-                op.hookHandlers.append(op.register_forward_hook(restore_quant_state))
-
-                # turn off gradients
-                for m in op.modules():
-                    if isinstance(m, Conv2d):
-                        for param in m.parameters():
-                            param.requires_grad = False
-                    elif isinstance(m, ActQuant):
-                        m.quatize_during_training = True
-                        m.noise_during_training = False
+            # for op in layer.getOps():
+            #     # turn off noise in op
+            #     assert (op.noise is True)
+            #     op.noise = False
+            #
+            #     # # set pre & post quantization hooks, from now on we want to quantize these ops
+            #     # op.hookHandlers.append(op.register_forward_pre_hook(save_quant_state))
+            #     # op.hookHandlers.append(op.register_forward_hook(restore_quant_state))
+            #
+            #     # turn off gradients
+            #     for m in op.modules():
+            #         if isinstance(m, Conv2d):
+            #             for param in m.parameters():
+            #                 param.requires_grad = False
+            #         elif isinstance(m, ActQuant):
+            #             m.quatize_during_training = True
+            #             m.noise_during_training = False
 
             # update learnable parameters
             self.learnable_params = [param for param in self.parameters() if param.requires_grad]
@@ -242,9 +272,10 @@ class ResNet(BaseNet):
             if self.nLayersQuantCompleted < len(self.layersList):
                 layer = self.layersList[self.nLayersQuantCompleted]
                 # turn on noise in the new layer we want to quantize
-                for op in layer.getOps():
-                    assert (op.noise is False)
-                    op.noise = True
+                layer.turnOnNoise(self.nLayersQuantCompleted)
+                # for op in layer.getOps():
+                #     assert (op.noise is False)
+                #     op.noise = True
 
             logMsg = 'nLayersQuantCompleted:[{}/{}], learnable_params:[{}], learnable_alphas:[{}]' \
                 .format(self.nLayersQuantCompleted, self.nLayers(), len(self.learnable_params), len(self.learnable_alphas))
