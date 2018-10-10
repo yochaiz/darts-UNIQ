@@ -27,6 +27,7 @@ class TrainRegime:
     timeKey = 'Time'
     lrKey = 'Optimizer lr'
     bitwidthKey = 'Bitwidth'
+    statsKey = 'Stats'
 
     # init formats for keys
     formats = {validLossKey: '{:.5f}', validAccKey: '{:.3f}', optBopsRatioKey: '{:.3f}', timeKey: '{:.3f}', archLossKey: '{:.5f}', lrKey: '{:.5f}',
@@ -36,10 +37,10 @@ class TrainRegime:
     alphasTableTitle = 'Alphas (top [{}])'
     forwardCountersTitle = 'Forward counters'
 
-    colsTrainWeights = [batchNumKey, trainLossKey, trainAccKey, bitwidthKey, timeKey]
+    colsTrainWeights = [batchNumKey, trainLossKey, trainAccKey, bitwidthKey, statsKey, timeKey]
     colsMainInitWeightsTrain = [epochNumKey, trainLossKey, trainAccKey, validLossKey, validAccKey, lrKey]
     colsTrainAlphas = [batchNumKey, archLossKey, alphasTableTitle, forwardCountersTitle, optBopsRatioKey, timeKey]
-    colsValidation = [batchNumKey, validLossKey, validAccKey, optBopsRatioKey, timeKey]
+    colsValidation = [batchNumKey, validLossKey, validAccKey, statsKey, timeKey]
     colsMainLogger = [epochNumKey, archLossKey, optBopsRatioKey, trainLossKey, trainAccKey, validLossKey, validAccKey, lrKey]
 
     def __init__(self, args, model, modelClass, logger):
@@ -318,6 +319,13 @@ class TrainRegime:
         # add to logger as InfoTable
         logger.addInfoTable(title, data)
 
+    def createForwardStatsInfoTable(self, model, logger):
+        stats = [[i, layer.forwardStats] for i, layer in enumerate(model.layersList) if layer.forwardStats]
+        stats = [['Layer#', 'Stats']] + stats
+
+        # return table code
+        return logger.createInfoTable('Show', stats)
+
     def trainAlphas(self, search_queue, model, architect, nEpoch, loggers):
         loss_container = AvgrageMeter()
 
@@ -472,7 +480,8 @@ class TrainRegime:
             if trainLogger:
                 dataRow = {
                     self.batchNumKey: '{}/{}'.format(step, nBatches), self.trainLossKey: loss, self.trainAccKey: prec1,
-                    self.timeKey: (endTime - startTime), self.bitwidthKey: bitwidthsTable(model, trainLogger, self.bitwidthKey)
+                    self.timeKey: (endTime - startTime), self.bitwidthKey: bitwidthsTable(model, trainLogger, self.bitwidthKey),
+                    self.statsKey: self.createForwardStatsInfoTable(model, trainLogger)
                 }
                 # apply formats
                 self.__applyFormats(dataRow)
@@ -512,8 +521,6 @@ class TrainRegime:
         crit = self.cross_entropy
 
         model.eval()
-        bopsRatio = 0.0
-        # bopsRatio = model.evalMode()
         # print eval layer index selection
         trainLogger = loggers.get('train')
         if trainLogger:
@@ -557,7 +564,7 @@ class TrainRegime:
                 if trainLogger:
                     dataRow = {
                         self.batchNumKey: '{}/{}'.format(step, nBatches), self.validLossKey: loss, self.validAccKey: prec1,
-                        self.optBopsRatioKey: bopsRatio, self.timeKey: endTime - startTime
+                        self.statsKey: self.createForwardStatsInfoTable(model, trainLogger), self.timeKey: endTime - startTime
                     }
                     # apply formats
                     self.__applyFormats(dataRow)
