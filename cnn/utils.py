@@ -537,11 +537,28 @@ def load_data(args):
     train_queue = DataLoader(train_data, batch_size=args.batch_size,
                              sampler=SubsetRandomSampler(indices[:split]), pin_memory=True, num_workers=args.workers)
 
-    search_queue = DataLoader(train_data, batch_size=args.batch_size,
-                              sampler=SubsetRandomSampler(indices[split:num_train]),
-                              pin_memory=True, num_workers=args.workers)
-
     valid_queue = DataLoader(valid_data, batch_size=args.batch_size, shuffle=False,
                              pin_memory=True, num_workers=args.workers)
+
+    nParts = args.alphas_data_parts
+    nSamples = num_train - split
+    nSamplesPerPart = int(nSamples / nParts)
+    startIdx = split
+    endIdx = startIdx + nSamplesPerPart
+    search_queue = []
+    for _ in range(nParts - 1):
+        dl = DataLoader(train_data, batch_size=args.batch_size, sampler=SubsetRandomSampler(indices[startIdx:endIdx]),
+                        pin_memory=True, num_workers=args.workers)
+        search_queue.append(dl)
+        startIdx = endIdx
+        endIdx += nSamplesPerPart
+    # last part takes what left
+    dl = DataLoader(train_data, batch_size=args.batch_size, sampler=SubsetRandomSampler(indices[startIdx:num_train]),
+                    pin_memory=True, num_workers=args.workers)
+    search_queue.append(dl)
+
+    # search_queue = DataLoader(train_data, batch_size=args.batch_size,
+    #                           sampler=SubsetRandomSampler(indices[split:num_train]),
+    #                           pin_memory=True, num_workers=args.workers)
 
     return train_queue, search_queue, valid_queue
