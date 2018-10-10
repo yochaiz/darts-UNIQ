@@ -52,33 +52,33 @@ class TinyNet(BaseNet):
     def switch_stage(self, logger=None):
         pass
 
-    def turnOnAlphas(self):
-        self.learnable_alphas = []
-        for layer in self.layersList:
-            # turn on alphas gradients
-            layer.alphas.requires_grad = True
-            self.learnable_alphas.append(layer.alphas)
-
-            for op in layer.getOps():
-                # turn off noise in op
-                assert (op.noise is True)
-                op.noise = False
-
-                # set pre & post quantization hooks, from now on we want to quantize these ops
-                op.hookHandlers.append(op.register_forward_pre_hook(save_quant_state))
-                op.hookHandlers.append(op.register_forward_hook(restore_quant_state))
-
-                # turn off weights gradients
-                for m in op.modules():
-                    if isinstance(m, Conv2d):
-                        for param in m.parameters():
-                            param.requires_grad = False
-                    elif isinstance(m, ActQuant):
-                        m.quatize_during_training = True
-                        m.noise_during_training = False
-
-        # update learnable parameters
-        self.learnable_params = [param for param in self.parameters() if param.requires_grad]
+    # def turnOnAlphas(self):
+    #     self.learnable_alphas = []
+    #     for layer in self.layersList:
+    #         # turn on alphas gradients
+    #         layer.alphas.requires_grad = True
+    #         self.learnable_alphas.append(layer.alphas)
+    #
+    #         for op in layer.getOps():
+    #             # turn off noise in op
+    #             assert (op.noise is True)
+    #             op.noise = False
+    #
+    #             # # set pre & post quantization hooks, from now on we want to quantize these ops
+    #             # op.hookHandlers.append(op.register_forward_pre_hook(save_quant_state))
+    #             # op.hookHandlers.append(op.register_forward_hook(restore_quant_state))
+    #
+    #             # turn off weights gradients
+    #             for m in op.modules():
+    #                 if isinstance(m, Conv2d):
+    #                     for param in m.parameters():
+    #                         param.requires_grad = False
+    #                 elif isinstance(m, ActQuant):
+    #                     m.quatize_during_training = True
+    #                     m.noise_during_training = False
+    #
+    #     # update learnable parameters
+    #     self.learnable_params = [param for param in self.parameters() if param.requires_grad]
 
     def turnOnWeights(self):
         for layer in self.layersList:
