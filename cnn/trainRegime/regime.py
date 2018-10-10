@@ -8,7 +8,6 @@ from torch import no_grad
 from torch.optim import SGD
 from torch.autograd.variable import Variable
 from torch.nn import CrossEntropyLoss
-from torch.nn.parallel.data_parallel import DataParallel
 
 from cnn.utils import accuracy, AvgrageMeter, load_data, saveArgsToJSON, logDominantQuantizedOp, save_checkpoint
 from cnn.utils import sendDataEmail, logForwardCounters
@@ -44,10 +43,6 @@ class TrainRegime:
     colsMainLogger = [epochNumKey, archLossKey, optBopsRatioKey, trainLossKey, trainAccKey, validLossKey, validAccKey, lrKey]
 
     def __init__(self, args, model, modelClass, logger):
-        self.modelParallel = model
-        if isinstance(model, DataParallel):
-            model = model.module
-
         self.args = args
         self.model = model
         self.modelClass = modelClass
@@ -82,7 +77,7 @@ class TrainRegime:
         for e in args.epochs:
             epochsSwitchStage.append(e + epochsSwitchStage[-1])
         # total number of epochs is the last value in epochsSwitchStage
-        nEpochs = epochsSwitchStage[-1] + args.epochs[-1]
+        nEpochs = epochsSwitchStage[-1] + 1
         # remove epoch 0 from list, we don't want to switch stage at the beginning
         epochsSwitchStage = epochsSwitchStage[1:]
 
@@ -210,7 +205,6 @@ class TrainRegime:
         return optBopsRatio
 
     def initialWeightsTraining(self, trainFolderName, filename=None):
-        modelParallel = self.modelParallel
         model = self.model
         args = self.args
         nEpochs = self.nEpochs
@@ -308,6 +302,16 @@ class TrainRegime:
         for k in dict.keys():
             if k in self.formats:
                 dict[k] = self.formats[k].format(dict[k])
+
+    def addModelUNIQstatusTable(self, logger, title):
+        # init UNIQ params in MixedLayer
+        params = ['quantized', 'added_noise']
+        # collect UNIQ params value from each layer
+        data = [[i, [[p, getattr(layer, p, None)] for p in params]] for i, layer in enumerate(self.model.layersList)]
+        # add header
+        data = [['Layer#', 'Values']] + data
+        # add to logger as InfoTable
+        logger.addInfoTable(title, data)
 
     def trainAlphas(self, search_queue, model, architect, nEpoch, loggers):
         loss_container = AvgrageMeter()
@@ -407,21 +411,22 @@ class TrainRegime:
         return summaryData
 
     def trainWeights(self, modelChoosePathFunc, optimizer, epoch, loggers):
+        print('*** trainWeights() ***')
         loss_container = AvgrageMeter()
         top1 = AvgrageMeter()
         top5 = AvgrageMeter()
 
         trainLogger = loggers.get('train')
         if trainLogger:
+            self.addModelUNIQstatusTable(trainLogger, 'UNIQ status - pre-training weights')
             trainLogger.createDataTable('Epoch:[{}] - Training weights'.format(epoch), self.colsTrainWeights)
 
-        modelParallel = self.modelParallel
         model = self.model
         crit = self.cross_entropy
         train_queue = self.train_queue
         grad_clip = self.args.grad_clip
 
-        modelParallel.train()
+        model.train()
 
         nBatches = len(train_queue)
 
@@ -443,7 +448,7 @@ class TrainRegime:
             modelChoosePathFunc()
             # optimize model weights
             optimizer.zero_grad()
-            logits = modelParallel(input)
+            logits = model(input)
             # calc loss
             loss = crit(logits, target)
             # back propagate
@@ -492,16 +497,16 @@ class TrainRegime:
         return summaryData
 
     def infer(self, nEpoch, loggers):
+        print('*** infer() ***')
         objs = AvgrageMeter()
         top1 = AvgrageMeter()
         top5 = AvgrageMeter()
 
-        modelParallel = self.modelParallel
         model = self.model
         valid_queue = self.valid_queue
         crit = self.cross_entropy
 
-        modelParallel.eval()
+        model.eval()
         bopsRatio = 0.0
         # bopsRatio = model.evalMode()
         # print eval layer index selection
@@ -512,6 +517,20 @@ class TrainRegime:
 
         nBatches = len(valid_queue)
 
+        # quantize model layers that haven't switched stage yet
+        # no need to turn gradients off, since with no_grad() does it
+        if model.nLayersQuantCompleted < model.nLayers():
+            # turn off noise if 1st unstaged layer
+            layer = model.layersList[model.nLayersQuantCompleted]
+            layer.turnOffNoise(model.nLayersQuantCompleted)
+            # quantize all unstaged layers
+            for layerIdx, layer in enumerate(model.layersList[model.nLayersQuantCompleted:]):
+                # quantize
+                layer.quantize(model.nLayersQuantCompleted + layerIdx)
+
+        # log UNIQ status after quantizing all layers
+        self.addModelUNIQstatusTable(trainLogger, 'UNIQ status - quantizated for validation')
+
         with no_grad():
             for step, (input, target) in enumerate(valid_queue):
                 startTime = time()
@@ -519,7 +538,7 @@ class TrainRegime:
                 input = Variable(input).cuda()
                 target = Variable(target).cuda(async=True)
 
-                logits = modelParallel(input)
+                logits = model(input)
                 loss = crit(logits, target)
 
                 prec1, prec5 = accuracy(logits, target, topk=(1, 5))
@@ -542,6 +561,18 @@ class TrainRegime:
                     # add columns row
                     if (step + 1) % 10 == 0:
                         trainLogger.addColumnsRowToDataTable()
+
+        # restore weights (remove quantization) of model layers that haven't switched stage yet
+        if model.nLayersQuantCompleted < model.nLayers():
+            for layerIdx, layer in enumerate(model.layersList[model.nLayersQuantCompleted:]):
+                # remove quantization
+                layer.unQuantize(model.nLayersQuantCompleted + layerIdx)
+            # add noise back to 1st unstaged layer
+            layer = model.layersList[model.nLayersQuantCompleted]
+            layer.turnOnNoise(model.nLayersQuantCompleted)
+
+        # log UNIQ status after restoring model state
+        self.addModelUNIQstatusTable(trainLogger, 'UNIQ status - state restored')
 
         # create summary row
         summaryRow = {self.batchNumKey: 'Summary', self.validLossKey: objs.avg, self.validAccKey: top1.avg, self.pathBopsRatioKey: bopsRatio}
