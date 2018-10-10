@@ -31,7 +31,7 @@ class AlphasWeightsLoop(TrainRegime):
             # set loggers dictionary
             loggersDict = dict(train=trainLogger)
             # train alphas
-            alphaData = self.trainAlphas(self.search_queue, model, self.architect, epoch, loggersDict)
+            alphaData = self.trainAlphas(self.search_queue[epoch % args.alphas_data_parts], model, self.architect, epoch, loggersDict)
 
             # validation on current optimal model
             valid_acc, validData = self.infer(epoch, loggersDict)
