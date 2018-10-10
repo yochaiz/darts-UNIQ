@@ -1,4 +1,4 @@
-from torch import zeros, tensor
+from torch import zeros, tensor, no_grad
 from torch.nn import functional as F
 
 from cnn.model_replicator import ModelReplicator, set_device
@@ -21,64 +21,65 @@ class RandomPath(ModelReplicator):
         cModel, input, target, layersIndices, gpu = args
         # switch to process GPU
         set_device(gpu)
-
         assert (cModel.training is False)
-        # init total loss
-        totalLoss = 0.0
-        # init loss samples list for ALL alphas
-        allLossSamples = []
-        # init how many samples per alpha
-        nSamplesPerAlpha = cModel.nSamplesPerAlpha
-        # init layers alphas grad
-        alphasGrad = []
-        # save stats data
-        gradNorm = []
-        alphaLossVariance = []
-        for layerIdx in layersIndices:
-            layer = cModel.layersList[layerIdx]
-            # turn off coin toss for this layer
-            layer.alphas.requires_grad = False
-            # init layer alphas gradient
-            layerAlphasGrad = zeros(len(layer.alphas)).cuda(gpu)
-            # calc layer alphas softmax
-            probs = F.softmax(layer.alphas, dim=-1)
 
-            for i, alpha in enumerate(layer.alphas):
-                # # select the specific alpha in this layer
-                # layer.curr_alpha_idx = i
+        with no_grad():
+            # init total loss
+            totalLoss = 0.0
+            # init loss samples list for ALL alphas
+            allLossSamples = []
+            # init how many samples per alpha
+            nSamplesPerAlpha = cModel.nSamplesPerAlpha
+            # init layers alphas grad
+            alphasGrad = []
+            # save stats data
+            gradNorm = []
+            alphaLossVariance = []
+            for layerIdx in layersIndices:
+                layer = cModel.layersList[layerIdx]
+                # turn off coin toss for this layer
+                layer.alphas.requires_grad = False
+                # init layer alphas gradient
+                layerAlphasGrad = zeros(len(layer.alphas)).cuda(gpu)
+                # calc layer alphas softmax
+                probs = F.softmax(layer.alphas, dim=-1)
 
-                # init loss samples list
-                alphaLossSamples = []
-                for _ in range(nSamplesPerAlpha):
-                    # choose path in model based on alphas distribution, while current layer alpha is [i]
-                    cModel.choosePathByAlphas(layerIdx=layerIdx, alphaIdx=i)
-                    # forward input in model
-                    logits = cModel(input)
-                    # alphaLoss += cModel._criterion(logits, target, cModel.countBops()).detach()
-                    alphaLossSamples.append(cModel._criterion(logits, target, cModel.countBops()).detach())
+                for i, alpha in enumerate(layer.alphas):
+                    # # select the specific alpha in this layer
+                    # layer.curr_alpha_idx = i
 
-                # add current alpha loss samples to all loss samples list
-                allLossSamples.extend(alphaLossSamples)
-                # calc alpha average loss
-                alphaAvgLoss = sum(alphaLossSamples) / nSamplesPerAlpha
-                layerAlphasGrad[i] = alphaAvgLoss
-                # add alpha loss to total loss
-                totalLoss += (alphaAvgLoss * probs[i])
+                    # init loss samples list
+                    alphaLossSamples = []
+                    for _ in range(nSamplesPerAlpha):
+                        # choose path in model based on alphas distribution, while current layer alpha is [i]
+                        cModel.choosePathByAlphas(layerIdx=layerIdx, alphaIdx=i)
+                        # forward input in model
+                        logits = cModel(input)
+                        # alphaLoss += cModel._criterion(logits, target, cModel.countBops()).detach()
+                        alphaLossSamples.append(cModel._criterion(logits, target, cModel.countBops()).detach())
 
-                # calc loss samples variance
-                lossVariance = [((x - alphaAvgLoss) ** 2) for x in alphaLossSamples]
-                lossVariance = sum(lossVariance) / (nSamplesPerAlpha - 1)
-                # add alpha loss variance to statistics
-                alphaLossVariance.append((layerIdx, i, alphaAvgLoss.item(), lossVariance.item()))
+                    # add current alpha loss samples to all loss samples list
+                    allLossSamples.extend(alphaLossSamples)
+                    # calc alpha average loss
+                    alphaAvgLoss = sum(alphaLossSamples) / nSamplesPerAlpha
+                    layerAlphasGrad[i] = alphaAvgLoss
+                    # add alpha loss to total loss
+                    totalLoss += (alphaAvgLoss * probs[i])
 
-            # turn in coin toss for this layer
-            layer.alphas.requires_grad = True
-            # add layer alphas grad to container
-            alphasGrad.append(layerAlphasGrad)
-            # add gradNorm to statistics
-            gradNorm.append((layerIdx, layerAlphasGrad.norm().item()))
+                    # calc loss samples variance
+                    lossVariance = [((x - alphaAvgLoss) ** 2) for x in alphaLossSamples]
+                    lossVariance = sum(lossVariance) / (nSamplesPerAlpha - 1)
+                    # add alpha loss variance to statistics
+                    alphaLossVariance.append((layerIdx, i, alphaAvgLoss.item(), lossVariance.item()))
 
-        return alphasGrad, allLossSamples, layersIndices, totalLoss, gradNorm, alphaLossVariance
+                # turn in coin toss for this layer
+                layer.alphas.requires_grad = True
+                # add layer alphas grad to container
+                alphasGrad.append(layerAlphasGrad)
+                # add gradNorm to statistics
+                gradNorm.append((layerIdx, layerAlphasGrad.norm().item()))
+
+            return alphasGrad, allLossSamples, layersIndices, totalLoss, gradNorm, alphaLossVariance
 
     def processResults(self, model, results):
         stats = model.stats
