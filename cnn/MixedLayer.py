@@ -4,8 +4,10 @@ from torch import cat, chunk, tensor, ones, IntTensor
 from torch.nn import ModuleList, BatchNorm2d
 from torch.distributions.multinomial import Multinomial
 
-from cnn.MixedFilter import MixedFilter
+from cnn.MixedFilter import MixedFilter, Conv2d, ActQuant
 from cnn.block import Block
+
+from UNIQ.quantize import check_quantization
 
 
 class MixedLayer(Block):
@@ -29,7 +31,7 @@ class MixedLayer(Block):
         # set filters distribution
         if self.numOfOps() > 1:
             self.setAlphas([0.3125, 0.3125, 0.1875, 0.125, 0.0625])
-            # self.setFiltersPartition()
+            self.setFiltersPartition()
 
         # init list of all operations (including copies) as single long list
         # for cases we have to modify all ops
@@ -41,8 +43,82 @@ class MixedLayer(Block):
         if useResidual:
             self.forward = self.residualForward
 
+        # set UNIQ parameters
+        self.quantized = False
+        self.added_noise = False
+
     def nFilters(self):
         return len(self.filters)
+
+    def quantize(self, layerIdx):
+        assert (self.added_noise is False)
+        for op in self.opsList:
+            assert (op.noise is False)
+            op.quantize()
+            assert (check_quantization(op.op[0].weight) <= (2 ** op.bitwidth[0]))
+
+        self.quantized = True
+        print('quantized layer [{}]'.format(layerIdx))
+
+    def unQuantize(self, layerIdx):
+        assert (self.quantized is True)
+        assert (self.added_noise is False)
+
+        for op in self.opsList:
+            op.restore_state()
+
+        self.quantized = False
+        print('removed quantization in layer [{}]'.format(layerIdx))
+
+    # just turn on op.noise flag
+    # noise is being added in pre-forward hook
+    def turnOnNoise(self, layerIdx):
+        assert (self.quantized is False)
+        for op in self.opsList:
+            assert (op.noise is False)
+            op.noise = True
+
+        self.added_noise = True
+        print('turned on noise in layer [{}]'.format(layerIdx))
+
+    def turnOffNoise(self, layerIdx):
+        assert (self.quantized is False)
+        assert (self.added_noise is True)
+
+        for op in self.opsList:
+            assert (op.noise is True)
+            op.noise = False
+
+        self.added_noise = False
+        print('turned off noise in layer [{}]'.format(layerIdx))
+
+    def turnOffGradients(self, layerIdx):
+        assert (self.quantized is True)
+        assert (self.added_noise is False)
+
+        for op in self.opsList:
+            for m in op.modules():
+                if isinstance(m, Conv2d):
+                    for param in m.parameters():
+                        param.requires_grad = False
+                elif isinstance(m, ActQuant):
+                    m.quatize_during_training = True
+
+        print('turned off gradients in layer [{}]'.format(layerIdx))
+
+    def turnOnGradients(self, layerIdx):
+        assert (self.quantized is False)
+        assert (self.added_noise is False)
+
+        for op in self.opsList:
+            for m in op.modules():
+                if isinstance(m, Conv2d):
+                    for param in m.parameters():
+                        param.requires_grad = True
+                elif isinstance(m, ActQuant):
+                    m.quatize_during_training = False
+
+        print('turned on gradients in layer [{}]'.format(layerIdx))
 
     # ratio is a list
     def setAlphas(self, ratio):
@@ -79,7 +155,7 @@ class MixedLayer(Block):
         out = []
         # apply selected op in each filter
         for f in self.filters:
-            res = f.forwardConv(x)
+            res = f(x)
             out.append(res)
         # concat filters output
         out = cat(out, 1)
