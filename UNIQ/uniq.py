@@ -4,6 +4,7 @@ from UNIQ.actquant import ActQuant
 
 
 def save_state(self, _):
+    assert (False)
     self.full_parameters = {}
     layers_list = self.get_layers_list()
     layers_steps = self.get_layers_steps(layers_list)
@@ -14,8 +15,7 @@ def save_state(self, _):
             quantize(layers_steps[i], bitwidth=self.bitwidth[i])
     elif self.noise and self.training:
         self.full_parameters = backup_weights(layers_steps[self.training_stage], {})
-        add_noise(layers_steps[self.training_stage], bitwidth=self.bitwidth[self.training_stage],
-                  training=self.training)
+        add_noise(layers_steps[self.training_stage], bitwidth=self.bitwidth[self.training_stage], training=self.training)
 
         for i in range(self.training_stage):
             self.full_parameters = backup_weights(layers_steps[i], self.full_parameters)
@@ -28,14 +28,14 @@ def save_state(self, _):
 
 
 def restore_state(self, _, __):
+    assert (False)
     layers_list = self.get_layers_list()
     layers_steps = self.get_layers_steps(layers_list)
 
     if self.quant and not self.training:
         restore_weights(layers_list, self.full_parameters)
     elif self.noise and self.training:
-        restore_weights(layers_steps[self.training_stage],
-                        self.full_parameters)  # Restore the noised layers
+        restore_weights(layers_steps[self.training_stage], self.full_parameters)  # Restore the noised layers
         for i in range(self.training_stage):
             restore_weights(layers_steps[i], self.full_parameters)  # Restore the quantized layers
 
@@ -61,11 +61,38 @@ class UNIQNet(nn.Module):
         self.act_bitwidth = act_bitwidth
         self.quant_edges = quant and quant_edges
         self.stages = list(range(step_setup[0], 1000, step_setup[1]))
-        # save hooks handlers
-        self.hooks = [
-            self.register_forward_pre_hook(save_state),
-            self.register_forward_hook(restore_state)
-        ]
+        # # save hooks handlers
+        # self.hooks = [
+        #     self.register_forward_pre_hook(save_state),
+        #     self.register_forward_hook(restore_state)
+        # ]
+
+        self.full_parameters = {}
+
+    def quantize(self):
+        assert (len(self.bitwidth) == 1)
+        assert (self.quant is True)
+        # check if we are in inference mode or we are training with switching stage and this op has already changed stage
+        assert ((self.training is False) or ((self.training is True) and (self.noise is False)))
+
+        layers_list = self.get_layers_list()
+        self.full_parameters = backup_weights(layers_list, {})
+        quantize(layers_list, bitwidth=self.bitwidth[0])
+
+    def add_noise(self):
+        assert (len(self.bitwidth) == 1)
+        assert (self.noise is True)
+        assert (self.training is True)
+
+        layers_list = self.get_layers_list()
+        self.full_parameters = backup_weights(layers_list, {})
+        add_noise(layers_list, bitwidth=self.bitwidth[0], training=self.training)
+
+    def restore_state(self):
+        assert (self.full_parameters != {})
+
+        layers_list = self.get_layers_list()
+        restore_weights(layers_list, self.full_parameters)
 
     def get_layers_list(self):
         modules_list = list(self.modules())
@@ -89,7 +116,6 @@ class UNIQNet(nn.Module):
             layers_steps.append(l)
 
         # remove edge layers if we don't quantize edges
-        # TODO: need to consider quant_edges or not ???
         # if not self.quant_edges:
         #     layers_steps = layers_steps[1:-1]
 
