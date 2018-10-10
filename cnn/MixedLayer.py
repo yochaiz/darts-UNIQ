@@ -10,6 +10,29 @@ from cnn.block import Block
 from UNIQ.quantize import check_quantization
 
 
+# collects stats from forward output
+def collectStats(type, val):
+    funcs = [(lambda x: x.argmin(), lambda x: x.min()), (lambda x: '', lambda x: sum(x) / len(x)), (lambda x: x.argmax(), lambda x: x.max())]
+
+    res = [[['Filter#', filterFunc(val)], ['Value', '{:.5f}'.format(valueFunc(val))]] for filterFunc, valueFunc in funcs]
+    res = [type] + res
+
+    return res
+
+
+def postForward(self, _, output):
+    if self.quantized is True:
+        # calc mean, max value per feature map to stats
+        layerMax = tensor([output.select(1, j).max() for j in range(output.size(1))])
+        layerAvg = tensor([(output.select(1, j).sum() / output.select(1, j).numel()) for j in range(output.size(1))])
+        # save min, avg & max values for stats
+        elements = [('Avg', layerAvg), ('Max', layerMax)]
+        self.forwardStats = [collectStats(type, val) for type, val in elements]
+        self.forwardStats.insert(0, ['Type', 'Min', 'Avg', 'Max'])
+    else:
+        self.forwardStats = None
+
+
 class MixedLayer(Block):
     def __init__(self, nFilters, createMixedFilterFunc, useResidual=False):
         super(MixedLayer, self).__init__()
@@ -42,6 +65,10 @@ class MixedLayer(Block):
         # set forward function
         if useResidual:
             self.forward = self.residualForward
+
+        # register post forward hook
+        self.register_forward_hook(postForward)
+        self.forwardStats = None
 
         # set UNIQ parameters
         self.quantized = False
