@@ -3,7 +3,6 @@ from abc import abstractmethod
 from pandas import DataFrame
 from os.path import exists
 
-from torch import zeros
 from torch.nn import Module
 from torch.nn import functional as F
 from torch import load as loadModel
@@ -15,26 +14,28 @@ from cnn.statistics import Statistics
 from UNIQ.quantize import quantize, restore_weights, backup_weights
 
 
-def save_quant_state(self, _):
-    assert (self.noise is False)
-    if self.quant and not self.noise and self.training:
-        self.full_parameters = {}
-        layers_list = self.get_layers_list()
-        layers_steps = self.get_layers_steps(layers_list)
-        assert (len(layers_steps) == 1)
-
-        self.full_parameters = backup_weights(layers_steps[0], self.full_parameters)
-        quantize(layers_steps[0], bitwidth=self.bitwidth[0])
-
-
-def restore_quant_state(self, _, __):
-    assert (self.noise is False)
-    if self.quant and not self.noise and self.training:
-        layers_list = self.get_layers_list()
-        layers_steps = self.get_layers_steps(layers_list)
-        assert (len(layers_steps) == 1)
-
-        restore_weights(layers_steps[0], self.full_parameters)  # Restore the quantized layers
+# def save_quant_state(self, _):
+#     assert (False)
+#     assert (self.noise is False)
+#     if self.quant and not self.noise and self.training:
+#         self.full_parameters = {}
+#         layers_list = self.get_layers_list()
+#         layers_steps = self.get_layers_steps(layers_list)
+#         assert (len(layers_steps) == 1)
+#
+#         self.full_parameters = backup_weights(layers_steps[0], self.full_parameters)
+#         quantize(layers_steps[0], bitwidth=self.bitwidth[0])
+#
+#
+# def restore_quant_state(self, _, __):
+#     assert (False)
+#     assert (self.noise is False)
+#     if self.quant and not self.noise and self.training:
+#         layers_list = self.get_layers_list()
+#         layers_steps = self.get_layers_steps(layers_list)
+#         assert (len(layers_steps) == 1)
+#
+#         restore_weights(layers_steps[0], self.full_parameters)  # Restore the quantized layers
 
 
 class BaseNet(Module):
