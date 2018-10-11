@@ -547,8 +547,10 @@ class TrainRegime:
         # log UNIQ status after quantizing all layers
         self.addModelUNIQstatusTable(model, trainLogger, 'UNIQ status - quantizated for validation')
 
-        # choose model path and calculate its bops
-        model.choosePathByAlphas()
+        # choose model path
+        for layer in model.layersList:
+            layer.setFiltersPartition()
+        # calculate its bops
         bopsRatio = model.calcBopsRatio()
 
         with no_grad():
