@@ -28,6 +28,7 @@ class TrainRegime:
     lrKey = 'Optimizer lr'
     bitwidthKey = 'Bitwidth'
     statsKey = 'Stats'
+    forwardCountersKey = 'Forward counters'
 
     # init formats for keys
     formats = {validLossKey: '{:.5f}', validAccKey: '{:.3f}', optBopsRatioKey: '{:.3f}', timeKey: '{:.3f}', archLossKey: '{:.5f}', lrKey: '{:.5f}',
@@ -35,11 +36,10 @@ class TrainRegime:
 
     initWeightsTrainTableTitle = 'Initial weights training'
     alphasTableTitle = 'Alphas (top [{}])'
-    forwardCountersTitle = 'Forward counters'
 
     colsTrainWeights = [batchNumKey, trainLossKey, trainAccKey, bitwidthKey, statsKey, timeKey]
     colsMainInitWeightsTrain = [epochNumKey, trainLossKey, trainAccKey, validLossKey, validAccKey, lrKey]
-    colsTrainAlphas = [batchNumKey, archLossKey, alphasTableTitle, forwardCountersTitle, optBopsRatioKey, timeKey]
+    colsTrainAlphas = [batchNumKey, archLossKey, alphasTableTitle, forwardCountersKey, optBopsRatioKey, timeKey]
     colsValidation = [batchNumKey, validLossKey, validAccKey, statsKey, timeKey]
     colsMainLogger = [epochNumKey, archLossKey, optBopsRatioKey, trainLossKey, trainAccKey, validLossKey, validAccKey, lrKey]
 
@@ -309,22 +309,33 @@ class TrainRegime:
             if k in self.formats:
                 dict[k] = self.formats[k].format(dict[k])
 
-    def addModelUNIQstatusTable(self, logger, title):
+    @staticmethod
+    def addModelUNIQstatusTable(model, logger, title):
         # init UNIQ params in MixedLayer
         params = ['quantized', 'added_noise']
         # collect UNIQ params value from each layer
-        data = [[i, [[p, getattr(layer, p, None)] for p in params]] for i, layer in enumerate(self.model.layersList)]
+        data = [[i, [[p, getattr(layer, p, None)] for p in params]] for i, layer in enumerate(model.layersList)]
         # add header
         data = [['Layer#', 'Values']] + data
         # add to logger as InfoTable
         logger.addInfoTable(title, data)
 
-    def createForwardStatsInfoTable(self, model, logger):
+    @staticmethod
+    def createForwardStatsInfoTable(model, logger):
         stats = [[i, layer.forwardStats] for i, layer in enumerate(model.layersList) if layer.forwardStats]
         stats = [['Layer#', 'Stats']] + stats
 
         # return table code
         return logger.createInfoTable('Show', stats)
+
+    # returns InfoTable of model bitwidths
+    @staticmethod
+    def createBitwidthsTable(model, logger, bitwidthKey):
+        # collect model layers bitwidths groups
+        table = [[i, [[bitwidthKey, '#Filters']] + layer.getCurrentBitwidth()] for i, layer in enumerate(model.layersList)]
+        table.insert(0, ['Layer #', bitwidthKey])
+        # create InfoTable
+        return logger.createInfoTable(bitwidthKey, table)
 
     def trainAlphas(self, search_queue, model, architect, nEpoch, loggers):
         loss_container = AvgrageMeter()
@@ -353,7 +364,7 @@ class TrainRegime:
             createInfoTable(dataRow, self.alphasTableTitle, trainLogger, rows)
 
         def forwardCountersFunc(rows):
-            createInfoTable(dataRow, self.forwardCountersTitle, trainLogger, rows)
+            createInfoTable(dataRow, self.forwardCountersKey, trainLogger, rows)
 
         for step, (input, target) in enumerate(search_queue):
             startTime = time()
@@ -429,26 +440,19 @@ class TrainRegime:
         top1 = AvgrageMeter()
         top5 = AvgrageMeter()
 
-        trainLogger = loggers.get('train')
-        if trainLogger:
-            self.addModelUNIQstatusTable(trainLogger, 'UNIQ status - pre-training weights')
-            trainLogger.createDataTable('Epoch:[{}] - Training weights'.format(epoch), self.colsTrainWeights)
-
         model = self.model
         crit = self.cross_entropy
         train_queue = self.train_queue
         grad_clip = self.args.grad_clip
 
+        trainLogger = loggers.get('train')
+        if trainLogger:
+            self.addModelUNIQstatusTable(model, trainLogger, 'UNIQ status - pre-training weights')
+            trainLogger.createDataTable('Epoch:[{}] - Training weights'.format(epoch), self.colsTrainWeights)
+
         model.train()
 
         nBatches = len(train_queue)
-
-        def bitwidthsTable(model, logger, bitwidthKey):
-            # collect model layers bitwidths groups
-            table = [[i, [[bitwidthKey, '#Filters']] + layer.getCurrentBitwidth()] for i, layer in enumerate(model.layersList)]
-            table.insert(0, ['Layer #', bitwidthKey])
-            # create InfoTable
-            return logger.createInfoTable(bitwidthKey, table)
 
         for step, (input, target) in enumerate(train_queue):
             startTime = time()
@@ -480,7 +484,7 @@ class TrainRegime:
             if trainLogger:
                 dataRow = {
                     self.batchNumKey: '{}/{}'.format(step, nBatches), self.trainLossKey: loss, self.trainAccKey: prec1,
-                    self.timeKey: (endTime - startTime), self.bitwidthKey: bitwidthsTable(model, trainLogger, self.bitwidthKey),
+                    self.timeKey: (endTime - startTime), self.bitwidthKey: self.createBitwidthsTable(model, trainLogger, self.bitwidthKey),
                     self.statsKey: self.createForwardStatsInfoTable(model, trainLogger)
                 }
                 # apply formats
@@ -505,7 +509,7 @@ class TrainRegime:
                                    loggerFuncs=[lambda k, rows: trainLogger.addInfoTable(title=self.alphasTableTitle.format(k), rows=rows)])
 
         # log forward counters. if loggerFuncs==[] then it is just resets counters
-        func = [lambda rows: trainLogger.addInfoTable(title=self.forwardCountersTitle, rows=rows)] if trainLogger else []
+        func = [lambda rows: trainLogger.addInfoTable(title=self.forwardCountersKey, rows=rows)] if trainLogger else []
         logForwardCounters(model, loggerFuncs=func)
 
         return summaryData
@@ -541,7 +545,7 @@ class TrainRegime:
                 layer.quantize(model.nLayersQuantCompleted + layerIdx)
 
         # log UNIQ status after quantizing all layers
-        self.addModelUNIQstatusTable(trainLogger, 'UNIQ status - quantizated for validation')
+        self.addModelUNIQstatusTable(model, trainLogger, 'UNIQ status - quantizated for validation')
 
         with no_grad():
             for step, (input, target) in enumerate(valid_queue):
@@ -584,10 +588,10 @@ class TrainRegime:
             layer.turnOnNoise(model.nLayersQuantCompleted)
 
         # log UNIQ status after restoring model state
-        self.addModelUNIQstatusTable(trainLogger, 'UNIQ status - state restored')
+        self.addModelUNIQstatusTable(model, trainLogger, 'UNIQ status - state restored')
 
         # create summary row
-        summaryRow = {self.batchNumKey: 'Summary', self.validLossKey: objs.avg, self.validAccKey: top1.avg, self.pathBopsRatioKey: bopsRatio}
+        summaryRow = {self.batchNumKey: 'Summary', self.validLossKey: objs.avg, self.validAccKey: top1.avg}
         # apply formats
         self.__applyFormats(summaryRow)
 
@@ -596,12 +600,20 @@ class TrainRegime:
 
         # log forward counters. if loggerFuncs==[] then it is just resets counters
         func = []
+        forwardCountersData = [[]]
         if trainLogger:
-            colName = 'Values'
-            trainLogger.createDataTable('Validation forward counters', [colName])
-            func = [lambda rows: trainLogger.addDataRow({colName: trainLogger.createInfoTable('Show', rows)})]
+            func = [lambda rows: forwardCountersData.append(trainLogger.createInfoTable('Show', rows))]
 
         logForwardCounters(model, loggerFuncs=func)
+
+        if trainLogger:
+            # create new data table for validation statistics
+            colName = [self.forwardCountersKey, self.bitwidthKey]
+            trainLogger.createDataTable('Validation statistics', colName)
+            # add bitwidth & forward counters statistics
+            dataRow = {self.bitwidthKey: self.createBitwidthsTable(model, trainLogger, self.bitwidthKey),
+                       self.forwardCountersKey: forwardCountersData[-1]}
+            trainLogger.addDataRow(dataRow)
 
         return top1.avg, summaryRow
 
