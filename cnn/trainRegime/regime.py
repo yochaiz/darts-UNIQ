@@ -547,6 +547,10 @@ class TrainRegime:
         # log UNIQ status after quantizing all layers
         self.addModelUNIQstatusTable(model, trainLogger, 'UNIQ status - quantizated for validation')
 
+        # choose model path and calculate its bops
+        model.choosePathByAlphas()
+        bopsRatio = model.calcBopsRatio()
+
         with no_grad():
             for step, (input, target) in enumerate(valid_queue):
                 startTime = time()
@@ -608,11 +612,15 @@ class TrainRegime:
 
         if trainLogger:
             # create new data table for validation statistics
-            colName = [self.forwardCountersKey, self.bitwidthKey]
+            colName = [self.forwardCountersKey, self.bitwidthKey, self.pathBopsRatioKey]
             trainLogger.createDataTable('Validation statistics', colName)
             # add bitwidth & forward counters statistics
             dataRow = {self.bitwidthKey: self.createBitwidthsTable(model, trainLogger, self.bitwidthKey),
-                       self.forwardCountersKey: forwardCountersData[-1]}
+                       self.forwardCountersKey: forwardCountersData[-1], self.pathBopsRatioKey: bopsRatio
+                       }
+            # apply formats
+            self.__applyFormats(dataRow)
+            # add row to table
             trainLogger.addDataRow(dataRow)
 
         return top1.avg, summaryRow
