@@ -22,7 +22,7 @@ class LayerSamePath(RandomPath):
             # init loss samples list for ALL alphas
             allLossSamples = []
             # init how many samples per alpha
-            nSamplesPerAlpha = cModel.nSamplesPerAlpha
+            nSamples = cModel.nSamples
             # init layers alphas grad
             alphasGrad = []
             # save stats data
@@ -40,7 +40,7 @@ class LayerSamePath(RandomPath):
                 # init loss samples list for layer alphas
                 alphaLossSamples = [[] for _ in range(layer.numOfOps())]
                 # for each sample select path through the specific alpha and calc the path loss
-                for _ in range(nSamplesPerAlpha):
+                for _ in range(nSamples):
                     # choose path in model based on alphas distribution, while current layer alpha is [i]
                     cModel.choosePathByAlphas()
                     for i in range(layer.numOfOps()):
@@ -59,14 +59,14 @@ class LayerSamePath(RandomPath):
                     # add layer alphas loss samples to all loss samples list
                     allLossSamples.extend(alphaLossSamples[i])
                     # calc alpha average loss
-                    alphaAvgLoss = tensor(sum(alphaLossSamples[i]) / nSamplesPerAlpha).cuda()
+                    alphaAvgLoss = tensor(sum(alphaLossSamples[i]) / nSamples).cuda()
                     layerAlphasGrad[i] = alphaAvgLoss
                     # add alpha loss to total loss
                     totalLoss += (alphaAvgLoss * probs[i])
 
                     # calc loss samples variance
                     lossVariance = [((x - alphaAvgLoss) ** 2) for x in alphaLossSamples[i]]
-                    lossVariance = sum(lossVariance) / (nSamplesPerAlpha - 1)
+                    lossVariance = sum(lossVariance) / (nSamples - 1)
                     # add alpha loss variance to statistics
                     alphaLossVariance.append((layerIdx, i, alphaAvgLoss.item(), lossVariance.item()))
 

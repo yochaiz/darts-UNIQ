@@ -40,7 +40,7 @@ class Replicator(ModelReplicator):
                 layer.curr_alpha_idx = i
                 # init loss samples list
                 alphaLossSamples = []
-                for _ in range(cModel.nSamplesPerAlpha):
+                for _ in range(cModel.nSamples):
                     # forward through some path in model
                     logits = cModel(input)
                     alphaLossSamples.append(cModel._criterion(logits, target, cModel.countBops()).detach())
@@ -182,7 +182,7 @@ class MinimalAlphaSamplesLoss(TrainRegime):
                 layer.curr_alpha_idx = i
                 # init loss samples list
                 alphaLossSamples = []
-                for _ in range(model.nSamplesPerAlpha):
+                for _ in range(model.nSamples):
                     # forward through some path in model
                     logits = model(input)
                     alphaLossSamples.append(model._criterion(logits, target, model.countBops()).detach())

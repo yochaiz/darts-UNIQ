@@ -29,7 +29,7 @@ class RandomPath(ModelReplicator):
             # init loss samples list for ALL alphas
             allLossSamples = []
             # init how many samples per alpha
-            nSamplesPerAlpha = cModel.nSamplesPerAlpha
+            nSamples = cModel.nSamples
             # init layers alphas grad
             alphasGrad = []
             # save stats data
@@ -50,7 +50,7 @@ class RandomPath(ModelReplicator):
 
                     # init loss samples list
                     alphaLossSamples = []
-                    for _ in range(nSamplesPerAlpha):
+                    for _ in range(nSamples):
                         # choose path in model based on alphas distribution, while current layer alpha is [i]
                         cModel.choosePathByAlphas(layerIdx=layerIdx, alphaIdx=i)
                         # forward input in model
@@ -61,14 +61,14 @@ class RandomPath(ModelReplicator):
                     # add current alpha loss samples to all loss samples list
                     allLossSamples.extend(alphaLossSamples)
                     # calc alpha average loss
-                    alphaAvgLoss = sum(alphaLossSamples) / nSamplesPerAlpha
+                    alphaAvgLoss = sum(alphaLossSamples) / nSamples
                     layerAlphasGrad[i] = alphaAvgLoss
                     # add alpha loss to total loss
                     totalLoss += (alphaAvgLoss * probs[i])
 
                     # calc loss samples variance
                     lossVariance = [((x - alphaAvgLoss) ** 2) for x in alphaLossSamples]
-                    lossVariance = sum(lossVariance) / (nSamplesPerAlpha - 1)
+                    lossVariance = sum(lossVariance) / (nSamples - 1)
                     # add alpha loss variance to statistics
                     alphaLossVariance.append((layerIdx, i, alphaAvgLoss.item(), lossVariance.item()))
 

@@ -152,7 +152,8 @@ class ModelReplicator:
                 targetPerGPU[id] = target if (id == target.device.index) else target.clone().cuda(id)
 
             # update model layers alphas optimization status
-            optimizeLayerIdx = self.updateLayersAlphaOptimization(model)
+            # optimizeLayerIdx = self.updateLayersAlphaOptimization(model)
+            optimizeLayerIdx = list(range(model.nLayers()))
             # split layers indices between models
             layersIndicesPerModel = array_split(optimizeLayerIdx, nCopies)
 

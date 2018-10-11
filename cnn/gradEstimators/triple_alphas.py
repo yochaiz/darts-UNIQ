@@ -23,9 +23,9 @@ class TripleAlphas(ModelReplicator):
         # init loss samples list for ALL alphas
         allLossSamples = []
         # init how many samples per alpha
-        nSamplesPerAlpha = cModel.nSamplesPerAlpha
-        nSamplesPerAlpha1 = int(nSamplesPerAlpha / 2)
-        nSamplesPerAlpha2 = nSamplesPerAlpha - nSamplesPerAlpha1
+        nSamples = cModel.nSamples
+        nSamples1 = int(nSamples / 2)
+        nSamples2 = nSamples - nSamples1
         # init layers alphas grad
         alphasGrad = []
         # save stats data
@@ -46,12 +46,12 @@ class TripleAlphas(ModelReplicator):
 
                 # sample path based on alphas distribution
                 alphaLossSamples1 = []
-                for _ in range(nSamplesPerAlpha1):
+                for _ in range(nSamples1):
                     logits = cModel(input)
                     alphaLossSamples1.append(cModel._criterion(logits, target, cModel.countBops()).detach())
 
                 # calc alpha average loss
-                alphaAvgLoss1 = sum(alphaLossSamples1) / nSamplesPerAlpha1
+                alphaAvgLoss1 = sum(alphaLossSamples1) / nSamples1
 
                 # set previous & following layer alpha as current layer alpha
                 prevLayer = cModel.layersList[layerIdx - 1] if layerIdx - 1 >= 0 else None
@@ -65,12 +65,12 @@ class TripleAlphas(ModelReplicator):
 
                 # sample paths
                 alphaLossSamples2 = []
-                for _ in range(nSamplesPerAlpha2):
+                for _ in range(nSamples2):
                     logits = cModel(input)
                     alphaLossSamples2.append(cModel._criterion(logits, target, cModel.countBops()).detach())
 
                 # calc alpha average loss
-                alphaAvgLoss2 = sum(alphaLossSamples2) / nSamplesPerAlpha2
+                alphaAvgLoss2 = sum(alphaLossSamples2) / nSamples2
 
                 for l in [prevLayer, nextLayer]:
                     if l:
@@ -93,7 +93,7 @@ class TripleAlphas(ModelReplicator):
                 # calc loss samples variance
                 lossVariance = [((x - alphaAvgLoss) ** 2) for x in alphaLossSamples1] + \
                                [((x - alphaAvgLoss) ** 2) for x in alphaLossSamples2]
-                lossVariance = sum(lossVariance) / (nSamplesPerAlpha - 1)
+                lossVariance = sum(lossVariance) / (nSamples - 1)
                 # add alpha loss variance to statistics
                 alphaLossVariance.append((layerIdx, i, alphaAvgLoss.item(), lossVariance.item()))
 
