@@ -101,7 +101,7 @@ class BasicBlock(Block):
 
 class ResNet(BaseNet):
     def __init__(self, args):
-        super(ResNet, self).__init__(args, initLayersParams=(args.bitwidth, args.kernel))
+        super(ResNet, self).__init__(args, initLayersParams=(args.bitwidth, args.kernel, args.nClasses))
 
         # turn on noise in 1st layer
         if len(self.layersList) > 0:
@@ -120,7 +120,7 @@ class ResNet(BaseNet):
 
         if layer.numOfOps() > 1:
             layer.setAlphas([0., 0., 0., 0.25, 0.75])
-            layer.setFiltersPartition()
+            # layer.setFiltersPartition()
 
         return layer
 
@@ -132,7 +132,7 @@ class ResNet(BaseNet):
                 (BasicBlock, 32, 64, [16, 8]), (BasicBlock, 64, 64, [8]), (BasicBlock, 64, 64, [8])]
 
     def initLayers(self, params):
-        bitwidths, kernel_sizes = params
+        bitwidths, kernel_sizes, nClasses = params
         bitwidths = bitwidths.copy()
 
         layersPlanes = self.initLayersPlanes()
@@ -159,7 +159,7 @@ class ResNet(BaseNet):
 
         self.avgpool = AvgPool2d(8)
         # self.fc = MixedLinear(bitwidths, 64, 10)
-        self.fc = Linear(64, 10).cuda()
+        self.fc = Linear(64, nClasses).cuda()
 
         return layers
 
