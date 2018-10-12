@@ -86,8 +86,6 @@ class BaseNet(Module):
         self.learnable_alphas = self.getLearnableAlphas()
         # init number of layers we have completed its quantization
         self.nLayersQuantCompleted = 0
-        # init number of samples of each alpha
-        self.nSamplesPerAlpha = args.nSamplesPerAlpha
         # init layers permutation list
         self.layersPerm = []
         # init number of permutations counter
@@ -373,7 +371,7 @@ class BaseNet(Module):
 
 # def _loss(self, input, target):
 #     # init how many samples per alpha
-#     nSamplesPerAlpha = self.nSamplesPerAlpha
+#     nSamples = self.nSamples
 #     # init total loss
 #     totalLoss = 0.0
 #     # init loss samples list for ALL alphas
@@ -391,7 +389,7 @@ class BaseNet(Module):
 #             layer.curr_alpha_idx = i
 #             # init loss samples list
 #             alphaLossSamples = []
-#             for _ in range(nSamplesPerAlpha):
+#             for _ in range(nSamples):
 #                 # forward through some path in model
 #                 logits = self(input)
 #                 # alphaLoss += self._criterion(logits, target, self.countBops()).detach()
@@ -400,14 +398,14 @@ class BaseNet(Module):
 #             # add current alpha loss samples to all loss samples list
 #             allLossSamples.extend(alphaLossSamples)
 #             # calc alpha average loss
-#             alphaAvgLoss = sum(alphaLossSamples) / nSamplesPerAlpha
+#             alphaAvgLoss = sum(alphaLossSamples) / nSamples
 #             layerAlphasGrad[i] = alphaAvgLoss
 #             # add alpha loss to total loss
 #             totalLoss += (alphaAvgLoss * probs[i])
 #
 #             # calc loss samples variance
 #             lossVariance = [((x - alphaAvgLoss) ** 2) for x in alphaLossSamples]
-#             lossVariance = sum(lossVariance) / (nSamplesPerAlpha - 1)
+#             lossVariance = sum(lossVariance) / (nSamples - 1)
 #             # add alpha loss average to statistics
 #             self.stats.containers[self.stats.alphaLossAvgKey][j][i].append(alphaAvgLoss.item())
 #             # add alpha loss variance to statistics
