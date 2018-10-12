@@ -28,9 +28,6 @@ import cnn.models as models
 from cnn.HtmlLogger import HtmlLogger
 import cnn.gradEstimators as gradEstimators
 
-# import torchvision.transforms as transforms
-# import torchvision.transforms as transforms
-
 # references to models pre-trained
 modelsRefs = {
     'thin_resnet': '/home/yochaiz/DropDarts/cnn/pre_trained/thin_resnet/train/model_opt.pth.tar',
@@ -524,11 +521,11 @@ def printModelToFile(model, save_path, fname='model'):
 #     ])
 #     return train_transform, valid_transform
 
-def load_data(args):
-    # train_transform, valid_transform = _data_transforms_cifar10(args)
-    # train_data = CIFAR10(root=args.data, train=True, download=True, transform=train_transform)
-    # valid_data = CIFAR10(root=args.data, train=False, download=True, transform=valid_transform)
+def loadDatasets():
+    return dict(cifar10=10, cifar100=100, imagenet=1000)
 
+
+def load_data(args):
     # init transforms
     transform = {
         'train': get_transform(args.dataset, augment=True),
