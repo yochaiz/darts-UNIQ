@@ -13,7 +13,7 @@ from torch import manual_seed as torch_manual_seed
 
 import cnn.trainRegime as trainRegimes
 from cnn.HtmlLogger import HtmlLogger
-from cnn.utils import create_exp_dir, saveArgsToJSON, loadGradEstimatorsNames, logParameters, loadModelNames, models, sendEmail
+from cnn.utils import create_exp_dir, saveArgsToJSON, loadGradEstimatorsNames, logParameters, loadModelNames, models, sendEmail, loadDatasets
 
 
 # collect possible alphas optimization
@@ -25,10 +25,11 @@ def parseArgs(lossFuncsLambda):
     modelNames = loadModelNames()
     alphasRegimeNames = loadAlphasRegimeNames()
     gradEstimatorsNames = loadGradEstimatorsNames()
+    datasets = loadDatasets()
 
-    parser = argparse.ArgumentParser("cifar")
+    parser = argparse.ArgumentParser("F-BANNAS")
     parser.add_argument('--data', type=str, required=True, help='location of the data corpus')
-    parser.add_argument('--dataset', metavar='DATASET', default='cifar10', help='dataset name')
+    parser.add_argument('--dataset', metavar='DATASET', default='cifar100', choices=datasets.keys(), help='dataset name')
     parser.add_argument('--model', '-a', metavar='MODEL', default='tinynet', choices=modelNames,
                         help='model architecture: ' + ' | '.join(modelNames) + ' (default: alexnet)')
     parser.add_argument('--batch_size', type=int, default=256, help='batch size')
@@ -104,6 +105,9 @@ def parseArgs(lossFuncsLambda):
         args.gpu = [int(i) for i in args.gpu.split(',')]
 
     args.device = 'cuda:' + str(args.gpu[0])
+
+    # set number of model output classes
+    args.nClasses = datasets[args.dataset]
 
     # set train folder name
     args.trainFolder = 'train'
