@@ -6,12 +6,12 @@ import cnn.gradEstimators as gradEstimators
 
 
 class AlphasWeightsLoop(TrainRegime):
-    def __init__(self, args, model, modelClass, logger):
-        super(AlphasWeightsLoop, self).__init__(args, model, modelClass, logger)
+    def __init__(self, args, logger):
+        super(AlphasWeightsLoop, self).__init__(args, logger)
 
         # init model replicator
         replicatorClass = gradEstimators.__dict__[args.grad_estimator]
-        replicator = replicatorClass(model, modelClass, args)
+        replicator = replicatorClass(self.model, self.modelClass, args)
         # init architect
         self.architect = Architect(replicator, args)
 
@@ -31,7 +31,7 @@ class AlphasWeightsLoop(TrainRegime):
             # set loggers dictionary
             loggersDict = dict(train=trainLogger)
             # train alphas
-            alphaData = self.trainAlphas(self.search_queue, model, self.architect, epoch, loggersDict)
+            alphaData = self.trainAlphas(self.search_queue[epoch % args.alphas_data_parts], model, self.architect, epoch, loggersDict)
 
             # validation on current optimal model
             valid_acc, validData = self.infer(epoch, loggersDict)
