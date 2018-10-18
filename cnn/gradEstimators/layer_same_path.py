@@ -28,7 +28,7 @@ class LayerSamePath(RandomPath):
                 logits = cModel(input)
                 # calc loss
                 loss = cModel._criterion(logits, target, cModel.countBops()).detach()
-                # get sample model path
+                # get sample model partition
                 modelPartition = [layer.getCurrentFiltersPartition() for layer in cModel.layersList]
                 # add sample data to list
                 samplesData.append((loss.item(), modelPartition))
@@ -62,9 +62,18 @@ class LayerSamePath(RandomPath):
                 v2.append(weightedLossAvg)
 
             # convert v2 to tensor
-            v2 = tensor(v2)
+            v2 = tensor(v2).type(v1.type())
             # update layer alphas grad
             layer.alphas.grad = v2 - v1
+
+        # add statistics
+        stats = model.stats
+        # add average
+        stats.containers[stats.lossAvgKey][0].append(lossAvg)
+        # add variance
+        lossVariance = [((l - lossAvg) ** 2) for l, p in samplesData]
+        lossVariance = sum(lossVariance) / (self.nSamples - 1)
+        stats.containers[stats.lossVarianceKey][0].append(lossVariance)
 
         return lossAvg
 
