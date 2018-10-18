@@ -26,7 +26,7 @@ class UniqLoss(Module):
         self.lmdba = args.lmbda
         self.search_loss = CrossEntropyLoss().cuda()
 
-        self.maxBops = args.maxBops
+        self.baselineBops = args.baselineBops
         self.baselineBits = args.baselineBits
 
         # init bops loss function and plot it
@@ -40,7 +40,7 @@ class UniqLoss(Module):
         self.quant_loss = -1
 
     def calcBopsRatio(self, modelBops):
-        return modelBops / self.maxBops
+        return modelBops / self.baselineBops
 
     def calcBopsLoss(self, bopsRatio):
         return self.bopsLoss(bopsRatio)
@@ -95,7 +95,7 @@ class UniqLoss(Module):
 
         ax.set_xticks(pts)
         ax.set_yticks(y)
-        ax.set_xlabel('bops/maxBops')
+        ax.set_xlabel('bops/baselineBops')
         ax.set_ylabel('Loss')
         ax.set_title('Bops ratio loss function')
         fig.set_size_inches(25, 10)
@@ -105,7 +105,7 @@ class UniqLoss(Module):
     # def _bops_loss(self, bops):
     #     # Parameters that were found emphirical
     #
-    #     scale_diff = (bops - self.maxBops) / self.maxBops
+    #     scale_diff = (bops - self.baselineBops) / self.baselineBops
     #     strech_factor = 10
     #     reward = tensor(-1.1, dtype=float32).cuda()
     #     return (self.bops_base_func((strech_factor * scale_diff) + reward) + 1) * 2.5
