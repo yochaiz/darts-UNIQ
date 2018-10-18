@@ -49,7 +49,8 @@ class TrainRegime:
         modelClass = models.__dict__[args.model]
         uniform_args = Namespace(**vars(args))
         uniform_args.bitwidth = args.baselineBits
-        uniform_model = modelClass(uniform_args)
+        # build model, it updates uniform_args.baselineBops value
+        modelClass(uniform_args)
         # init maxBops
         args.baselineBops = uniform_args.baselineBops
 
@@ -404,8 +405,8 @@ class TrainRegime:
 
             # # train optimal model
             # optBopsRatio = self.trainOptimalModel(nEpoch, step)
-            # # add alphas data to statistics
-            # model.stats.addBatchData(model, optBopsRatio, nEpoch, step)
+            # add alphas data to statistics
+            model.stats.addBatchData(model, nEpoch, step)
 
             func = []
             if trainLogger:
@@ -416,8 +417,8 @@ class TrainRegime:
             logForwardCounters(model, loggerFuncs=func)
             # save alphas to csv
             model.save_alphas_to_csv(data=[nEpoch, step])
-            # log allocations
-            self.logAllocations()
+            # # log allocations
+            # self.logAllocations()
             # save loss to container
             loss_container.update(loss, n)
 
@@ -444,8 +445,6 @@ class TrainRegime:
                 # add columns row
                 if (step + 1) % 10 == 0:
                     trainLogger.addColumnsRowToDataTable()
-
-            break
 
         # restore quantization for all replications ops
         architect.modelReplicator.restore_quantize()
@@ -511,8 +510,8 @@ class TrainRegime:
                     self.batchNumKey: '{}/{}'.format(step, nBatches), self.trainLossKey: loss, self.trainAccKey: prec1,
                     self.timeKey: (endTime - startTime), self.bitwidthKey: self.createBitwidthsTable(model, trainLogger, self.bitwidthKey)
                 }
-                if (step + 1) % 20 == 0:
-                    dataRow[self.statsKey] = self.createForwardStatsInfoTable(model, trainLogger)
+                # if (step + 1) % 20 == 0:
+                #     dataRow[self.statsKey] = self.createForwardStatsInfoTable(model, trainLogger)
                 # apply formats
                 self.__applyFormats(dataRow)
                 # add row to data table
@@ -571,7 +570,6 @@ class TrainRegime:
                 layer.quantize(model.nLayersQuantCompleted + layerIdx)
 
         # log UNIQ status after quantizing all layers
-        # log UNIQ status after quantizing all layers
         self.addModelUNIQstatusTable(model, trainLogger, 'UNIQ status - quantizated for validation')
 
         # choose model path
@@ -603,8 +601,8 @@ class TrainRegime:
                         self.batchNumKey: '{}/{}'.format(step, nBatches), self.validLossKey: loss, self.validAccKey: prec1,
                         self.timeKey: endTime - startTime
                     }
-                    if (step + 1) % 20 == 0:
-                        dataRow[self.statsKey] = self.createForwardStatsInfoTable(model, trainLogger)
+                    # if (step + 1) % 20 == 0:
+                    #     dataRow[self.statsKey] = self.createForwardStatsInfoTable(model, trainLogger)
                     # apply formats
                     self.__applyFormats(dataRow)
                     # add row to data table
