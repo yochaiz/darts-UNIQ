@@ -81,7 +81,7 @@ class BaseNet(Module):
         self._criterion = UniqLoss(args)
         self._criterion = self._criterion.cuda()
         # init statistics
-        self.stats = Statistics(self.layersList, self.nLayers(), saveFolder)
+        self.stats = Statistics(self.layersList, saveFolder)
         # collect learnable params (weights)
         self.learnable_params = [param for param in self.parameters() if param.requires_grad]
         # init learnable alphas
@@ -315,35 +315,16 @@ class BaseNet(Module):
     def calcBopsRatio(self):
         return self._criterion.calcBopsRatio(self.countBops())
 
-    # # select random alpha
-    # def chooseRandomPath(self):
-    #     for l in self.layers:
-    #         l.chooseRandomPath()
-    #
-    # layerIdx, alphaIdx meaning: self.layersList[layerIdx].curr_alpha_idx = alphaIdx
-    # def choosePathByAlphas(self, layerIdx=None, alphaIdx=None):
     def choosePathByAlphas(self):
         for l in self.layers:
             l.choosePathByAlphas()
-        #
-        # if (layerIdx is not None) and (alphaIdx is not None):
-        #     layer = self.layersList[layerIdx]
-        #     layer.curr_alpha_idx = alphaIdx
 
-    #
-    # def evalMode(self):
-    #     for l in self.layers:
-    #         l.evalMode()
-    #
-    #     # calc bops ratio
-    #     return self.calcBopsRatio()
+    def isQuantized(self):
+        for layer in self.layersList:
+            assert (layer.quantized is True)
+            assert (layer.added_noise is False)
 
-    # def uniformMode(self):
-    #     for l in self.layersList:
-    #         l.uniformMode(self._criterion.baselineBits)
-    #
-    #     # calc bops ratio
-    #     return self.calcBopsRatio()
+        return True
 
     # return top k operations per layer
     def topOps(self, k):
@@ -378,6 +359,35 @@ class BaseNet(Module):
     def load_alphas_state(self, state):
         for layerIdx, alphas in state:
             self.layersList[layerIdx].alphas.data = alphas
+
+# # select random alpha
+# def chooseRandomPath(self):
+#     for l in self.layers:
+#         l.chooseRandomPath()
+
+# # layerIdx, alphaIdx meaning: self.layersList[layerIdx].curr_alpha_idx = alphaIdx
+# # def choosePathByAlphas(self, layerIdx=None, alphaIdx=None):
+# def choosePathByAlphas(self):
+#     for l in self.layers:
+#         l.choosePathByAlphas()
+#
+#     if (layerIdx is not None) and (alphaIdx is not None):
+#         layer = self.layersList[layerIdx]
+#         layer.curr_alpha_idx = alphaIdx
+
+# def evalMode(self):
+#     for l in self.layers:
+#         l.evalMode()
+#
+#     # calc bops ratio
+#     return self.calcBopsRatio()
+
+# def uniformMode(self):
+#     for l in self.layersList:
+#         l.uniformMode(self._criterion.baselineBits)
+#
+#     # calc bops ratio
+#     return self.calcBopsRatio()
 
 # def turnOffAlphas(self):
 #     for layer in self.layersList:
