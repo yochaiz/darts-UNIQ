@@ -49,7 +49,7 @@ def parseArgs(lossFuncsLambda):
     parser.add_argument('--grad_clip', type=float, default=5, help='gradient clipping')
     parser.add_argument('--train_portion', type=float, default=0.5, help='portion of training data')
     parser.add_argument('--propagate', action='store_true', default=False, help='print to stdout')
-    parser.add_argument('--arch_learning_rate', type=float, default=0.2, help='learning rate for arch encoding')
+    parser.add_argument('--arch_learning_rate', type=float, default=0.01, help='learning rate for arch encoding')
     parser.add_argument('--arch_weight_decay', type=float, default=1e-3, help='weight decay for arch encoding')
 
     parser.add_argument('--pre_trained', type=str, default=None, help='pre-trained model to copy weights from')
