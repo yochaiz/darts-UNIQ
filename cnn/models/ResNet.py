@@ -1,6 +1,6 @@
 from collections import OrderedDict
 
-from torch.nn import Conv2d, AvgPool2d, Linear, ModuleList
+from torch.nn import AvgPool2d, Linear, ModuleList
 
 from cnn.MixedFilter import MixedConv, MixedConvWithReLU, Block
 from cnn.MixedLayer import MixedLayer
@@ -107,8 +107,6 @@ class ResNet(BaseNet):
         if len(self.layersList) > 0:
             layerIdx = 0
             self.layersList[layerIdx].turnOnNoise(layerIdx)
-            # for op in self.layersList[0].getOps():
-            #     op.noise = op.quant
 
         # update model parameters() function
         self.parameters = self.getLearnableParams
@@ -120,7 +118,7 @@ class ResNet(BaseNet):
 
         if layer.numOfOps() > 1:
             layer.setAlphas([0., 0., 0., 0.25, 0.75])
-            # layer.setFiltersPartition()
+            layer.setFiltersPartition()
 
         return layer
 
@@ -181,10 +179,10 @@ class ResNet(BaseNet):
         for layerIdx, layer in enumerate(self.layersList):
             assert (layer.added_noise is False)
             assert (layer.quantized is True)
-            # remove quantization
+            # remove quantization + activations quantization
             layer.unQuantize(layerIdx)
-            # turn on gradients
-            layer.turnOnGradients(layerIdx)
+            # # turn on gradients
+            # layer.turnOnGradients(layerIdx)
 
         # turn on noise in 1st layer
         if len(self.layersList) > 0:
@@ -197,36 +195,6 @@ class ResNet(BaseNet):
         # reset nLayersQuantCompleted
         self.nLayersQuantCompleted = 0
 
-    # def turnOnWeights(self):
-    #     for layer in self.layersList:
-    #         for op in layer.getOps():
-    #             # turn off operations noise
-    #             op.noise = False
-    #             # remove hooks
-    #             for handler in op.hookHandlers:
-    #                 handler.remove()
-    #             # clear hooks handlers list
-    #             op.hookHandlers.clear()
-    #             # turn on operations gradients
-    #             for m in op.modules():
-    #                 if isinstance(m, Conv2d):
-    #                     for param in m.parameters():
-    #                         param.requires_grad = True
-    #                 elif isinstance(m, ActQuant):
-    #                     m.quatize_during_training = False
-    #                     m.noise_during_training = True
-    #
-    #     # set noise=True for 1st layer
-    #     if len(self.layersList) > 0:
-    #         layer = self.layersList[0]
-    #         for op in layer.getOps():
-    #             op.noise = op.quant
-    #
-    #     # update learnable parameters
-    #     self.learnable_params = [param for param in self.parameters() if param.requires_grad]
-    #     # reset nLayersQuantCompleted
-    #     self.nLayersQuantCompleted = 0
-
     def switch_stage(self, loggerFuncs=[]):
         print('*** switch_stage() ***')
         # check whether we have to perform a switching stage, or there are no more stages left
@@ -237,28 +205,10 @@ class ResNet(BaseNet):
 
             # turn off noise in layers ops
             layer.turnOffNoise(self.nLayersQuantCompleted)
-            # quantize layer
+            # quantize layer + activations
             layer.quantize(self.nLayersQuantCompleted)
-            # turn off gradients
-            layer.turnOffGradients(self.nLayersQuantCompleted)
-
-            # for op in layer.getOps():
-            #     # turn off noise in op
-            #     assert (op.noise is True)
-            #     op.noise = False
-            #
-            #     # # set pre & post quantization hooks, from now on we want to quantize these ops
-            #     # op.hookHandlers.append(op.register_forward_pre_hook(save_quant_state))
-            #     # op.hookHandlers.append(op.register_forward_hook(restore_quant_state))
-            #
-            #     # turn off gradients
-            #     for m in op.modules():
-            #         if isinstance(m, Conv2d):
-            #             for param in m.parameters():
-            #                 param.requires_grad = False
-            #         elif isinstance(m, ActQuant):
-            #             m.quatize_during_training = True
-            #             m.noise_during_training = False
+            # # turn off gradients
+            # layer.quantActOnTraining(self.nLayersQuantCompleted)
 
             # update learnable parameters
             self.learnable_params = [param for param in self.parameters() if param.requires_grad]
@@ -285,24 +235,29 @@ class ResNet(BaseNet):
 
     def buildStateDictMap(self, chckpntDict):
         map = {}
-        map['conv1'] = 'layers.0.ops.0.0.op.0.0'
-        map['bn1'] = 'layers.0.ops.0.0.op.0.1'
+        map['conv1'] = 'layers.0.ops.0.0.op.0'
+        map['bn1'] = 'layers.0.bn'
+        map['relu'] = 'layers.0.ops.0.0.op.1'
 
         layersNumberMap = [(1, 0, 1), (1, 1, 2), (1, 2, 3), (2, 1, 5), (2, 2, 6), (3, 1, 8), (3, 2, 9)]
         for n1, n2, m in layersNumberMap:
-            map['layer{}.{}.conv1'.format(n1, n2)] = 'layers.{}.block1.ops.0.0.op.0.0'.format(m)
-            map['layer{}.{}.bn1'.format(n1, n2)] = 'layers.{}.block1.ops.0.0.op.0.1'.format(m)
-            map['layer{}.{}.conv2'.format(n1, n2)] = 'layers.{}.block2.ops.0.0.op.0.0'.format(m)
-            map['layer{}.{}.bn2'.format(n1, n2)] = 'layers.{}.block2.ops.0.0.op.0.1'.format(m)
+            map['layer{}.{}.conv1'.format(n1, n2)] = 'layers.{}.block1.ops.0.0.op.0'.format(m)
+            map['layer{}.{}.bn1'.format(n1, n2)] = 'layers.{}.block1.bn'.format(m)
+            map['layer{}.{}.relu1'.format(n1, n2)] = 'layers.{}.block1.ops.0.0.op.1'.format(m)
+            map['layer{}.{}.conv2'.format(n1, n2)] = 'layers.{}.block2.ops.0.0.op.0'.format(m)
+            map['layer{}.{}.bn2'.format(n1, n2)] = 'layers.{}.block2.bn'.format(m)
+            map['layer{}.{}.relu2'.format(n1, n2)] = 'layers.{}.block2.ops.0.0.op.1'.format(m)
 
         downsampleLayersMap = [(2, 0, 4), (3, 0, 7)]
         for n1, n2, m in downsampleLayersMap:
-            map['layer{}.{}.conv1'.format(n1, n2)] = 'layers.{}.block1.ops.0.0.op.0.0'.format(m)
-            map['layer{}.{}.bn1'.format(n1, n2)] = 'layers.{}.block1.ops.0.0.op.0.1'.format(m)
-            map['layer{}.{}.conv2'.format(n1, n2)] = 'layers.{}.block2.ops.0.0.op.0.0'.format(m)
-            map['layer{}.{}.bn2'.format(n1, n2)] = 'layers.{}.block2.ops.0.0.op.0.1'.format(m)
+            map['layer{}.{}.conv1'.format(n1, n2)] = 'layers.{}.block1.ops.0.0.op.0'.format(m)
+            map['layer{}.{}.bn1'.format(n1, n2)] = 'layers.{}.block1.bn'.format(m)
+            map['layer{}.{}.relu1'.format(n1, n2)] = 'layers.{}.block1.ops.0.0.op.1'.format(m)
+            map['layer{}.{}.conv2'.format(n1, n2)] = 'layers.{}.block2.ops.0.0.op.0'.format(m)
+            map['layer{}.{}.bn2'.format(n1, n2)] = 'layers.{}.block2.bn'.format(m)
+            map['layer{}.{}.relu2'.format(n1, n2)] = 'layers.{}.block2.ops.0.0.op.1'.format(m)
             map['layer{}.{}.downsample.0'.format(n1, n2)] = 'layers.{}.downsample.ops.0.0.op.0'.format(m)
-            map['layer{}.{}.downsample.1'.format(n1, n2)] = 'layers.{}.downsample.ops.0.0.op.1'.format(m)
+            map['layer{}.{}.downsample.1'.format(n1, n2)] = 'layers.{}.downsample.bn'.format(m)
 
         map['fc'] = 'fc'
 
@@ -313,20 +268,24 @@ class ResNet(BaseNet):
         map = self.buildStateDictMap(chckpntDict)
         newStateDict = OrderedDict()
 
-        # make sure all chckpntDict keys exist in map, otherwise quit
-        for key in chckpntDict.keys():
-            prefix = key[:key.rindex('.')]
-            if prefix not in map:
-                return False
+        # check that chckpntDict & map have same keys
+        mapKeys = set(map.keys())
+        chckpntKeys = set([key[:key.rindex('.')] for key in chckpntDict.keys()])
+        dictDiff = mapKeys.symmetric_difference(chckpntKeys)
+        if len(dictDiff) > 0:
+            return False
 
         token = '.ops.'
         for key in chckpntDict.keys():
+            # copy non-quantized fc layer weight & bias values
             if key.startswith('fc.'):
-                newStateDict[key] = chckpntDict[key]
+                if key.endswith('.weight') or key.endswith('.bias'):
+                    newStateDict[key] = chckpntDict[key]
                 continue
 
             prefix = key[:key.rindex('.')]
             suffix = key[key.rindex('.'):]
+
             newKey = map[prefix]
             # find new key layer
             idx = newKey.find(token)
@@ -338,11 +297,23 @@ class ResNet(BaseNet):
                 layer = self
                 for p in layerPath:
                     layer = getattr(layer, p)
-                # update layer ops
-                for j in range(layer.nOpsCopies()):
-                    for i in range(layer.numOfOps()):
-                        newKey = map[prefix].replace(newKeyOp + token + '0.0.', newKeyOp + token + '{}.{}.'.format(j, i))
-                        newStateDict[newKey + suffix] = chckpntDict[key]
+                # create layer filters dict keys
+                for filterIdx in range(layer.nFilters()):
+                    # create filter state dict key
+                    filterKey = '{}.filters.{}'.format(newKeyOp, filterIdx) + newKey[idx:]
+                    # take the specific filter values from the filters block
+                    filterValues = chckpntDict[key].narrow(0, filterIdx, 1) if len(chckpntDict[key].size()) > 1 else chckpntDict[key]
+                    # get the specific filter from layer
+                    filter = layer.filters[filterIdx]
+                    # update filter ops
+                    for j in range(filter.nOpsCopies()):
+                        for i in range(filter.numOfOps()):
+                            newStateKey = filterKey.replace(token + '0.0.', token + '{}.{}.'.format(j, i))
+                            newStateDict[newStateKey + suffix] = filterValues
+
+            elif newKey.endswith('.bn'):
+                # copy batch norm keys
+                newStateDict[newKey + suffix] = chckpntDict[key]
 
         # load model weights
         self.load_state_dict(newStateDict)
@@ -373,6 +344,12 @@ class ResNet(BaseNet):
                 for i in range(layer.numOfOps()):
                     newKey = prefix.replace(newKeyOp + token + '0.0.', newKeyOp + token + '{}.{}.'.format(j, i))
                     newStateDict[newKey + suffix] = chckpntDict[key]
+
+        # check that model & newStateDict have same keys
+        newStateKeys = set(newStateDict.keys())
+        dictDiff = newStateKeys.symmetric_difference(set(self.state_dict().keys()))
+        if len(dictDiff) > 0:
+            return False
 
         # load model weights
         self.load_state_dict(newStateDict)
