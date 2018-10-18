@@ -59,13 +59,13 @@ class MixedLayer(Block):
         value = 1.0 / self.numOfOps()
         self.alphas = tensor((ones(self.numOfOps()) * value).cuda(), requires_grad=True)
         self.alphas = self.alphas.cuda()
-        # init filters current partition by alphas
+        # init filters current partition by alphas, i.e. how many filters are for each alpha, from each quantization
         self.currFiltersPartition = [0] * self.numOfOps()
 
-        # set filters distribution
-        if self.numOfOps() > 1:
-            self.setAlphas([0.3125, 0.3125, 0.1875, 0.125, 0.0625])
-            self.setFiltersPartition()
+        # # set filters distribution
+        # if self.numOfOps() > 1:
+        #     self.setAlphas([0.3125, 0.3125, 0.1875, 0.125, 0.0625])
+        #     self.setFiltersPartition()
 
         # init list of all operations (including copies) as single long list
         # for cases we have to modify all ops
@@ -308,7 +308,7 @@ class MixedLayer(Block):
 
     # select alpha based on alphas distribution
     def choosePathByAlphas(self):
-        dist = Multinomial(total_count=self.nFilters(), probs=self.alphas)
+        dist = Multinomial(total_count=self.nFilters(), logits=self.alphas)
         partition = dist.sample().type(IntTensor)
         self.__setFiltersPartition(partition)
 
