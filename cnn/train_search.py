@@ -183,8 +183,8 @@ if __name__ == '__main__':
 
     except Exception as e:
         # create message content
-        messageContent = '[{}] stopped due to [{}] error [{}] \n traceback:[{}]'. \
-            format(args.folderName, type(e), str(e), format_exc())
+        messageContent = '[{}] stopped due to error [{}] \n traceback:[{}]'. \
+            format(args.folderName, str(e), format_exc())
 
         # create data table if exception happened before we create data table
         if logger.dataTableCols is None:
