@@ -1,6 +1,6 @@
-from numpy import array_split
 from multiprocessing import Pool
 from abc import abstractmethod
+from math import floor
 
 from torch.cuda import set_device
 from torch.nn import functional as F
@@ -11,6 +11,8 @@ class ModelReplicator:
         self.gpuIDs = args.gpu
         self.alphaLimit = args.alpha_limit
         self.alphaLimitCounter = args.alpha_limit_counter
+        # save number of samples
+        self.nSamples = args.nSamples
         # init replications list
         self.replications = []
 
@@ -30,14 +32,6 @@ class ModelReplicator:
                 cModel._criterion.cuda()
                 # set mode to eval mode
                 cModel.eval()
-                # # remove UNIQ save_state(), restore_state() hooks for all model ops
-                # for layer in cModel.layersList:
-                #     for op in layer.getOps():
-                #         # remove hooks
-                #         for hook in op.hooks:
-                #             hook.remove()
-                #         # clear hooks list
-                #         op.hooks.clear()
                 # add model to replications
                 self.replications.append((cModel, gpu))
 
@@ -48,7 +42,7 @@ class ModelReplicator:
 
     # build args for pool.map
     @abstractmethod
-    def buildArgs(self, inputPerGPU, targetPerGPU, layersIndicesPerModel):
+    def buildArgs(self, inputPerGPU, targetPerGPU, nSamplesPerModel):
         raise NotImplementedError('subclasses must override buildArgs()!')
 
     # get model from args tuple
@@ -87,10 +81,11 @@ class ModelReplicator:
     def replicationFunc(self, args):
         # calc loss per replication
         result = self.lossPerReplication(args)
-        # get model in order to extract the forward counters
-        cModel = self.getModel(args)
-        # extract forward counters
-        counters = [layer.opsForwardCounters.copy() for layer in cModel.layersList]
+        # # get model in order to extract the forward counters
+        # cModel = self.getModel(args)
+        # # extract forward counters
+        # counters = [layer.opsForwardCounters.copy() for layer in cModel.layersList]
+        counters = []
 
         return result, counters
 
@@ -141,6 +136,21 @@ class ModelReplicator:
 
         return optimizeLayerIdx
 
+    @staticmethod
+    def splitSamples(nSamples, nCopies):
+        # split number of samples between model replications
+        nSamplesPerCopy = [floor(nSamples / nCopies)] * nCopies
+        # last copy takes the difference due to floor
+        nSamplesPerCopy[-1] = nSamples - sum(nSamplesPerCopy[:-1])
+        # it might be that last copy took more than one sample compared to other copies, therefore balance the difference between all copies
+        for i in range(len(nSamplesPerCopy) - 1):
+            if nSamplesPerCopy[-1] - nSamplesPerCopy[i] > 1:
+                # move some sample from last copy to some other copy
+                nSamplesPerCopy[i] += 1
+                nSamplesPerCopy[-1] -= 1
+
+        return nSamplesPerCopy
+
     def loss(self, model, input, target):
         nCopies = len(self.replications)
         if nCopies > 0:
@@ -151,11 +161,13 @@ class ModelReplicator:
                 inputPerGPU[id] = input if (id == input.device.index) else input.clone().cuda(id)
                 targetPerGPU[id] = target if (id == target.device.index) else target.clone().cuda(id)
 
-            # update model layers alphas optimization status
+            # # update model layers alphas optimization status
             # optimizeLayerIdx = self.updateLayersAlphaOptimization(model)
-            optimizeLayerIdx = list(range(model.nLayers()))
-            # split layers indices between models
-            layersIndicesPerModel = array_split(optimizeLayerIdx, nCopies)
+            # # split layers indices between models
+            # layersIndicesPerModel = array_split(optimizeLayerIdx, nCopies)
+
+            # split samples between model copies
+            nSamplesPerModel = self.splitSamples(self.nSamples, nCopies)
 
             # copy model alphas
             for cModel, _ in self.replications:
@@ -163,7 +175,7 @@ class ModelReplicator:
                     cLayer.alphas.data.copy_(mLayer.alphas.data)
                     cLayer.alphas.requires_grad = mLayer.alphas.requires_grad
 
-            args = self.buildArgs(inputPerGPU, targetPerGPU, layersIndicesPerModel)
+            args = self.buildArgs(inputPerGPU, targetPerGPU, nSamplesPerModel)
 
             with Pool(processes=nCopies, maxtasksperchild=1) as pool:
                 results = pool.map(self.replicationFunc, args)
@@ -176,14 +188,14 @@ class ModelReplicator:
 
             res = self.processResults(model, results)
 
-            # reset model layers forward counters
-            for layer in model.layersList:
-                layer.resetOpsForwardCounters()
-            # sum forward counters
-            for modelCounters in counters:
-                for layerCounters, mLayer in zip(modelCounters, model.layersList):
-                    for i in range(len(mLayer.opsForwardCounters)):
-                        for j in range(len(mLayer.opsForwardCounters[i])):
-                            mLayer.opsForwardCounters[i][j] += layerCounters[i][j]
+            # # reset model layers forward counters
+            # for layer in model.layersList:
+            #     layer.resetOpsForwardCounters()
+            # # sum forward counters
+            # for modelCounters in counters:
+            #     for layerCounters, mLayer in zip(modelCounters, model.layersList):
+            #         for i in range(len(mLayer.opsForwardCounters)):
+            #             for j in range(len(mLayer.opsForwardCounters[i])):
+            #                 mLayer.opsForwardCounters[i][j] += layerCounters[i][j]
 
             return res
