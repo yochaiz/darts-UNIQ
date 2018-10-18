@@ -90,11 +90,13 @@ class ModelReplicator:
         return result, counters
 
     def updateModelWeights(self, model, loggerFuncs=[]):
+        assert (model.isQuantized() is True)
         # load model state dict
         modelStateDict = model.state_dict()
 
         # load model weights
         for cModel, _ in self.replications:
+            assert (cModel.layersList[0].quantized is False)
             cModel.load_state_dict(modelStateDict)
 
         # apply loggers funcs
