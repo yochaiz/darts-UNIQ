@@ -184,9 +184,9 @@ class MixedFilter(Block):
     def getCurrentOutputBitwidth(self):
         raise NotImplementedError('subclasses must override getCurrentOutputBitwidth()!')
 
-    @abstractmethod
-    def getOutputBitwidthList(self):
-        raise NotImplementedError('subclasses must override getOutputBitwidthList()!')
+    # @abstractmethod
+    # def getOutputBitwidthList(self):
+    #     raise NotImplementedError('subclasses must override getOutputBitwidthList()!')
 
     def buildOpsForwardCounters(self):
         return [[0] * len(ops) for ops in self.ops]
@@ -429,8 +429,8 @@ class MixedConvWithReLU(MixedFilter):
     def getCurrentOutputBitwidth(self):
         return self.outputBitwidth[self.curr_alpha_idx]
 
-    def getOutputBitwidthList(self):
-        return self.outputBitwidth
+    # def getOutputBitwidthList(self):
+    #     return self.outputBitwidth
 
     # def residualForward(self, x, residual):
     #     prev_alpha_idx = self.preForward()

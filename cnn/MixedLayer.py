@@ -77,9 +77,9 @@ class MixedLayer(Block):
         if useResidual:
             self.forward = self.residualForward
 
-        # register post forward hook
-        self.register_forward_hook(postForward)
-        self.forwardStats = None
+        # # register post forward hook
+        # self.register_forward_hook(postForward)
+        # self.forwardStats = None
 
         # set UNIQ parameters
         self.quantized = False
@@ -137,30 +137,6 @@ class MixedLayer(Block):
 
         self.added_noise = False
         print('turned off noise in layer [{}]'.format(layerIdx))
-
-    # # quantize activations during training
-    # def quantActOnTraining(self, layerIdx):
-    #     assert (self.quantized is True)
-    #     assert (self.added_noise is False)
-    #
-    #     for op in self.opsList:
-    #         for m in op.modules():
-    #             if isinstance(m, ActQuant):
-    #                 m.qunatize_during_training = True
-    #
-    #     print('turned on qunatize_during_training in layer [{}]'.format(layerIdx))
-    #
-    # # stop quantize activations during training
-    # def turnOnGradients(self, layerIdx):
-    #     assert (self.quantized is False)
-    #     assert (self.added_noise is False)
-    #
-    #     for op in self.opsList:
-    #         for m in op.modules():
-    #             if isinstance(m, ActQuant):
-    #                 m.qunatize_during_training = False
-    #
-    #     print('turned off qunatize_during_training in layer [{}]'.format(layerIdx))
 
     # ratio is a list
     def setAlphas(self, ratio):
@@ -297,14 +273,9 @@ class MixedLayer(Block):
     def outputLayer(self):
         return self
 
-    ## functions that need to be examined about their correctness
     # bitwidth list is the same for all filters, therefore we can use the 1st filter list
-    def getOutputBitwidthList(self):
-        return self.filters[0].getOutputBitwidthList()
-
-    # # select random alpha
-    # def chooseRandomPath(self):
-    #     pass
+    # def getOutputBitwidthList(self):
+    #     return self.filters[0].getOutputBitwidthList()
 
     # select alpha based on alphas distribution
     def choosePathByAlphas(self):
@@ -314,3 +285,31 @@ class MixedLayer(Block):
 
     # def evalMode(self):
     #     pass
+
+    # # select random alpha
+    # def chooseRandomPath(self):
+    #     pass
+
+    # # quantize activations during training
+    # def quantActOnTraining(self, layerIdx):
+    #     assert (self.quantized is True)
+    #     assert (self.added_noise is False)
+    #
+    #     for op in self.opsList:
+    #         for m in op.modules():
+    #             if isinstance(m, ActQuant):
+    #                 m.qunatize_during_training = True
+    #
+    #     print('turned on qunatize_during_training in layer [{}]'.format(layerIdx))
+    #
+    # # stop quantize activations during training
+    # def turnOnGradients(self, layerIdx):
+    #     assert (self.quantized is False)
+    #     assert (self.added_noise is False)
+    #
+    #     for op in self.opsList:
+    #         for m in op.modules():
+    #             if isinstance(m, ActQuant):
+    #                 m.qunatize_during_training = False
+    #
+    #     print('turned off qunatize_during_training in layer [{}]'.format(layerIdx))
