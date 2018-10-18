@@ -81,11 +81,10 @@ class ModelReplicator:
     def replicationFunc(self, args):
         # calc loss per replication
         result = self.lossPerReplication(args)
-        # # get model in order to extract the forward counters
-        # cModel = self.getModel(args)
-        # # extract forward counters
-        # counters = [layer.opsForwardCounters.copy() for layer in cModel.layersList]
-        counters = []
+        # get model in order to extract the forward counters
+        cModel = self.getModel(args)
+        # extract forward counters
+        counters = [[filter.opsForwardCounters.copy() for filter in layer.filters] for layer in cModel.layersList]
 
         return result, counters
 
@@ -190,14 +189,15 @@ class ModelReplicator:
 
             res = self.processResults(model, results)
 
-            # # reset model layers forward counters
-            # for layer in model.layersList:
-            #     layer.resetOpsForwardCounters()
-            # # sum forward counters
-            # for modelCounters in counters:
-            #     for layerCounters, mLayer in zip(modelCounters, model.layersList):
-            #         for i in range(len(mLayer.opsForwardCounters)):
-            #             for j in range(len(mLayer.opsForwardCounters[i])):
-            #                 mLayer.opsForwardCounters[i][j] += layerCounters[i][j]
+            # reset model layers forward counters
+            model.resetForwardCounters()
+            # sum forward counters
+            for replicationCounter in counters:
+                for layerIdx, layer in enumerate(model.layersList):
+                    for filterIdx, filter in enumerate(layer.filters):
+                        filterCounter = replicationCounter[layerIdx][filterIdx]
+                        for prev_alpha in range(filter.nOpsCopies()):
+                            for curr_alpha in range(filter.numOfOps()):
+                                filter.opsForwardCounters[prev_alpha][curr_alpha] += filterCounter[prev_alpha][curr_alpha]
 
             return res
