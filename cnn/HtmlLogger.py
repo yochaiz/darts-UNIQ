@@ -18,6 +18,7 @@ class HtmlLogger:
         self.save_path = save_path
         self.filename = filename
         self.fullPath = '{}/{}.html'.format(save_path, filename)
+        self.maxTableCellLength = 50
 
         if not path.exists(save_path):
             makedirs(save_path)
@@ -50,6 +51,8 @@ class HtmlLogger:
         self.end = '</body></html>'
         self.infoTables = ''
         self.dataTable = ''
+        self.dataTableCols = None
+        self.nColsDataTable = None
 
     # converts dictionary to rows with nElementPerRow (k,v) elements at most in each row
     @staticmethod
@@ -87,11 +90,18 @@ class HtmlLogger:
     def __addRow(self, row):
         res = '<tr>'
         for v in row:
+            isTable = False
             # check maybe we have a sub-table
             if (type(v) is list) and (len(v) > 0) and (type(v[0]) is list):
                 v = self.__createTableFromRows(v)
+                isTable = True
             # add element or sub-table to current table
-            res += '<td> {} </td>'.format(v)
+            content = '{}'.format(v)
+            # add scroll to cell if content is long
+            if (isTable is False) and (len(content) > self.maxTableCellLength):
+                content = '<div style="width: 300px; overflow: auto"> {} </div>'.format(content)
+            # add content as cell
+            res += '<td> {} </td>'.format(content)
         res += '</tr>'
 
         return res
