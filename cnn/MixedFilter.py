@@ -1,30 +1,28 @@
-from UNIQ.uniq import UNIQNet
-from UNIQ.actquant import ActQuant
+# from UNIQ.uniq import UNIQNet
+# from UNIQ.actquant import ActQuant
 from UNIQ.flops_benchmark import count_flops
+from NICE.uniq import UNIQNet
+from NICE.actquant import ActQuantBuffers
 
+from torch import ones
 from torch.nn import ModuleList, Conv2d, Sequential, Linear
-from torch.distributions.categorical import Categorical
-import torch.nn.functional as F
 
 from cnn.block import Block
 
 from math import floor
-from random import randint
 from abc import abstractmethod
 
 
 class QuantizedOp(UNIQNet):
     def __init__(self, op, bitwidth=[], act_bitwidth=[]):
-        # noise=False because we want to noise only specific layer in the entire (ResNet) model
-        super(QuantizedOp, self).__init__(quant=True, noise=False, quant_edges=True, act_quant=True, act_noise=False,
-                                          step_setup=[1, 1], bitwidth=bitwidth, act_bitwidth=act_bitwidth)
+        super(QuantizedOp, self).__init__(bitwidth=bitwidth, act_bitwidth=act_bitwidth, params=op)
 
+    def derivedClassSpecific(self, op):
         # self.useResidual = useResidual
         # self.forward = self.residualForward if useResidual else self.standardForward
         # self.hookHandlers = []
 
         self.op = op.cuda()
-        self.prepare_uniq()
 
     def reset_flops_count(self):
         pass
@@ -88,6 +86,8 @@ class QuantizedOp(UNIQNet):
 #         return grads_x, grads_alpha
 
 def preForward(self, _):
+    assert (self.hookFlag is False)
+    self.hookFlag = True
     # update previous layer index
     prevLayer = self.prevLayer[0]
     self.prev_alpha_idx = prevLayer.curr_alpha_idx if prevLayer else 0
@@ -101,6 +101,9 @@ def preForward(self, _):
 
 
 def postForward(self, _, __):
+    assert (self.hookFlag is True)
+    self.hookFlag = False
+
     op = self.ops[self.prev_alpha_idx][self.curr_alpha_idx]
     # check if we need to remove noise
     if op.noise is True:
@@ -148,13 +151,26 @@ class MixedFilter(Block):
         # init counter for number of consecutive times optimal alpha reached optimal probability limit
         self.optLimitCounter = 0
 
+        # set forward function in order to assure that hooks will take place
+        self.forward = self.setForwardFunc()
         # assign pre & post forward hooks
         self.register_forward_pre_hook(preForward)
         self.register_forward_hook(postForward)
+        # set hook flag, to make sure hook happens
+        # turn it on on pre-forward hook, turn it off on post-forward hook
+        self.hookFlag = False
 
     @abstractmethod
     def initOps(self, bitwidths, params):
         raise NotImplementedError('subclasses must override initOps()!')
+
+    @abstractmethod
+    def initBopsOp(self, bitwidths, params):
+        raise NotImplementedError('subclasses must override initBopsOp()!')
+
+    @abstractmethod
+    def setForwardFunc(self):
+        raise NotImplementedError('subclasses must override setForwardFunc()!')
 
     @abstractmethod
     def countOpsBops(self, ops, coutBopsParams):
@@ -181,6 +197,10 @@ class MixedFilter(Block):
     def outputLayer(self):
         return self
 
+    def countOpsBops(self, op, coutBopsParams):
+        input_size, in_planes = coutBopsParams
+        return count_flops(op, input_size, in_planes)
+
     # input_bitwidth is a list of input feature maps bitwidth
     def getBops(self, input_bitwidth):
         # get filter current bitwidth
@@ -188,8 +208,7 @@ class MixedFilter(Block):
         # create (bitwidth, act_bitwidth) tuple for count_flops(), act_bitwidth is a list of input feature maps bitwidth
         bops_bitwidth = [(bitwidth, input_bitwidth)]
         # generate op with this bitwidth
-        ops = self.initOps(bops_bitwidth, self.initOpsParams)
-        op = ops[0]
+        op = self.initBopsOp(bops_bitwidth, self.initOpsParams)
         # count op bops
         bops = self.countOpsBops(op, self.coutBopsParams)
 
@@ -298,13 +317,14 @@ class MixedConv(MixedFilter):
         params = in_planes, out_planes, kernel_size, stride
         coutBopsParams = input_size, in_planes
 
-        self.forward = self.forwardConv
-
         super(MixedConv, self).__init__(bitwidths, params, coutBopsParams, prevLayer)
 
         self.in_planes = in_planes
 
         self.forwardReLU = None
+
+    def setForwardFunc(self):
+        return self.forwardConv
 
     def initOps(self, bitwidths, params):
         in_planes, out_planes, kernel_size, stride = params
@@ -312,21 +332,25 @@ class MixedConv(MixedFilter):
         ops = ModuleList()
         for bitwidth, act_bitwidth in bitwidths:
             for ker_sz in kernel_size:
-                op = Sequential(
-                    Conv2d(in_planes, out_planes, kernel_size=ker_sz, stride=stride, padding=floor(ker_sz / 2), bias=False)
-                )
+                conv = Conv2d(in_planes, out_planes, kernel_size=ker_sz, stride=stride, padding=floor(ker_sz / 2), bias=False)
+                conv.register_buffer('layer_b', ones(1))  # Attempt to enable multi-GPU
+                conv.register_buffer('initial_clamp_value', ones(1))  # Attempt to enable multi-GPU
+                conv.register_buffer('layer_basis', ones(1))  # Attempt to enable multi-GPU
+
+                op = Sequential(conv)
                 op = QuantizedOp(op, bitwidth=[bitwidth], act_bitwidth=[] if act_bitwidth is None else [act_bitwidth])
                 ops.append(op)
 
         return ops
 
+    def initBopsOp(self, bitwidths, params):
+        ops = self.initOps(bitwidths, params)
+        return ops[0]
+
     def forwardConv(self, x):
+        assert (self.hookFlag is True)
         op = self.ops[self.prev_alpha_idx][self.curr_alpha_idx].op[0]
         return op(x)
-
-    def countOpsBops(self, op, coutBopsParams):
-        input_size, in_planes = coutBopsParams
-        return count_flops(op, input_size, in_planes)
 
     def getOpBitwidth(self, op):
         return op.bitwidth[0], None
@@ -336,9 +360,8 @@ class MixedConvWithReLU(MixedFilter):
     def __init__(self, bitwidths, in_planes, out_planes, kernel_size, stride, input_size, prevLayer):
         assert (isinstance(kernel_size, list))
         params = in_planes, out_planes, kernel_size, stride
-        coutBopsParams = in_planes, input_size
+        coutBopsParams = input_size, in_planes
 
-        self.forward = self.forwardConv
         # if useResidual:
         #     self.forward = self.residualForward
 
@@ -352,32 +375,53 @@ class MixedConvWithReLU(MixedFilter):
         for op in self.ops[0]:
             self.outputBitwidth.extend(op.act_bitwidth)
 
-    def initOps(self, bitwidths, params):
+    def setForwardFunc(self):
+        return self.forwardConv
+
+    def __initOps(self, bitwidths, params, buildOpFunc):
         in_planes, out_planes, kernel_size, stride = params
 
         ops = ModuleList()
         for bitwidth, act_bitwidth in bitwidths:
             for ker_sz in kernel_size:
-                op = Sequential(
-                    Conv2d(in_planes, out_planes, kernel_size=ker_sz, stride=stride, padding=floor(ker_sz / 2), bias=False),
-                    ActQuant(quant=True, noise=False, bitwidth=act_bitwidth)
-                )
+                op = buildOpFunc(bitwidth, act_bitwidth, (in_planes, out_planes, ker_sz, stride))
                 op = QuantizedOp(op, bitwidth=[bitwidth], act_bitwidth=[act_bitwidth])
                 ops.append(op)
 
         return ops
 
+    def initOps(self, bitwidths, params):
+        def buildOpFunc(bitwidth, act_bitwidth, params):
+            in_planes, out_planes, kernel_size, stride = params
+
+            conv = Conv2d(in_planes, out_planes, kernel_size=kernel_size, stride=stride, padding=floor(kernel_size / 2), bias=False)
+            conv.register_buffer('layer_b', ones(1))  # Attempt to enable multi-GPU
+            conv.register_buffer('initial_clamp_value', ones(1))  # Attempt to enable multi-GPU
+            conv.register_buffer('layer_basis', ones(1))  # Attempt to enable multi-GPU
+
+            return Sequential(
+                conv,
+                ActQuantBuffers(bitwidth=act_bitwidth)
+            )
+
+        return self.__initOps(bitwidths, params, buildOpFunc)
+
+    def initBopsOp(self, bitwidths, params):
+        def buildOpFunc(bitwidth, act_bitwidth, params):
+            in_planes, out_planes, kernel_size, stride = params
+            return Sequential(Conv2d(in_planes, out_planes, kernel_size=kernel_size, stride=stride, padding=floor(kernel_size / 2), bias=False))
+
+        ops = self.__initOps(bitwidths, params, buildOpFunc)
+        return ops[0]
+
     def forwardConv(self, x):
+        assert (self.hookFlag is True)
         op = self.ops[self.prev_alpha_idx][self.curr_alpha_idx].op[0]
         return op(x)
 
     def forwardReLU(self, x):
         op = self.ops[self.prev_alpha_idx][self.curr_alpha_idx].op[1]
         return op(x)
-
-    def countOpsBops(self, op, coutBopsParams):
-        input_planes, input_size = coutBopsParams
-        return count_flops(op, input_size, input_planes)
 
     def getOpBitwidth(self, op):
         return op.bitwidth[0], op.act_bitwidth[0]
