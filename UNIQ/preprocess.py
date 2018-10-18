@@ -91,8 +91,7 @@ def get_transform_with_sizes(name='imagenet', input_size=None, scale_size=None, 
         input_size = input_size or 32
         if augment:
             scale_size = scale_size or 40
-            cropFunc = pad_random_crop(input_size, scale_size=scale_size,
-                                       normalize=normalize)
+            cropFunc = pad_random_crop(input_size, scale_size=scale_size, normalize=normalize)
         else:
             scale_size = scale_size or 32
             cropFunc = scale_crop(input_size=input_size,
