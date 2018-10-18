@@ -11,13 +11,14 @@ class RandomPath(ModelReplicator):
     def getModel(self, args):
         return args[0]
 
-    def buildArgs(self, inputPerGPU, targetPerGPU):
-        args = ((cModel, inputPerGPU[gpu], targetPerGPU[gpu], gpu) for cModel, gpu in self.replications)
+    def buildArgs(self, inputPerGPU, targetPerGPU, nSamplesPerModel):
+        args = ((cModel, inputPerGPU[gpu], targetPerGPU[gpu], nSamples, gpu)
+                for nSamples, (cModel, gpu) in zip(nSamplesPerModel, self.replications))
 
         return args
 
     def lossPerReplication(self, args):
-        cModel, input, target, gpu = args
+        cModel, input, target, nSamples, gpu = args
         # switch to process GPU
         set_device(gpu)
         assert (cModel.training is False)
@@ -27,8 +28,6 @@ class RandomPath(ModelReplicator):
             totalLoss = 0.0
             # init loss samples list for ALL alphas
             allLossSamples = []
-            # init how many samples per alpha
-            nSamples = cModel.nSamples
             # init layers alphas grad
             alphasGrad = []
             # save stats data
