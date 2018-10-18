@@ -29,7 +29,9 @@ from cnn.HtmlLogger import HtmlLogger
 import cnn.gradEstimators as gradEstimators
 
 # references to models pre-trained
-modelsRefs = {
+modelsRefs = {}
+# references to UNIQ baseline models
+modelsRefsUNIQ = {
     'thin_resnet': '/home/yochaiz/DropDarts/cnn/pre_trained/thin_resnet/train/model_opt.pth.tar',
     'thin_resnet_w:[32]_a:[32]': '/home/yochaiz/DropDarts/cnn/pre_trained/thin_resnet/train/model_opt.pth.tar',
     'thin_resnet_w:[2]_a:[32]': '/home/yochaiz/DropDarts/cnn/uniform/thin_resnet_w:[2]_a:[32]/train/model_opt.pth.tar',
@@ -196,8 +198,8 @@ def logParameters(logger, args, model):
             'Ops per layer': [layer.numOfOps() for layer in model.layersList],
             'Permutations': permutationStr
         }, nElementPerRow=2))
-    # log baseline model
-    uniform_best_prec1, uniformKey = logBaselineModel(args, logger, copyKeys=False)
+    # # log baseline model
+    # uniform_best_prec1, uniformKey = logBaselineModel(args, logger, copyKeys=False)
     # log args
     logger.addInfoTable('args', HtmlLogger.dictToRows(vars(args), nElementPerRow=3))
     # print args
@@ -205,7 +207,7 @@ def logParameters(logger, args, model):
     # log model architecture to file
     printModelToFile(model, args.save)
 
-    return uniform_best_prec1, uniformKey
+    # return uniform_best_prec1, uniformKey
 
 
 def zipFolder(p, zipf):
@@ -306,7 +308,7 @@ def create_exp_dir(resultFolderPath):
     baseFolder = path.dirname(path.abspath(getfile(currentframe())))  # script directory
     baseFolder += '/../'
     # init folders we want to zip
-    foldersToZip = ['cnn/models', 'cnn/trainRegime', 'cnn/gradEstimators', 'UNIQ']
+    foldersToZip = ['cnn/models', 'cnn/trainRegime', 'cnn/gradEstimators', 'UNIQ', 'NICE']
     # save folders files
     for folder in foldersToZip:
         folderFullPath = baseFolder + folder
@@ -333,18 +335,25 @@ stateOptModelPattern = '{}/{}_opt.' + checkpointFileType
 def save_state(state, is_best, path, filename):
     default_filename = stateCheckpointPattern.format(path, filename)
     saveModel(state, default_filename)
+
+    is_best_filename = None
     if is_best:
-        copyfile(default_filename, stateOptModelPattern.format(path, filename))
+        is_best_filename = stateOptModelPattern.format(path, filename)
+        copyfile(default_filename, is_best_filename)
+
+    return default_filename, is_best_filename
 
 
 def save_checkpoint(path, model, args, epoch, best_prec1, is_best=False, filename=None):
     # set state dictionary
-    state = dict(nextEpoch=epoch + 1, state_dict=model.state_dict(), epochs=args.epochs, alphas=model.save_alphas_state(),
+    state = dict(nextEpoch=epoch + 1, state_dict=model.state_dict(), epochs=args.epochs, alphas=model.save_alphas_state(), updated_statistics=False,
                  nLayersQuantCompleted=model.nLayersQuantCompleted, best_prec1=best_prec1, learning_rate=args.learning_rate)
     # set state filename
     filename = filename or stateFilenameDefault
     # save state to file
-    save_state(state, is_best, path=path, filename=filename)
+    filePaths = save_state(state, is_best, path=path, filename=filename)
+
+    return state, filePaths
 
 
 def setup_logging(log_file, logger_name, propagate=False):
@@ -535,13 +544,6 @@ def load_data(args):
     train_data = get_dataset(args.dataset, train=True, transform=transform['train'], datasets_path=args.data)
     valid_data = get_dataset(args.dataset, train=False, transform=transform['eval'], datasets_path=args.data)
 
-    ### narrow data for debug purposes
-    # train_data.train_data = train_data.train_data[0:50]
-    # train_data.train_labels = train_data.train_labels[0:50]
-    # valid_data.test_data = valid_data.test_data[0:100]
-    # valid_data.test_labels = valid_data.test_labels[0:100]
-    ####
-
     num_train = len(train_data)
     indices = list(range(num_train))
     split = int(np.floor(args.train_portion * num_train))
@@ -549,11 +551,31 @@ def load_data(args):
     train_queue = DataLoader(train_data, batch_size=args.batch_size,
                              sampler=SubsetRandomSampler(indices[:split]), pin_memory=True, num_workers=args.workers)
 
-    search_queue = DataLoader(train_data, batch_size=args.batch_size,
-                              sampler=SubsetRandomSampler(indices[split:num_train]),
-                              pin_memory=True, num_workers=args.workers)
+    statistics_queue = DataLoader(train_data, batch_size=64, shuffle=True, num_workers=args.workers, pin_memory=True)
+
+    # search_queue = DataLoader(train_data, batch_size=args.batch_size,
+    #                           sampler=SubsetRandomSampler(indices[split:num_train]),
+    #                           pin_memory=True, num_workers=args.workers)
 
     valid_queue = DataLoader(valid_data, batch_size=args.batch_size, shuffle=False,
                              pin_memory=True, num_workers=args.workers)
 
-    return train_queue, search_queue, valid_queue
+    # split search_queue to parts
+    nParts = args.alphas_data_parts
+    nSamples = num_train - split
+    nSamplesPerPart = int(nSamples / nParts)
+    startIdx = split
+    endIdx = startIdx + nSamplesPerPart
+    search_queue = []
+    for _ in range(nParts - 1):
+        dl = DataLoader(train_data, batch_size=args.batch_size, sampler=SubsetRandomSampler(indices[startIdx:endIdx]),
+                        pin_memory=True, num_workers=args.workers)
+        search_queue.append(dl)
+        startIdx = endIdx
+        endIdx += nSamplesPerPart
+    # last part takes what left
+    dl = DataLoader(train_data, batch_size=args.batch_size, sampler=SubsetRandomSampler(indices[startIdx:num_train]),
+                    pin_memory=True, num_workers=args.workers)
+    search_queue.append(dl)
+
+    return train_queue, search_queue, valid_queue, statistics_queue
