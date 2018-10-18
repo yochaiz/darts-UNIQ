@@ -10,9 +10,7 @@ class OptimalModel(TrainRegime):
 
     def train(self):
         # make sure model is quantized
-        for layer in self.model.layersList:
-            assert (layer.quantized is True)
-            assert (layer.added_noise is False)
+        assert (self.model.isQuantized() is True)
         # update statistics in current model, i.e. last checkpoint
         self.model.calcStatistics()
         # save model checkpoint
