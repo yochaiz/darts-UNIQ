@@ -3,39 +3,41 @@ from abc import abstractmethod
 from pandas import DataFrame
 from os.path import exists
 
-from torch.nn import Module
+from torch import ones, zeros, no_grad
+from torch.nn import Module, CrossEntropyLoss
 from torch.nn import functional as F
 from torch import load as loadModel
+from torch import save as saveModel
 
 from cnn.MixedLayer import MixedLayer
 from cnn.uniq_loss import UniqLoss
 from cnn.statistics import Statistics
 
-from UNIQ.quantize import backup_weights, restore_weights, quantize
 
+# from UNIQ.quantize import backup_weights, restore_weights, quantize
 
-def save_quant_state(self, _):
-    assert (False)
-    assert (self.noise is False)
-    if self.quant and not self.noise and self.training:
-        self.full_parameters = {}
-        layers_list = self.get_layers_list()
-        layers_steps = self.get_layers_steps(layers_list)
-        assert (len(layers_steps) == 1)
-
-        self.full_parameters = backup_weights(layers_steps[0], self.full_parameters)
-        quantize(layers_steps[0], bitwidth=self.bitwidth[0])
-
-
-def restore_quant_state(self, _, __):
-    assert (False)
-    assert (self.noise is False)
-    if self.quant and not self.noise and self.training:
-        layers_list = self.get_layers_list()
-        layers_steps = self.get_layers_steps(layers_list)
-        assert (len(layers_steps) == 1)
-
-        restore_weights(layers_steps[0], self.full_parameters)  # Restore the quantized layers
+# def save_quant_state(self, _):
+#     assert (False)
+#     assert (self.noise is False)
+#     if self.quant and not self.noise and self.training:
+#         self.full_parameters = {}
+#         layers_list = self.get_layers_list()
+#         layers_steps = self.get_layers_steps(layers_list)
+#         assert (len(layers_steps) == 1)
+#
+#         self.full_parameters = backup_weights(layers_steps[0], self.full_parameters)
+#         quantize(layers_steps[0], bitwidth=self.bitwidth[0])
+#
+#
+# def restore_quant_state(self, _, __):
+#     assert (False)
+#     assert (self.noise is False)
+#     if self.quant and not self.noise and self.training:
+#         layers_list = self.get_layers_list()
+#         layers_steps = self.get_layers_steps(layers_list)
+#         assert (len(layers_steps) == 1)
+#
+#         restore_weights(layers_steps[0], self.full_parameters)  # Restore the quantized layers
 
 
 class BaseNet(Module):
@@ -74,8 +76,8 @@ class BaseNet(Module):
         # set bops counter function
         self.countBopsFunc = self.countBopsFuncs[args.bopsCounter]
         # init criterion
-        if 'maxBops' not in args:
-            args.maxBops = self.countBops()
+        if 'baselineBops' not in args:
+            args.baselineBops = self.countBops()
         self._criterion = UniqLoss(args)
         self._criterion = self._criterion.cuda()
         # init statistics
@@ -112,11 +114,11 @@ class BaseNet(Module):
         raise NotImplementedError('subclasses must override switch_stage()!')
 
     @abstractmethod
-    def loadUNIQPreTrained(self, chckpntDict):
+    def loadUNIQPreTrained(self, checkpoint):
         raise NotImplementedError('subclasses must override loadUNIQPreTrained()!')
 
     @abstractmethod
-    def loadSingleOpPreTrained(self, chckpntDict):
+    def loadSingleOpPreTrained(self, checkpoint):
         raise NotImplementedError('subclasses must override loadSingleOpPreTrained()!')
 
     @abstractmethod
@@ -135,6 +137,111 @@ class BaseNet(Module):
     def arch_parameters(self):
         return self.learnable_alphas
 
+    # def __loadStatistics(self, filename):
+    #     if exists(filename):
+    #         # stats is a list of dicts per layer
+    #         stats = loadModel(filename)
+    #         print('Loading statistics')
+    #
+    #         for i, layer in enumerate(self.layersList):
+    #             # get layer dict
+    #             layerStats = stats[i]
+    #             # iterate over layer filters
+    #             for filter in layer.filters:
+    #                 # iterate over filter modules
+    #                 for m in filter.modules():
+    #                     # create module type as string
+    #                     moduleType = '{}'.format(type(m))
+    #                     NICEprefix = "'NICE."
+    #                     if NICEprefix in moduleType:
+    #                         moduleType = moduleType.replace(NICEprefix, "'")
+    #
+    #                     # check if type string is in dict
+    #                     if moduleType in layerStats:
+    #                         # go over dict keys, which is the module variables
+    #                         for varName in layerStats[moduleType].keys():
+    #                             v = getattr(m, varName)
+    #                             # if variable has value in dict, assign it
+    #                             if v is not None:
+    #                                 v.data = layerStats[moduleType][varName].data
+
+    def calcStatistics(self):
+        # prepare for collecting statistics, reset register_buffers values
+        for layer in self.layersList:
+            for op in layer.opsList:
+                conv = op.op[0]
+                # reset conv register_buffer values
+                conv.layer_b = ones(1).cuda()
+                conv.layer_basis = ones(1).cuda()
+                conv.initial_clamp_value = ones(1).cuda()
+                # get actquant
+                actQuant = op.op[1] if len(op.op) > 1 else None
+                if actQuant:
+                    # reset actquant register_buffer values
+                    actQuant.running_mean = zeros(1).cuda()
+                    actQuant.running_std = zeros(1).cuda()
+                    actQuant.clamp_val.data = zeros(1).cuda()
+                    # set actquant to statistics forward
+                    actQuant.forward = actQuant.statisticsForward
+
+        # # turn off noise in 1st layer, collecting statistics is performed in full-precision
+        # if len(self.layersList) > 0:
+        #     layerIdx = 0
+        #     self.layersList[layerIdx].turnOffNoise(layerIdx)
+
+        # train for statistics
+        criterion = CrossEntropyLoss().cuda()
+        nBatches = 80
+        self.eval()
+        with no_grad():
+            for step, (input, target) in enumerate(self.statistics_queue):
+                if step >= nBatches:
+                    break
+
+                output = self(input.cuda())
+                criterion(output, target.cuda())
+        # apply quantize class statistics functions
+        for layer in self.layersList:
+            for op in layer.opsList:
+                opModulesList = list(op.modules())
+                op.quantize.get_act_max_value_from_pre_calc_stats(opModulesList)
+                op.quantize.set_weight_basis(opModulesList, None)
+                # restore actquant forward function
+                actQuant = op.op[1] if len(op.op) > 1 else None
+                # set actquant to standard forward
+                if actQuant:
+                    actQuant.forward = actQuant.standardForward
+
+        # # turn on noise in 1st layer, collecting statistics is performed in full-precision
+        # if len(self.layersList) > 0:
+        #     layerIdx = 0
+        #     self.layersList[layerIdx].turnOnNoise(layerIdx)
+
+    # updates statistics in checkpoint, in order to avoid calculating statistics when loading model from checkpoint
+    def updateCheckpointStatistics(self, checkpoint, path):
+        needToUpdate = ('updated_statistics' not in checkpoint) or (checkpoint['updated_statistics'] is not True)
+        if needToUpdate:
+            # load checkpoint weights
+            self.load_state_dict(checkpoint['state_dict'])
+            # calc weights statistics
+            self.calcStatistics()
+            # update checkpoint
+            checkpoint['state_dict'] = self.state_dict()
+            checkpoint['updated_statistics'] = True
+            # save updated checkpoint
+            saveModel(checkpoint, path)
+
+        return needToUpdate
+
+    # layer_basis is a function of filter quantization,
+    # therefore we have to update its value bases on weight_max_int, which is a function of weights bitwidth
+    def __updateStatistics(self):
+        for layer in self.layersList:
+            for op in layer.opsList:
+                conv = op.op[0]
+                # update layer_basis value based on weights bitwidth
+                conv.layer_basis = conv.initial_clamp_value / op.quantize.weight_max_int
+
     def loadPreTrained(self, path, logger, gpu):
         # init bool flag whether we loaded ops in the same layer with equal or different weights
         loadOpsWithDifferentWeights = False
@@ -143,7 +250,12 @@ class BaseNet(Module):
             if exists(path):
                 # load checkpoint
                 checkpoint = loadModel(path, map_location=lambda storage, loc: storage.cuda(gpu))
+                assert (checkpoint['updated_statistics'] is True)
                 chckpntStateDict = checkpoint['state_dict']
+                # add info rows about checkpoint
+                loggerRows.append(['Path', '{}'.format(path)])
+                loggerRows.append(['Validation accuracy', '{:.5f}'.format(checkpoint['best_prec1'])])
+                loggerRows.append(['updated_statistics', checkpoint['updated_statistics']])
                 # load model state dict keys
                 modelStateDictKeys = set(self.state_dict().keys())
                 # compare dictionaries
@@ -156,15 +268,23 @@ class BaseNet(Module):
                     self.load_state_dict(chckpntStateDict)
                 else:
                     # use some function to map keys
-                    # loadFuncs = [self.loadUNIQPreTrained, self.loadSingleOpPreTrained]
-                    loadFuncs = [self.loadSingleOpPreTrained]
+                    loadFuncs = [self.loadUNIQPreTrained, self.loadSingleOpPreTrained]
                     for func in loadFuncs:
                         loadSuccess = func(chckpntStateDict)
                         if loadSuccess is not False:
                             break
 
-                loggerRows.append(['Path', '{}'.format(path)])
-                loggerRows.append(['Validation accuracy', '{:.5f}'.format(checkpoint['best_prec1'])])
+                # update statistics
+                self.__updateStatistics()
+
+                # check if model includes stats
+                modelIncludesStats = False
+                for key in chckpntStateDict.keys():
+                    if key.endswith('.layer_basis'):
+                        modelIncludesStats = True
+                        break
+                loggerRows.append(['Includes stats', '{}'.format(modelIncludesStats)])
+
             else:
                 loggerRows.append(['Path', 'Failed to load pre-trained from [{}], path does not exists'.format(path)])
 
