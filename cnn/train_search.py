@@ -13,7 +13,7 @@ from torch import manual_seed as torch_manual_seed
 
 import cnn.trainRegime as trainRegimes
 from cnn.HtmlLogger import HtmlLogger
-from cnn.utils import create_exp_dir, saveArgsToJSON, loadGradEstimatorsNames, logParameters, loadModelNames, models, sendEmail, loadDatasets
+from cnn.utils import create_exp_dir, saveArgsToJSON, loadGradEstimatorsNames, loadModelNames, models, sendEmail, loadDatasets
 
 
 # collect possible alphas optimization
@@ -66,6 +66,7 @@ def parseArgs(lossFuncsLambda):
     parser.add_argument('--grad_estimator', default='layer_same_path', choices=gradEstimatorsNames,
                         help='gradient estimation method')
     parser.add_argument('--nSamples', type=int, default=20, help='How many paths to sample in order to estimate gradient')
+    parser.add_argument('--alphas_data_parts', type=int, default=4, help='split alphas training data to parts. each loop uses single part')
     parser.add_argument('--alpha_limit', type=float, default=0.8, help='if a layer opt alpha reached alpha_limit, then stop optimize layer alphas')
     parser.add_argument('--alpha_limit_counter', type=int, default=10,
                         help='how many consecutive steps the optimal alpha has to be over limit in order to stop layer alphas optimization')
@@ -143,27 +144,10 @@ if __name__ == '__main__':
     cudnn.enabled = True
     cuda_manual_seed(args.seed)
 
-    # build model for uniform distribution of bits
-    modelClass = models.__dict__[args.model]
-    uniform_args = argparse.Namespace(**vars(args))
-    uniform_args.bitwidth = args.baselineBits
-    uniform_model = modelClass(uniform_args)
-    # init maxBops
-    args.maxBops = uniform_model._criterion.maxBops
-
     try:
         set_start_method('spawn', force=True)
     except RuntimeError:
         raise ValueError('spawn failed')
-
-    # init model
-    model = modelClass(args)
-    model = model.cuda()
-    # load pre-trained full-precision model
-    args.loadedOpsWithDiffWeights = model.loadPreTrained(args.pre_trained, logger, args.gpu[0])
-
-    # log parameters
-    logParameters(logger, args, model)
 
     ## ======================================
     # # set optimal model bitwidth per layer
@@ -189,7 +173,7 @@ if __name__ == '__main__':
     try:
         # build regime for alphas optimization
         alphasRegimeClass = trainRegimes.__dict__[args.alphas_regime]
-        alphasRegime = alphasRegimeClass(args, model, modelClass, logger)
+        alphasRegime = alphasRegimeClass(args, logger)
         # train according to chosen regime
         alphasRegime.train()
         # wait for sending all queued jobs
@@ -202,6 +186,9 @@ if __name__ == '__main__':
         messageContent = '[{}] stopped due to [{}] error [{}] \n traceback:[{}]'. \
             format(args.folderName, type(e), str(e), format_exc())
 
+        # create data table if exception happened before we create data table
+        if logger.dataTableCols is None:
+            logger.createDataTable('Exception', ['Error message'])
         # log to logger
         logger.addInfoToDataTable(messageContent, color='lightsalmon')
         # send e-mail with error details
