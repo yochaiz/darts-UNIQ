@@ -18,15 +18,10 @@ from matplotlib.backends.backend_pdf import PdfPages
 
 class Statistics:
     entropyKey = 'alphas_entropy'
-    weightedAvgKey = 'alphas_weighted_average'
     alphaDistributionKey = 'alphas_distribution'
-    alphaLossVarianceKey = 'alphas_loss_variance'
-    alphaLossAvgKey = 'alphas_loss_avg'
-    allSamplesLossVarianceKey = 'all_samples_loss_variance'
-    allSamplesLossAvgKey = 'all_samples_loss_avg'
-    gradNormKey = 'alphas_gradient_norm'
+    lossVarianceKey = 'loss_variance'
+    lossAvgKey = 'loss_avg'
     bopsKey = 'bops'
-    batchOptModelBopsRatioKey = 'optimal_model_bops_ratio'
 
     # set plot points style
     ptsStyle = '-'
@@ -35,8 +30,8 @@ class Statistics:
     nColsMax = 7
     nRowsDefault = 3
 
-    def __init__(self, layersList, nLayers, saveFolder):
-        self.nLayers = nLayers
+    def __init__(self, layersList, saveFolder):
+        nLayers = len(layersList)
         # create plot folder
         plotFolderPath = '{}/plots'.format(saveFolder)
         if not path.exists(plotFolderPath):
@@ -52,25 +47,17 @@ class Statistics:
         # init containers
         self.containers = {
             self.entropyKey: [[] for _ in range(nLayers)],
-            self.weightedAvgKey: [[] for _ in range(nLayers)],
-            self.alphaLossVarianceKey: [[[] for _ in range(layer.numOfOps())] for layer in layersList],
-            self.alphaLossAvgKey: [[[] for _ in range(layer.numOfOps())] for layer in layersList],
-            self.alphaDistributionKey: [[[] for _ in range(layer.numOfOps())] for layer in layersList],
-            self.allSamplesLossVarianceKey: [[]],
-            self.allSamplesLossAvgKey: [[]],
-            self.batchOptModelBopsRatioKey: [[]],
-            self.gradNormKey: [[] for _ in range(nLayers)]
+            self.lossVarianceKey: [[]],
+            self.lossAvgKey: [[]],
+            self.alphaDistributionKey: [[[] for _ in range(layer.numOfOps())] for layer in layersList]
         }
         # map each list we plot for all layers on single plot to filename
-        self.plotAllLayersKeys = [self.entropyKey, self.allSamplesLossVarianceKey, self.allSamplesLossAvgKey,
-                                  self.gradNormKey, self.batchOptModelBopsRatioKey]
-        self.plotLayersSeparateKeys = [self.alphaLossAvgKey, self.alphaLossVarianceKey, self.alphaDistributionKey]
+        self.plotAllLayersKeys = [self.entropyKey, self.lossAvgKey, self.lossVarianceKey]
+        self.plotLayersSeparateKeys = [self.alphaDistributionKey]
 
-    def addBatchData(self, model, optBopsRatio, nEpoch, nBatch):
-        assert (self.nLayers == model.nLayers())
+    def addBatchData(self, model, nEpoch, nBatch):
         # add batch label
         self.batchLabels.append('[{}]_[{}]'.format(nEpoch, nBatch))
-        self.containers[self.batchOptModelBopsRatioKey][0].append(optBopsRatio)
         # add data per layer
         for i, layer in enumerate(model.layersList):
             # calc layer alphas distribution
@@ -81,18 +68,8 @@ class Statistics:
             # calc entropy
             self.containers[self.entropyKey][i].append(entropy(probs))
 
-            # # collect weight bitwidth of each op in layer
-            # weightBitwidth = self.layersBitwidths[i]
-            # # calc weighted average of weights bitwidth
-            # res = probs * weightBitwidth
-            # res = res.sum().item()
-            # # add layer weighted average
-            # self.containers[self.weightedAvgKey][i].append(res)
-
         # plot data
         self.plotData()
-
-        return optBopsRatio
 
     def saveFigPDF(self, figs, fileName):
         pdf = PdfPages('{}/{}.pdf'.format(self.saveFolder, fileName))
@@ -246,7 +223,7 @@ class Statistics:
                     axRow += 1
 
             # set fig properties
-            self.__setFigProperties(fig, figSize=(30, 15))
+            self.__setFigProperties(fig, figSize=(40, 20))
             # save as HTML
             self.saveFigPDF(figs, fileName)
 
