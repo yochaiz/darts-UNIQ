@@ -326,6 +326,12 @@ class BaseNet(Module):
 
         return True
 
+    def resetForwardCounters(self):
+        for layer in self.layersList:
+            for filter in layer.filters:
+                # reset filter counters
+                filter.resetOpsForwardCounters()
+
     # return top k operations per layer
     def topOps(self, k):
         top = []
