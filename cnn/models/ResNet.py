@@ -116,9 +116,9 @@ class ResNet(BaseNet):
         f = createMixedConvWithReLU(bitwidths, in_planes, kernel_sizes, stride, input_size, prevLayer)
         layer = MixedLayer(out_planes, f)
 
-        if layer.numOfOps() > 1:
-            layer.setAlphas([0., 0., 0., 0.25, 0.75])
-            layer.setFiltersPartition()
+        # if layer.numOfOps() > 1:
+        #     layer.setAlphas([0., 0., 0., 0.25, 0.75])
+        #     layer.setFiltersPartition()
 
         return layer
 
