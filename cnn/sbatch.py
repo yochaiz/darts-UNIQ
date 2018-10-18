@@ -19,12 +19,10 @@ outputFile = '{}.out'.format(datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
 
 commands = [
     [executable, './train_search.py',
-     '--data', '../data/', '--batch_size', '250', '--arch_learning_rate', '5', '--lmbda', '0',
-     '--bitwidth', '3', '--baselineBits', '3', '--epochs', '5', '--bopsCounter', 'discrete',
-     '--model', 'thin_resnet', '--pre_trained',
-     './pre_trained/thin_resnet/train/model_opt.pth.tar',
-     '--learning_rate', '0.01',
-     '--nCopies', '2', '--train_portion', '1'
+     '--data', '../data/', '--batch_size', '250', '--arch_learning_rate', '5.0', '--lmbda', '0.0', '--dataset', 'cifar100',
+     '--bitwidth', '8', '--baselineBits', '8', '--epochs', '10', '--bopsCounter', 'discrete',
+     '--model', 'resnet', '--learning_rate', '0.1', '--nCopies', '1', '--train_portion', '1.0',
+     '--grad_estimator', 'layer_same_path', '--alphas_regime', 'optimal_model', '--init_weights_train', '--workers', '2'
      ]  #
 ]
 
