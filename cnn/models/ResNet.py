@@ -69,8 +69,8 @@ class BasicBlock(Block):
     def getCurrentOutputBitwidth(self):
         return self.block2.getCurrentOutputBitwidth()
 
-    def getOutputBitwidthList(self):
-        return self.block2.getOutputBitwidthList()
+    # def getOutputBitwidthList(self):
+    #     return self.block2.getOutputBitwidthList()
 
     # # select random alpha
     # def chooseRandomPath(self):
