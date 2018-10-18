@@ -4,10 +4,11 @@ from torch import cat, chunk, tensor, ones, IntTensor
 from torch.nn import ModuleList, BatchNorm2d
 from torch.distributions.multinomial import Multinomial
 
-from cnn.MixedFilter import MixedFilter, Conv2d, ActQuant
+from cnn.MixedFilter import MixedFilter, Conv2d
 from cnn.block import Block
 
 from UNIQ.quantize import check_quantization
+from NICE.quantize import ActQuant
 
 
 # collects stats from forward output
@@ -29,6 +30,13 @@ def postForward(self, _, output):
         elements = [('Avg', layerAvg), ('Max', layerMax)]
         self.forwardStats = [collectStats(type, val) for type, val in elements]
         self.forwardStats.insert(0, ['Type', 'Min', 'Avg', 'Max'])
+
+        # for i, m in enumerate(layerMax):
+        #     if m.item() <= 1E-5:
+        #         filter = self.filters[i]
+        #         conv = filter.ops[0][filter.curr_alpha_idx].op[0].weight
+        #         self.forwardStats.append([['Filter#', i], ['MaxVal', m], ['conv weights', conv]])
+
     else:
         self.forwardStats = None
 
@@ -50,6 +58,9 @@ class MixedLayer(Block):
         # init operations alphas (weights)
         value = 1.0 / self.numOfOps()
         self.alphas = tensor((ones(self.numOfOps()) * value).cuda(), requires_grad=True)
+        self.alphas = self.alphas.cuda()
+        # init filters current partition by alphas
+        self.currFiltersPartition = [0] * self.numOfOps()
 
         # set filters distribution
         if self.numOfOps() > 1:
@@ -81,11 +92,15 @@ class MixedLayer(Block):
         assert (self.added_noise is False)
         for op in self.opsList:
             assert (op.noise is False)
-            op.quantize()
+            op.quantizeFunc()
             assert (check_quantization(op.op[0].weight) <= (2 ** op.bitwidth[0]))
+            # quantize activations during training
+            for m in op.modules():
+                if isinstance(m, ActQuant):
+                    m.qunatize_during_training = True
 
         self.quantized = True
-        print('quantized layer [{}]'.format(layerIdx))
+        print('quantized layer [{}] + quantize activations during training'.format(layerIdx))
 
     def unQuantize(self, layerIdx):
         assert (self.quantized is True)
@@ -93,9 +108,13 @@ class MixedLayer(Block):
 
         for op in self.opsList:
             op.restore_state()
+            # remove activations quantization during training
+            for m in op.modules():
+                if isinstance(m, ActQuant):
+                    m.qunatize_during_training = False
 
         self.quantized = False
-        print('removed quantization in layer [{}]'.format(layerIdx))
+        print('removed quantization in layer [{}] + removed activations quantization during training'.format(layerIdx))
 
     # just turn on op.noise flag
     # noise is being added in pre-forward hook
@@ -119,33 +138,29 @@ class MixedLayer(Block):
         self.added_noise = False
         print('turned off noise in layer [{}]'.format(layerIdx))
 
-    def turnOffGradients(self, layerIdx):
-        assert (self.quantized is True)
-        assert (self.added_noise is False)
-
-        for op in self.opsList:
-            for m in op.modules():
-                if isinstance(m, Conv2d):
-                    for param in m.parameters():
-                        param.requires_grad = False
-                elif isinstance(m, ActQuant):
-                    m.quatize_during_training = True
-
-        print('turned off gradients in layer [{}]'.format(layerIdx))
-
-    def turnOnGradients(self, layerIdx):
-        assert (self.quantized is False)
-        assert (self.added_noise is False)
-
-        for op in self.opsList:
-            for m in op.modules():
-                if isinstance(m, Conv2d):
-                    for param in m.parameters():
-                        param.requires_grad = True
-                elif isinstance(m, ActQuant):
-                    m.quatize_during_training = False
-
-        print('turned on gradients in layer [{}]'.format(layerIdx))
+    # # quantize activations during training
+    # def quantActOnTraining(self, layerIdx):
+    #     assert (self.quantized is True)
+    #     assert (self.added_noise is False)
+    #
+    #     for op in self.opsList:
+    #         for m in op.modules():
+    #             if isinstance(m, ActQuant):
+    #                 m.qunatize_during_training = True
+    #
+    #     print('turned on qunatize_during_training in layer [{}]'.format(layerIdx))
+    #
+    # # stop quantize activations during training
+    # def turnOnGradients(self, layerIdx):
+    #     assert (self.quantized is False)
+    #     assert (self.added_noise is False)
+    #
+    #     for op in self.opsList:
+    #         for m in op.modules():
+    #             if isinstance(m, ActQuant):
+    #                 m.qunatize_during_training = False
+    #
+    #     print('turned off qunatize_during_training in layer [{}]'.format(layerIdx))
 
     # ratio is a list
     def setAlphas(self, ratio):
@@ -155,11 +170,14 @@ class MixedLayer(Block):
     # partition is IntTensor
     def __setFiltersPartition(self, partition):
         assert (partition.sum().item() == self.nFilters())
+        # save current filters partition by alphas
+        self.currFiltersPartition = [0] * self.numOfOps()
         # update filters curr_alpha_idx
         idx = 0
         for i, r in enumerate(partition):
             for _ in range(r):
                 self.filters[idx].curr_alpha_idx = i
+                self.currFiltersPartition[i] += 1
                 idx += 1
 
     # set filters partition based on ratio
@@ -234,6 +252,9 @@ class MixedLayer(Block):
         out = self.postResidualForward(out)
 
         return out
+
+    def getCurrentFiltersPartition(self):
+        return self.currFiltersPartition
 
     # input_bitwidth is a list of bitwidth per feature map
     def getBops(self, input_bitwidth):
