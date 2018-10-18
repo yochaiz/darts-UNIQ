@@ -396,11 +396,7 @@ def initTrainLogger(logger_file_name, folder_path, propagate=False):
 
 def logForwardCounters(model, loggerFuncs):
     if (not loggerFuncs) or (len(loggerFuncs) == 0):
-        for layerIdx, layer in enumerate(model.layersList):
-            for filter in layer.filters:
-                # reset filter counters
-                filter.resetOpsForwardCounters()
-
+        model.resetForwardCounters()
         return
 
     rows = [['Layer #', 'Counters']]
