@@ -377,6 +377,7 @@ class TrainRegime:
             loggerFunc = [lambda msg: trainLogger.addInfoToDataTable(msg)]
 
         # update model replications weights
+        print('updating replications weights from main model')
         architect.modelReplicator.updateModelWeights(model, loggerFuncs=loggerFunc)
         # quantize all ops
         architect.modelReplicator.quantize()
