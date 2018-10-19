@@ -109,7 +109,7 @@ class Statistics:
         # ax.set_xticklabels(self.batchLabels)
         ax.set_xlabel(xLabel)
         ax.set_ylabel(yLabel)
-        ax.set_ylim(ymax=yMax, ymin=0.0)
+        ax.set_ylim(top=yMax, bottom=0.0)
         ax.set_title(title)
         ax.legend(loc='upper center', bbox_to_anchor=(0.5, 1.005), ncol=5, fancybox=True, shadow=True)
 
