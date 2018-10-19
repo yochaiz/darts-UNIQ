@@ -19,12 +19,16 @@ outputFile = '{}.out'.format(datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
 
 commands = [
     [executable, './train_search.py',
-     '--data', '../data/', '--batch_size', '250', '--arch_learning_rate', '5.0', '--lmbda', '0.0', '--dataset', 'cifar100',
-     '--bitwidth', '8', '--baselineBits', '8', '--epochs', '10', '--bopsCounter', 'discrete',
-     '--model', 'resnet', '--learning_rate', '0.1', '--nCopies', '1', '--train_portion', '1.0',
-     '--grad_estimator', 'layer_same_path', '--alphas_regime', 'optimal_model', '--init_weights_train', '--workers', '2'
+     '--data', '../data/', '--batch_size', '250', '--arch_learning_rate', '1.0', '--lmbda', '10.0', '--dataset', 'cifar10',
+     '--bitwidth', '3#8', '--baselineBits', '3', '--epochs', '1', '--bopsCounter', 'discrete', '--alphas_data_parts', '2',
+     '--model', 'resnet', '--learning_rate', '0.01', '--nCopies', '1', '--train_portion', '0.5', '--gpu', '0,1',
+     '--grad_estimator', 'layer_same_path', '--alphas_regime', 'alphas_weights_loop', '--workers', '2', '--nSamples', '200',
+     '--pre_trained', '../pre_trained/cifar10/train_portion_0.5/resnet_w:[8]_a:[8]/train/model_checkpoint.updated_stats.pth.tar'
      ]  #
 ]
+
+# '../pre_trained/cifar10/train_portion_0.5/resnet_w:[8]_a:[8]/train/model_checkpoint.updated_stats.pth.tar'
+# '../pre_trained/cifar100/train_portion_0.5/resnet_w:[8]_a:[8]/train/model_opt.updated_stats.pth.tar'
 
 # # resume training
 # folders = ['2018-07-16_16-31-25']
