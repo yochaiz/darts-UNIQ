@@ -14,6 +14,28 @@ class AlphasWeightsLoop(TrainRegime):
         replicator = replicatorClass(self.model, self.modelClass, args)
         # init architect
         self.architect = Architect(replicator, args)
+        # set number of different partitions we want to draw from alphas multinomial distribution in order to estimate their validation accuracy
+        self.nValidPartitions = 5
+
+    # run on validation set and add validation data to main data row
+    def __inferWithData(self, setModelPathFunc, epoch, loggersDict, dataRow, best_prec1):
+        model = self.model
+        args = self.args
+        # run on validation set
+        valid_acc, validData = self.infer(setModelPathFunc, epoch, loggersDict)
+
+        # update epoch
+        dataRow[self.epochNumKey] = epoch
+        # merge dataRow with validData
+        for k, v in validData.items():
+            dataRow[k] = v
+
+        # save model checkpoint
+        is_best = valid_acc > best_prec1
+        best_prec1 = max(valid_acc, best_prec1)
+        save_checkpoint(self.trainFolderPath, model, args, epoch, best_prec1, is_best)
+
+        return best_prec1
 
     def train(self):
         model = self.model
@@ -32,19 +54,8 @@ class AlphasWeightsLoop(TrainRegime):
             loggersDict = dict(train=trainLogger)
             # train alphas
             alphaData = self.trainAlphas(self.search_queue[epoch % args.alphas_data_parts], model, self.architect, epoch, loggersDict)
-
-            # validation on current optimal model
-            valid_acc, validData = self.infer(epoch, loggersDict)
-
-            # merge trainData with validData
-            for k, v in validData.items():
-                alphaData[k] = v
-
-            # save model checkpoint
-            is_best = valid_acc > best_prec1
-            best_prec1 = max(valid_acc, best_prec1)
-            save_checkpoint(self.trainFolderPath, model, args, epoch, best_prec1, is_best)
-
+            # validation on fixed partition by alphas values
+            best_prec1 = self.__inferWithData(model.setFiltersByAlphas, epoch, loggersDict, alphaData, best_prec1)
             # add data to main logger table
             logger.addDataRow(alphaData)
 
@@ -77,22 +88,16 @@ class AlphasWeightsLoop(TrainRegime):
             loggersDict = dict(train=trainLogger)
             # last weights training epoch we want to log also to main logger
             trainData = self.trainWeights(model.choosePathByAlphas, optimizer, wEpoch, loggersDict)
-            # validation on optimal model
-            valid_acc, validData = self.infer(wEpoch, loggersDict)
-
-            # update epoch
-            trainData[self.epochNumKey] = epoch
-            # merge trainData with validData
-            for k, v in validData.items():
-                trainData[k] = v
-
-            # save model checkpoint
-            is_best = valid_acc > best_prec1
-            best_prec1 = max(valid_acc, best_prec1)
-            save_checkpoint(self.trainFolderPath, model, args, epoch, best_prec1, is_best)
-
+            # validation on fixed partition by alphas values
+            best_prec1 = self.__inferWithData(model.setFiltersByAlphas, epoch, loggersDict, trainData, best_prec1)
             # add data to main logger table
             logger.addDataRow(trainData)
+            # validation on different partitions from alphas multinomial distribution
+            for _ in range(self.nValidPartitions):
+                dataRow = {}
+                best_prec1 = self.__inferWithData(model.choosePathByAlphas, epoch, loggersDict, dataRow, best_prec1)
+                # add data to main logger table
+                logger.addDataRow(dataRow)
 
         # send final email
         self.sendEmail('Final', 0, 0)
