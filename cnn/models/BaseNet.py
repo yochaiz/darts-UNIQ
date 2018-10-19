@@ -270,7 +270,7 @@ class BaseNet(Module):
                         if loadSuccess is not False:
                             break
 
-                if loadSuccess:
+                if loadSuccess is not False:
                     # add info rows about checkpoint
                     loggerRows.append(['Path', '{}'.format(path)])
                     loggerRows.append(['Validation accuracy', '{:.5f}'.format(checkpoint['best_prec1'])])
