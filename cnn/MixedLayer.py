@@ -3,8 +3,9 @@ from itertools import groupby
 from torch import cat, chunk, tensor, ones, IntTensor
 from torch.nn import ModuleList, BatchNorm2d
 from torch.distributions.multinomial import Multinomial
+from torch.nn import functional as F
 
-from cnn.MixedFilter import MixedFilter, Conv2d
+from cnn.MixedFilter import MixedFilter
 from cnn.block import Block
 
 from UNIQ.quantize import check_quantization
@@ -169,7 +170,8 @@ class MixedLayer(Block):
 
     # set filters partition based on alphas ratio
     def setFiltersPartition(self):
-        self.__setFiltersPartitionFromRatio(self.alphas)
+        probs = F.softmax(self.alphas, dim=-1)
+        self.__setFiltersPartitionFromRatio(probs)
 
     # perform the convolution operation
     def forwardConv(self, x):
