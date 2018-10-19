@@ -1,5 +1,3 @@
-# from UNIQ.uniq import UNIQNet
-# from UNIQ.actquant import ActQuant
 from UNIQ.flops_benchmark import count_flops
 from NICE.uniq import UNIQNet
 from NICE.actquant import ActQuantBuffers
