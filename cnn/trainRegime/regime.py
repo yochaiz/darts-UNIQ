@@ -281,7 +281,7 @@ class TrainRegime:
             # switch stage, i.e. freeze one more layer
             if (epoch in self.epochsSwitchStage) or (epoch == nEpochs):
                 # validation
-                valid_acc, validData = self.infer(epoch, loggersDict)
+                valid_acc, validData = self.infer(model.setFiltersByAlphas, epoch, loggersDict)
 
                 # merge trainData with validData
                 for k, v in validData.items():
