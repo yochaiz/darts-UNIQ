@@ -25,6 +25,7 @@ class TrainRegime:
     batchNumKey = 'Batch #'
     pathBopsRatioKey = 'Path bops ratio'
     optBopsRatioKey = 'Optimal bops ratio'
+    validBopsRatioKey = 'Validation bops ratio'
     timeKey = 'Time'
     lrKey = 'Optimizer lr'
     bitwidthKey = 'Bitwidth'
@@ -33,7 +34,7 @@ class TrainRegime:
 
     # init formats for keys
     formats = {validLossKey: '{:.5f}', validAccKey: '{:.3f}', optBopsRatioKey: '{:.3f}', timeKey: '{:.3f}', archLossKey: '{:.5f}', lrKey: '{:.5f}',
-               trainLossKey: '{:.5f}', trainAccKey: '{:.3f}', pathBopsRatioKey: '{:.3f}'}
+               trainLossKey: '{:.5f}', trainAccKey: '{:.3f}', pathBopsRatioKey: '{:.3f}', validBopsRatioKey: '{:.3f}'}
 
     initWeightsTrainTableTitle = 'Initial weights training'
     alphasTableTitle = 'Alphas (top [{}])'
@@ -42,7 +43,8 @@ class TrainRegime:
     colsMainInitWeightsTrain = [epochNumKey, trainLossKey, trainAccKey, validLossKey, validAccKey, lrKey]
     colsTrainAlphas = [batchNumKey, archLossKey, alphasTableTitle, forwardCountersKey, timeKey]
     colsValidation = [batchNumKey, validLossKey, validAccKey, statsKey, timeKey]
-    colsMainLogger = [epochNumKey, archLossKey, optBopsRatioKey, trainLossKey, trainAccKey, validLossKey, validAccKey, lrKey]
+    colsValidationStatistics = [forwardCountersKey, bitwidthKey, validBopsRatioKey]
+    colsMainLogger = [epochNumKey, archLossKey, trainLossKey, trainAccKey, validLossKey, validAccKey, validBopsRatioKey, lrKey]
 
     def __init__(self, args, logger):
         # build model for uniform distribution of bits
@@ -540,11 +542,10 @@ class TrainRegime:
 
         return summaryData
 
-    def infer(self, nEpoch, loggers):
+    def infer(self, setModelPathFunc, nEpoch, loggers):
         print('*** infer() ***')
         objs = AvgrageMeter()
         top1 = AvgrageMeter()
-        top5 = AvgrageMeter()
 
         model = self.model
         valid_queue = self.valid_queue
@@ -574,8 +575,7 @@ class TrainRegime:
         self.addModelUNIQstatusTable(model, trainLogger, 'UNIQ status - quantizated for validation')
 
         # choose model path
-        for layer in model.layersList:
-            layer.setFiltersPartition()
+        setModelPathFunc()
         # calculate its bops
         bopsRatio = model.calcBopsRatio()
 
@@ -589,11 +589,10 @@ class TrainRegime:
                 logits = model(input)
                 loss = crit(logits, target)
 
-                prec1, prec5 = accuracy(logits, target, topk=(1, 5))
+                prec1 = accuracy(logits, target)[0]
                 n = input.size(0)
                 objs.update(loss.item(), n)
                 top1.update(prec1.item(), n)
-                top5.update(prec5.item(), n)
 
                 endTime = time()
 
@@ -625,7 +624,7 @@ class TrainRegime:
         self.addModelUNIQstatusTable(model, trainLogger, 'UNIQ status - state restored')
 
         # create summary row
-        summaryRow = {self.batchNumKey: 'Summary', self.validLossKey: objs.avg, self.validAccKey: top1.avg}
+        summaryRow = {self.batchNumKey: 'Summary', self.validLossKey: objs.avg, self.validAccKey: top1.avg, self.validBopsRatioKey: bopsRatio}
         # apply formats
         self.__applyFormats(summaryRow)
 
@@ -642,12 +641,12 @@ class TrainRegime:
 
         if trainLogger:
             # create new data table for validation statistics
-            colName = [self.forwardCountersKey, self.bitwidthKey, self.pathBopsRatioKey]
-            trainLogger.createDataTable('Validation statistics', colName)
+            trainLogger.createDataTable('Validation statistics', self.colsValidationStatistics)
             # add bitwidth & forward counters statistics
-            dataRow = {self.bitwidthKey: self.createBitwidthsTable(model, trainLogger, self.bitwidthKey),
-                       self.forwardCountersKey: forwardCountersData[-1], self.pathBopsRatioKey: bopsRatio
-                       }
+            dataRow = {
+                self.bitwidthKey: self.createBitwidthsTable(model, trainLogger, self.bitwidthKey),
+                self.forwardCountersKey: forwardCountersData[-1], self.validBopsRatioKey: bopsRatio
+            }
             # apply formats
             self.__applyFormats(dataRow)
             # add row to table
