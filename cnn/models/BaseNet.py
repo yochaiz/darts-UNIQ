@@ -252,10 +252,6 @@ class BaseNet(Module):
                 checkpoint = loadModel(path, map_location=lambda storage, loc: storage.cuda(gpu))
                 assert (checkpoint['updated_statistics'] is True)
                 chckpntStateDict = checkpoint['state_dict']
-                # add info rows about checkpoint
-                loggerRows.append(['Path', '{}'.format(path)])
-                loggerRows.append(['Validation accuracy', '{:.5f}'.format(checkpoint['best_prec1'])])
-                loggerRows.append(['updated_statistics', checkpoint['updated_statistics']])
                 # load model state dict keys
                 modelStateDictKeys = set(self.state_dict().keys())
                 # compare dictionaries
@@ -274,17 +270,22 @@ class BaseNet(Module):
                         if loadSuccess is not False:
                             break
 
-                # update statistics
-                self.__updateStatistics()
-
-                # check if model includes stats
-                modelIncludesStats = False
-                for key in chckpntStateDict.keys():
-                    if key.endswith('.layer_basis'):
-                        modelIncludesStats = True
-                        break
-                loggerRows.append(['Includes stats', '{}'.format(modelIncludesStats)])
-
+                if loadSuccess:
+                    # add info rows about checkpoint
+                    loggerRows.append(['Path', '{}'.format(path)])
+                    loggerRows.append(['Validation accuracy', '{:.5f}'.format(checkpoint['best_prec1'])])
+                    loggerRows.append(['updated_statistics', checkpoint['updated_statistics']])
+                    # update statistics
+                    self.__updateStatistics()
+                    # check if model includes stats
+                    modelIncludesStats = False
+                    for key in chckpntStateDict.keys():
+                        if key.endswith('.layer_basis'):
+                            modelIncludesStats = True
+                            break
+                    loggerRows.append(['Includes stats', '{}'.format(modelIncludesStats)])
+                else:
+                    loggerRows.append(['Path', 'Failed to load pre-trained from [{}], state_dict does not fit'.format(path)])
             else:
                 loggerRows.append(['Path', 'Failed to load pre-trained from [{}], path does not exists'.format(path)])
 
