@@ -320,6 +320,11 @@ class BaseNet(Module):
         for l in self.layers:
             l.choosePathByAlphas()
 
+    # set curr_alpha_idx to each filter by alphas values
+    def setFiltersByAlphas(self):
+        for layer in self.layersList:
+            layer.setFiltersPartition()
+
     def isQuantized(self):
         for layer in self.layersList:
             assert (layer.quantized is True)
