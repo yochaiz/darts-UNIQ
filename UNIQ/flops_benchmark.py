@@ -70,6 +70,7 @@ def add_flops_counting_methods(net_main_module):
     net_main_module.reset_flops_count = reset_flops_count.__get__(net_main_module)
     net_main_module.compute_average_flops_cost = compute_average_flops_cost.__get__(net_main_module)
     net_main_module.compute_average_bops_cost = compute_average_bops_cost.__get__(net_main_module)
+    net_main_module.compute_bops_mults_adds = compute_bops_mults_adds.__get__(net_main_module)
 
     net_main_module.reset_flops_count()
 
@@ -119,6 +120,16 @@ def compute_average_bops_cost(self):
             bops_sum += module.__bops__
 
     return bops_sum / batches_count
+
+
+def compute_bops_mults_adds(self):
+    # find Conv2d elements in model
+    conv = [m for m in self.modules() if isinstance(m, Conv2d)]
+    # make sure there is only single Conv2d element
+    assert (len(conv) == 1)
+    conv = conv[0]
+    # return it adds & mults values
+    return conv.__mults__, conv.__adds__, conv.__calc_mac_value__
 
 
 def start_flops_count(self):
@@ -178,9 +189,78 @@ def remove_flops_mask(module):
 
 
 # ---- Internal functions
+# def conv_flops_counter_hook(conv_module, input, output):
+#     # Can have multiple inputs, getting the first one
+#     bops = 0
+#     input = input[0]
+#     batch_size = input.shape[0]
+#     output_height, output_width = output.shape[2:]
+#
+#     kernel_height, kernel_width = conv_module.kernel_size
+#     in_channels = conv_module.in_channels
+#     out_channels = conv_module.out_channels
+#     groups = conv_module.groups
+#
+#     # We count multiply-add as 2 flops
+#     conv_per_position_flops = 2 * kernel_height * kernel_width * in_channels * out_channels / groups ** 2
+#
+#     active_elements_count = batch_size * output_height * output_width
+#
+#     if conv_module.__mask__ is not None:
+#         # (b, 1, h, w)
+#         flops_mask = conv_module.__mask__.expand(batch_size, 1, output_height, output_width)
+#         active_elements_count = flops_mask.sum()
+#
+#     overall_conv_flops = conv_per_position_flops * active_elements_count
+#
+#     bias_flops = 0
+#
+#     if conv_module.bias is not None:
+#         bias_flops = out_channels * active_elements_count
+#
+#     overall_flops = overall_conv_flops + bias_flops
+#     conv_module.__flops__ += overall_flops
+#
+#     # Bops code
+#     param_bitwidth = conv_module.__param_bitwidth__
+#     # act bitwidth is now a list of input feature maps bitwidth
+#     act_bitwidth = conv_module.__act_bitwidth__[0]
+#     assert (isinstance(act_bitwidth, list))
+#     assert (len(act_bitwidth) == in_channels)
+#
+#     bit_ops = 0
+#     # num_of_conv_mults = batch_size * output_height * output_width * out_channels * in_channels * kernel_height * kernel_width
+#     # each in_channel has now its own bitwidth, therefore we have to sum them
+#     num_of_conv_mults = batch_size * output_height * output_width * out_channels * kernel_height * kernel_width
+#     num_of_conv_adds = batch_size * output_height * output_width * out_channels * (in_channels * kernel_height * kernel_width - 1)
+#
+#     # each in_channel has now its own bitwidth, therefore we have to sum them
+#     max_mac_value = 0
+#     if param_bitwidth != 1:
+#         # param_bitwidth-1 becuase 1 bit is sign bit and not really participate in the multiplication
+#         for v in act_bitwidth:
+#             max_mac_value += (2 ** v - 1) * (kernel_height * kernel_width) / (groups ** 2) * (2 ** (param_bitwidth - 1) - 1)
+#         # max_mac_value = (2 ** act_bitwidth - 1) * (in_channels * kernel_height * kernel_width) / (groups ** 2) * (2 ** (param_bitwidth - 1) - 1)
+#     else:
+#         # param_bitwidth-1 becuase 1 bit is sign bit and not really participate in the multiplication
+#         for v in act_bitwidth:
+#             max_mac_value += (2 ** v - 1) * (kernel_height * kernel_width) / (groups ** 2)
+#         # max_mac_value = (2 ** act_bitwidth - 1) * (in_channels * kernel_height * kernel_width) / (groups ** 2)
+#
+#     log2_max_mac_value = ceil(log2(max_mac_value))
+#     # bit_ops += num_of_conv_mults * (param_bitwidth - 1) * act_bitwidth
+#     # each in_channel has now its own bitwidth, therefore we have to sum them
+#     for v in act_bitwidth:
+#         bit_ops += num_of_conv_mults * (param_bitwidth - 1) * v
+#
+#     bit_ops += num_of_conv_adds * (log2_max_mac_value)
+#     conv_module.__bops__ += bit_ops
+
+
+# the calculation of mults & adds here is not a function of input bitwidth
+# the specific total bops calculation has to be done after getting mults & adds from here
 def conv_flops_counter_hook(conv_module, input, output):
     # Can have multiple inputs, getting the first one
-    bops = 0
     input = input[0]
     batch_size = input.shape[0]
     output_height, output_width = output.shape[2:]
@@ -190,60 +270,16 @@ def conv_flops_counter_hook(conv_module, input, output):
     out_channels = conv_module.out_channels
     groups = conv_module.groups
 
-    # We count multiply-add as 2 flops
-    conv_per_position_flops = 2 * kernel_height * kernel_width * in_channels * out_channels / groups ** 2
-
-    active_elements_count = batch_size * output_height * output_width
-
-    if conv_module.__mask__ is not None:
-        # (b, 1, h, w)
-        flops_mask = conv_module.__mask__.expand(batch_size, 1, output_height, output_width)
-        active_elements_count = flops_mask.sum()
-
-    overall_conv_flops = conv_per_position_flops * active_elements_count
-
-    bias_flops = 0
-
-    if conv_module.bias is not None:
-        bias_flops = out_channels * active_elements_count
-
-    overall_flops = overall_conv_flops + bias_flops
-    conv_module.__flops__ += overall_flops
-
-    # Bops code
-    param_bitwidth = conv_module.__param_bitwidth__
-    # act bitwidth is now a list of input feature maps bitwidth
-    act_bitwidth = conv_module.__act_bitwidth__[0]
-    assert (isinstance(act_bitwidth, list))
-    assert (len(act_bitwidth) == in_channels)
-
-    bit_ops = 0
     # num_of_conv_mults = batch_size * output_height * output_width * out_channels * in_channels * kernel_height * kernel_width
     # each in_channel has now its own bitwidth, therefore we have to sum them
-    num_of_conv_mults = batch_size * output_height * output_width * out_channels * kernel_height * kernel_width
-    num_of_conv_adds = batch_size * output_height * output_width * out_channels * (in_channels * kernel_height * kernel_width - 1)
+    conv_module.__mults__ = batch_size * output_height * output_width * out_channels * kernel_height * kernel_width
+    conv_module.__adds__ = batch_size * output_height * output_width * out_channels * (in_channels * kernel_height * kernel_width - 1)
 
-    # each in_channel has now its own bitwidth, therefore we have to sum them
-    max_mac_value = 0
-    if param_bitwidth != 1:
-        # param_bitwidth-1 becuase 1 bit is sign bit and not really participate in the multiplication
-        for v in act_bitwidth:
-            max_mac_value += (2 ** v - 1) * (kernel_height * kernel_width) / (groups ** 2) * (2 ** (param_bitwidth - 1) - 1)
-        # max_mac_value = (2 ** act_bitwidth - 1) * (in_channels * kernel_height * kernel_width) / (groups ** 2) * (2 ** (param_bitwidth - 1) - 1)
-    else:
-        # param_bitwidth-1 becuase 1 bit is sign bit and not really participate in the multiplication
-        for v in act_bitwidth:
-            max_mac_value += (2 ** v - 1) * (kernel_height * kernel_width) / (groups ** 2)
-        # max_mac_value = (2 ** act_bitwidth - 1) * (in_channels * kernel_height * kernel_width) / (groups ** 2)
+    # create function to calc mac value
+    def calc_mac_value(bitwidth, act_bitwidth):
+        return (2 ** act_bitwidth - 1) * (kernel_height * kernel_width) / (groups ** 2) * (2 ** (bitwidth - 1) - 1)
 
-    log2_max_mac_value = ceil(log2(max_mac_value))
-    # bit_ops += num_of_conv_mults * (param_bitwidth - 1) * act_bitwidth
-    # each in_channel has now its own bitwidth, therefore we have to sum them
-    for v in act_bitwidth:
-        bit_ops += num_of_conv_mults * (param_bitwidth - 1) * v
-
-    bit_ops += num_of_conv_adds * (log2_max_mac_value)
-    conv_module.__bops__ += bit_ops
+    conv_module.__calc_mac_value__ = calc_mac_value
 
 
 def batch_counter_hook(module, input, output):
@@ -334,8 +370,10 @@ def count_flops(model, input_size, in_channels):
 
     _ = net(batch)
 
-    flops, bops = net.compute_average_flops_cost() / 2, net.compute_average_bops_cost()
+    # flops=net.compute_average_flops_cost() / 2
+    # bops = net.compute_average_bops_cost()
     net.stop_flops_count()
 
     # return (flops, bops)  # Result in FLOPs
-    return bops
+    # return bops
+    return net.compute_bops_mults_adds()

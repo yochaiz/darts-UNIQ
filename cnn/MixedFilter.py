@@ -7,7 +7,7 @@ from torch.nn import ModuleList, Conv2d, Sequential, Linear
 
 from cnn.block import Block
 
-from math import floor
+from math import floor, ceil, log2
 from abc import abstractmethod
 
 
@@ -109,12 +109,8 @@ def postForward(self, _, __):
 
 
 class MixedFilter(Block):
-    def __init__(self, bitwidths, params, coutBopsParams, prevLayer):
+    def __init__(self, bitwidths, params, countBopsParams, prevLayer):
         super(MixedFilter, self).__init__()
-
-        # save params for counting bops
-        self.initOpsParams = params
-        self.coutBopsParams = coutBopsParams
 
         # assure bitwidths is a list of integers
         if isinstance(bitwidths[0], list):
@@ -158,13 +154,12 @@ class MixedFilter(Block):
         # turn it on on pre-forward hook, turn it off on post-forward hook
         self.hookFlag = False
 
+        # list of (mults, adds, calc_mac_value) per op
+        self.bops = self.countOpsBops(countBopsParams)
+
     @abstractmethod
     def initOps(self, bitwidths, params):
         raise NotImplementedError('subclasses must override initOps()!')
-
-    @abstractmethod
-    def initBopsOp(self, bitwidths, params):
-        raise NotImplementedError('subclasses must override initBopsOp()!')
 
     @abstractmethod
     def setForwardFunc(self):
@@ -187,20 +182,32 @@ class MixedFilter(Block):
     def outputLayer(self):
         return self
 
-    def countOpsBops(self, op, coutBopsParams):
-        input_size, in_planes = coutBopsParams
-        return count_flops(op, input_size, in_planes)
+    def countOpsBops(self, countBopsParams):
+        input_size, in_planes = countBopsParams
+        return [count_flops(op, input_size, in_planes) for op in self.ops[0]]
 
-    # input_bitwidth is a list of input feature maps bitwidth
     def getBops(self, input_bitwidth):
         # get filter current bitwidth
         bitwidth, _ = self.getCurrentBitwidth()
-        # create (bitwidth, act_bitwidth) tuple for count_flops(), act_bitwidth is a list of input feature maps bitwidth
-        bops_bitwidth = [(bitwidth, input_bitwidth)]
-        # generate op with this bitwidth
-        op = self.initBopsOp(bops_bitwidth, self.initOpsParams)
-        # count op bops
-        bops = self.countOpsBops(op, self.coutBopsParams)
+        # bops calculation is for weight bitwidth > 1
+        assert (bitwidth > 1)
+        # get bops values
+        mults, adds, calc_mac_value = self.bops[self.curr_alpha_idx]
+        # calc max_mac_value
+        max_mac_value = 0
+        for act_bitwidth in input_bitwidth:
+            max_mac_value += calc_mac_value(bitwidth, act_bitwidth)
+        # init log2_max_mac_value
+        log2_max_mac_value = ceil(log2(max_mac_value))
+        # calc bops
+        bops = 0
+        # calc bops mults
+        for act_bitwidth in input_bitwidth:
+            bops += mults * (bitwidth - 1) * act_bitwidth
+        # add bops adds
+        bops += adds * log2_max_mac_value
+        # divide by batch size
+        bops /= 32
 
         return bops
 
@@ -312,10 +319,6 @@ class MixedConv(MixedFilter):
 
         return ops
 
-    def initBopsOp(self, bitwidths, params):
-        ops = self.initOps(bitwidths, params)
-        return ops[0]
-
     def forwardConv(self, x):
         assert (self.hookFlag is True)
         op = self.ops[self.prev_alpha_idx][self.curr_alpha_idx].op[0]
@@ -375,14 +378,6 @@ class MixedConvWithReLU(MixedFilter):
 
         return self.__initOps(bitwidths, params, buildOpFunc)
 
-    def initBopsOp(self, bitwidths, params):
-        def buildOpFunc(bitwidth, act_bitwidth, params):
-            in_planes, out_planes, kernel_size, stride = params
-            return Sequential(Conv2d(in_planes, out_planes, kernel_size=kernel_size, stride=stride, padding=floor(kernel_size / 2), bias=False))
-
-        ops = self.__initOps(bitwidths, params, buildOpFunc)
-        return ops[0]
-
     def forwardConv(self, x):
         assert (self.hookFlag is True)
         op = self.ops[self.prev_alpha_idx][self.curr_alpha_idx].op[0]
@@ -423,19 +418,3 @@ class MixedConvWithReLU(MixedFilter):
     #
     # def evalResidualForward(self, x, residual):
     #     return self.ops[self.prev_alpha_idx][self.curr_alpha_idx](x, residual)
-
-    # # count bops for 1d filter, i.e. each value in map is the #bops for a 1d feature map in input
-    # def buildBopsMap(self, bitwidths, input_bitwidth_list, params):
-    #     initOpsParams, coutBopsParams = params
-    #     # init bops map
-    #     bops = {}
-    #     # create set of input bitwidth
-    #     input_bitwidth = set(input_bitwidth_list)
-    #
-    #     # build ops
-    #     for in_bitwidth in input_bitwidth:
-    #         bops_bitwidth = [(b, in_bitwidth) for b, _ in bitwidths]
-    #         ops = self.initOps(bops_bitwidth, initOpsParams)
-    #         bops[in_bitwidth] = self.countOpsBops(ops, coutBopsParams)
-    #
-    #     return bops
