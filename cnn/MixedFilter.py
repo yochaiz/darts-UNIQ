@@ -154,7 +154,7 @@ class MixedFilter(Block):
         # turn it on on pre-forward hook, turn it off on post-forward hook
         self.hookFlag = False
 
-        # list of (mults, adds, calc_mac_value) per op
+        # list of (mults, adds, calc_mac_value, batch_size) per op
         self.bops = self.countOpsBops(countBopsParams)
 
     @abstractmethod
@@ -186,28 +186,36 @@ class MixedFilter(Block):
         input_size, in_planes = countBopsParams
         return [count_flops(op, input_size, in_planes) for op in self.ops[0]]
 
-    def getBops(self, input_bitwidth):
-        # get filter current bitwidth
-        bitwidth, _ = self.getCurrentBitwidth()
-        # bops calculation is for weight bitwidth > 1
-        assert (bitwidth > 1)
-        # get bops values
-        mults, adds, calc_mac_value = self.bops[self.curr_alpha_idx]
-        # calc max_mac_value
-        max_mac_value = 0
-        for act_bitwidth in input_bitwidth:
-            max_mac_value += calc_mac_value(bitwidth, act_bitwidth)
-        # init log2_max_mac_value
-        log2_max_mac_value = ceil(log2(max_mac_value))
-        # calc bops
-        bops = 0
-        # calc bops mults
-        for act_bitwidth in input_bitwidth:
-            bops += mults * (bitwidth - 1) * act_bitwidth
-        # add bops adds
-        bops += adds * log2_max_mac_value
-        # divide by batch size
-        bops /= 32
+    def getBops(self, input_bitwidth, bopsMap):
+        # save op bitwidth for efficient bops calculation in layer resolution
+        opBitwidth = self.getCurrentBitwidth()
+        # check if opBitwidth is in map, to save calculations
+        if opBitwidth in bopsMap:
+            bops = bopsMap[opBitwidth]
+        else:
+            # get filter current bitwidth
+            bitwidth, _ = opBitwidth
+            # bops calculation is for weight bitwidth > 1
+            assert (bitwidth > 1)
+            # get bops values
+            mults, adds, calc_mac_value, batch_size = self.bops[self.curr_alpha_idx]
+            # calc max_mac_value
+            max_mac_value = 0
+            for act_bitwidth in input_bitwidth:
+                max_mac_value += calc_mac_value(bitwidth, act_bitwidth)
+            # init log2_max_mac_value
+            log2_max_mac_value = ceil(log2(max_mac_value))
+            # calc bops
+            bops = 0
+            # calc bops mults
+            for act_bitwidth in input_bitwidth:
+                bops += mults * (bitwidth - 1) * act_bitwidth
+            # add bops adds
+            bops += adds * log2_max_mac_value
+            # divide by batch size
+            bops /= batch_size
+            # add bops value to map
+            bopsMap[opBitwidth] = bops
 
         return bops
 

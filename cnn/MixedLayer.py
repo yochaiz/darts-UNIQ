@@ -237,8 +237,10 @@ class MixedLayer(Block):
     # input_bitwidth is a list of bitwidth per feature map
     def getBops(self, input_bitwidth):
         bops = 0.0
+        # init bops map
+        bopsMap = {}
         for f in self.filters:
-            bops += f.getBops(input_bitwidth)
+            bops += f.getBops(input_bitwidth, bopsMap)
 
         return bops
 
