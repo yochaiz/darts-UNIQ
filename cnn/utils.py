@@ -287,11 +287,12 @@ def sendEmail(toAddr, subject, content, attachments=None):
     server.close()
 
 
-def sendDataEmail(model, args, content):
+def sendDataEmail(model, args, logger, content):
     # init files to send
-    attachments = [model.alphasCsvFileName, model.stats.saveFolder, args.jsonPath, model._criterion.bopsLossImgPath]
+    attachments = [model.alphasCsvFileName, model.stats.saveFolder, args.jsonPath, model._criterion.bopsLossImgPath, logger.fullPath]
     # init subject
-    subject = 'Results [{}] - Model:[{}] Bitwidth:{}'.format(args.folderName, args.model, args.bitwidth)
+    subject = 'Results [{}] - Model:[{}] Bitwidth:{} dataset:[{}] lambda:[{}]' \
+        .format(args.folderName, args.model, args.bitwidth, args.dataset, args.lmbda)
     # send email
     sendEmail(args.recipients, subject, content, attachments)
 
