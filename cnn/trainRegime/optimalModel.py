@@ -8,6 +8,10 @@ class OptimalModel(TrainRegime):
         args.init_weights_train = True
         super(OptimalModel, self).__init__(args, logger)
 
+        # log bops ratio
+        bopsRatioStr = '{:.3f}'.format(self.model.calcBopsRatio())
+        logger.addInfoTable(title='Bops ratio', rows=[[bopsRatioStr]])
+
     def train(self):
         # make sure model is quantized
         assert (self.model.isQuantized() is True)
