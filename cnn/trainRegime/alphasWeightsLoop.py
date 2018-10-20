@@ -76,7 +76,7 @@ class AlphasWeightsLoop(TrainRegime):
                 # init epoch train logger
                 trainLogger = HtmlLogger(epochFolderPath, '{}_{}'.format(epochName, wEpoch))
                 # train stage weights
-                self.trainWeights(model.choosePathByAlphas, optimizer, wEpoch, dict(train=trainLogger))
+                self.trainWeights(optimizer, wEpoch, dict(train=trainLogger))
                 # switch stage
                 switchStageFlag = model.switch_stage([lambda msg: trainLogger.addInfoToDataTable(msg)])
                 # update epoch number
@@ -87,7 +87,7 @@ class AlphasWeightsLoop(TrainRegime):
             # set loggers dictionary
             loggersDict = dict(train=trainLogger)
             # last weights training epoch we want to log also to main logger
-            trainData = self.trainWeights(model.choosePathByAlphas, optimizer, wEpoch, loggersDict)
+            trainData = self.trainWeights(optimizer, wEpoch, loggersDict)
             # validation on fixed partition by alphas values
             best_prec1 = self.__inferWithData(model.setFiltersByAlphas, epoch, loggersDict, trainData, best_prec1)
             # add data to main logger table

@@ -271,7 +271,7 @@ class TrainRegime:
 
             # training
             print('========== Epoch:[{}] =============='.format(epoch))
-            trainData = self.trainWeights(model.choosePathByAlphas, optimizer, epoch, loggersDict)
+            trainData = self.trainWeights(optimizer, epoch, loggersDict)
 
             # add epoch number
             trainData[self.epochNumKey] = epoch
@@ -461,7 +461,7 @@ class TrainRegime:
 
         return summaryData
 
-    def trainWeights(self, modelChoosePathFunc, optimizer, epoch, loggers):
+    def trainWeights(self, optimizer, epoch, loggers):
         print('*** trainWeights() ***')
         loss_container = AvgrageMeter()
         top1 = AvgrageMeter()
@@ -488,8 +488,8 @@ class TrainRegime:
             input = Variable(input, requires_grad=False).cuda()
             target = Variable(target, requires_grad=False).cuda(async=True)
 
-            # choose alpha per layer
-            modelChoosePathFunc()
+            # choose filters partition per layer
+            model.choosePathByAlphas()
             # optimize model weights
             optimizer.zero_grad()
             logits = model(input)
