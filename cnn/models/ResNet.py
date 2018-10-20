@@ -201,7 +201,6 @@ class ResNet(BaseNet):
         conditionFlag = self.nLayersQuantCompleted < len(self.layersList)
         if conditionFlag:
             layer = self.layersList[self.nLayersQuantCompleted]
-            # assert (layer.alphas.requires_grad is False)
 
             # turn off noise in layers ops
             layer.turnOffNoise(self.nLayersQuantCompleted)
@@ -220,9 +219,6 @@ class ResNet(BaseNet):
                 layer = self.layersList[self.nLayersQuantCompleted]
                 # turn on noise in the new layer we want to quantize
                 layer.turnOnNoise(self.nLayersQuantCompleted)
-                # for op in layer.getOps():
-                #     assert (op.noise is False)
-                #     op.noise = True
 
             logMsg = 'nLayersQuantCompleted:[{}/{}], learnable_params:[{}], learnable_alphas:[{}]' \
                 .format(self.nLayersQuantCompleted, self.nLayers(), len(self.learnable_params), len(self.learnable_alphas))
