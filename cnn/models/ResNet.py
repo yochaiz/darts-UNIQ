@@ -176,6 +176,7 @@ class ResNet(BaseNet):
         return self.learnable_params
 
     def turnOnWeights(self):
+        print('*** turnOnWeights() ***')
         for layerIdx, layer in enumerate(self.layersList):
             assert (layer.added_noise is False)
             assert (layer.quantized is True)
