@@ -122,14 +122,14 @@ def compute_average_bops_cost(self):
     return bops_sum / batches_count
 
 
-def compute_bops_mults_adds(self):
+def compute_bops_mults_adds(self, batch_size):
     # find Conv2d elements in model
     conv = [m for m in self.modules() if isinstance(m, Conv2d)]
     # make sure there is only single Conv2d element
     assert (len(conv) == 1)
     conv = conv[0]
     # return it adds & mults values
-    return conv.__mults__, conv.__adds__, conv.__calc_mac_value__
+    return conv.__mults__, conv.__adds__, conv.__calc_mac_value__, batch_size
 
 
 def start_flops_count(self):
@@ -376,4 +376,4 @@ def count_flops(model, input_size, in_channels):
 
     # return (flops, bops)  # Result in FLOPs
     # return bops
-    return net.compute_bops_mults_adds()
+    return net.compute_bops_mults_adds(batch_size)
