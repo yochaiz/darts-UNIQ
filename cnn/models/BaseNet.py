@@ -323,7 +323,7 @@ class BaseNet(Module):
     # set curr_alpha_idx to each filter by alphas values
     def setFiltersByAlphas(self):
         for layer in self.layersList:
-            layer.setFiltersPartition()
+            layer.setFiltersPartitionByAlphas()
 
     def isQuantized(self):
         for layer in self.layersList:
