@@ -280,27 +280,6 @@ class MixedFilter(Block):
     #     return self.ops[self.prev_alpha_idx][self.curr_alpha_idx](x)
 
 
-class MixedLinear(MixedFilter):
-    def __init__(self, bitwidths, in_features, out_features):
-        params = in_features, out_features
-
-        super(MixedLinear, self).__init__(bitwidths, params, coutBopsParams=in_features)
-
-    def initOps(self, bitwidths, params):
-        in_features, out_features = params
-
-        ops = ModuleList()
-        for bitwidth in bitwidths:
-            op = Linear(in_features, out_features)
-            op = QuantizedOp(op, bitwidth=[bitwidth], act_bitwidth=[])
-            ops.append(op)
-
-        return ops
-
-    def countOpsBops(self, ops, input_size):
-        return [count_flops(op, input_size, 1) for op in ops]
-
-
 class MixedConv(MixedFilter):
     def __init__(self, bitwidths, in_planes, out_planes, kernel_size, stride, input_size, prevLayer):
         assert (isinstance(kernel_size, list))
