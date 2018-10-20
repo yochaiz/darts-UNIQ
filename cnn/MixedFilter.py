@@ -171,10 +171,6 @@ class MixedFilter(Block):
         raise NotImplementedError('subclasses must override setForwardFunc()!')
 
     @abstractmethod
-    def countOpsBops(self, ops, coutBopsParams):
-        raise NotImplementedError('subclasses must override countBops()!')
-
-    @abstractmethod
     def getOpBitwidth(self, op):
         raise NotImplementedError('subclasses must override getOpBitwidth()!')
 
