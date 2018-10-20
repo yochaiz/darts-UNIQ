@@ -2,7 +2,7 @@ from collections import OrderedDict
 
 from torch.nn import Sequential, Conv2d, Linear
 
-from cnn.MixedFilter import MixedConvWithReLU, MixedLinear
+from cnn.MixedFilter import MixedConvWithReLU
 from cnn.models.BaseNet import BaseNet
 
 from UNIQ.actquant import ActQuant
