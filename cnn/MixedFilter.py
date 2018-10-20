@@ -178,10 +178,6 @@ class MixedFilter(Block):
     def getCurrentOutputBitwidth(self):
         raise NotImplementedError('subclasses must override getCurrentOutputBitwidth()!')
 
-    # @abstractmethod
-    # def getOutputBitwidthList(self):
-    #     raise NotImplementedError('subclasses must override getOutputBitwidthList()!')
-
     def buildOpsForwardCounters(self):
         return [[0] * len(ops) for ops in self.ops]
 
@@ -363,7 +359,7 @@ class MixedConvWithReLU(MixedFilter):
 
         self.in_planes = in_planes
 
-        # init output (activations) bitwidths list
+        # init list of possible output (activations) bitwidth
         self.outputBitwidth = []
         # it doesn't matter which copy of ops we take, the attributes are the same in all copies
         for op in self.ops[0]:
