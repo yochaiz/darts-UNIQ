@@ -1,6 +1,6 @@
 from itertools import groupby
 
-from torch import cat, chunk, tensor, ones, IntTensor
+from torch import cat, chunk, tensor, zeros, IntTensor
 from torch.nn import ModuleList, BatchNorm2d
 from torch.distributions.multinomial import Multinomial
 from torch.nn import functional as F
@@ -23,6 +23,7 @@ def collectStats(type, val):
 
 
 def postForward(self, _, output):
+    assert (False)
     if self.quantized is True:
         # calc mean, max value per feature map to stats
         layerMax = tensor([output.select(1, j).max() for j in range(output.size(1))])
@@ -57,8 +58,7 @@ class MixedLayer(Block):
         self.bn = BatchNorm2d(nFilters)
 
         # init operations alphas (weights)
-        value = 1.0 / self.numOfOps()
-        self.alphas = tensor((ones(self.numOfOps()) * value).cuda(), requires_grad=True)
+        self.alphas = tensor((zeros(self.numOfOps())).cuda(), requires_grad=True)
         self.alphas = self.alphas.cuda()
         # init filters current partition by alphas, i.e. how many filters are for each alpha, from each quantization
         self.currFiltersPartition = [0] * self.numOfOps()
@@ -145,7 +145,7 @@ class MixedLayer(Block):
 
     # set filters curr_alpha_idx based on partition tensor
     # partition is IntTensor
-    def __setFiltersPartition(self, partition):
+    def setFiltersPartition(self, partition):
         assert (partition.sum().item() == self.nFilters())
         # save current filters partition by alphas
         self.currFiltersPartition = [0] * self.numOfOps()
@@ -166,10 +166,10 @@ class MixedLayer(Block):
         if partition.sum().item() < self.nFilters():
             partition[-1] = self.nFilters() - partition[:-1].sum().item()
 
-        self.__setFiltersPartition(partition)
+        self.setFiltersPartition(partition)
 
     # set filters partition based on alphas ratio
-    def setFiltersPartition(self):
+    def setFiltersPartitionByAlphas(self):
         probs = F.softmax(self.alphas, dim=-1)
         self.__setFiltersPartitionFromRatio(probs)
 
@@ -283,7 +283,7 @@ class MixedLayer(Block):
     def choosePathByAlphas(self):
         dist = Multinomial(total_count=self.nFilters(), logits=self.alphas)
         partition = dist.sample().type(IntTensor)
-        self.__setFiltersPartition(partition)
+        self.setFiltersPartition(partition)
 
     # def evalMode(self):
     #     pass
