@@ -213,6 +213,16 @@ class MixedFilter(Block):
         # it doesn't matter which copy of ops we take, the attributes are the same in all copies
         return self.getOpBitwidth(self.ops[0][self.curr_alpha_idx])
 
+    def numOfOps(self):
+        # it doesn't matter which copy of ops we take, length is the same in all copies
+        return len(self.ops[0])
+
+    def nOpsCopies(self):
+        return len(self.ops)
+
+    def getOps(self):
+        return self.opsList
+
     # from UNIQ.quantize import check_quantization
     # op = self.ops[0][self.curr_alpha_idx]
     # v1 = check_quantization(op.op[0].weight)
@@ -246,16 +256,6 @@ class MixedFilter(Block):
     #     prev_alpha_idx = self.preForward()
     #     op = self.ops[prev_alpha_idx][self.curr_alpha_idx]
     #     return op(x)
-
-    def numOfOps(self):
-        # it doesn't matter which copy of ops we take, length is the same in all copies
-        return len(self.ops[0])
-
-    def nOpsCopies(self):
-        return len(self.ops)
-
-    def getOps(self):
-        return self.opsList
 
     # def trainForward(self, x):
     #     if self.alphas.requires_grad:
