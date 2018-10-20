@@ -329,7 +329,7 @@ class TrainRegime:
         for line in body:
             content += line + '\n'
 
-        sendDataEmail(self.model, self.args, content)
+        sendDataEmail(self.model, self.args, self.logger, content)
 
     # apply defined formats on dict values by keys
     def __applyFormats(self, dict):
