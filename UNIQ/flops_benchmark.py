@@ -8,6 +8,16 @@ param_bitwidth = 4
 act_bitwidth = 4
 
 
+class CalcMac:
+    def __init__(self, kernel_height, kernel_width, groups):
+        self.kernel_height = kernel_height
+        self.kernel_width = kernel_width
+        self.groups = groups
+
+    def calc(self, bitwidth, act_bitwidth):
+        return (2 ** act_bitwidth - 1) * (self.kernel_height * self.kernel_width) / (self.groups ** 2) * (2 ** (bitwidth - 1) - 1)
+
+
 # ---- Public functions
 
 
@@ -276,10 +286,7 @@ def conv_flops_counter_hook(conv_module, input, output):
     conv_module.__adds__ = batch_size * output_height * output_width * out_channels * (in_channels * kernel_height * kernel_width - 1)
 
     # create function to calc mac value
-    def calc_mac_value(bitwidth, act_bitwidth):
-        return (2 ** act_bitwidth - 1) * (kernel_height * kernel_width) / (groups ** 2) * (2 ** (bitwidth - 1) - 1)
-
-    conv_module.__calc_mac_value__ = calc_mac_value
+    conv_module.__calc_mac_value__ = CalcMac(kernel_height, kernel_width, groups)
 
 
 def batch_counter_hook(module, input, output):
