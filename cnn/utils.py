@@ -401,7 +401,7 @@ def logForwardCounters(model, loggerFuncs):
         return
 
     rows = [['Layer #', 'Counters']]
-    counterCols = ['Prev idx', 'Current idx', 'Counter']
+    counterCols = ['Prev idx', 'bitwidth', 'Counter']
 
     for layerIdx, layer in enumerate(model.layersList):
         filter = layer.filters[0]
@@ -423,6 +423,8 @@ def logForwardCounters(model, loggerFuncs):
                 counters.append(countersByIndices[i][j])
                 indices.append((i, j))
 
+        # get layer bitwidths
+        bitwidths = layer.getAllBitwidths()
         # for each layer, sort counters in descending order
         layerRows = [counterCols]
         countersTotal = 0
@@ -432,7 +434,7 @@ def logForwardCounters(model, loggerFuncs):
             i, j = indices[maxIdx]
 
             # add counter as new row
-            layerRows.append([i, j, counters[maxIdx]])
+            layerRows.append([i, bitwidths[j], counters[maxIdx]])
 
             # update countersTotal
             countersTotal += counters[maxIdx]
