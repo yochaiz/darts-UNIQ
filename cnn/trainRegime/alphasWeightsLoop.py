@@ -11,7 +11,7 @@ class AlphasWeightsLoop(TrainRegime):
 
         # init model replicator
         replicatorClass = gradEstimators.__dict__[args.grad_estimator]
-        replicator = replicatorClass(self.model, self.modelClass, args)
+        replicator = replicatorClass(self.model, self.modelClass, args, logger)
         # init architect
         self.architect = Architect(replicator, args)
         # set number of different partitions we want to draw from alphas multinomial distribution in order to estimate their validation accuracy
