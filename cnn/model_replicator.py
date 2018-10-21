@@ -7,7 +7,7 @@ from torch.nn import functional as F
 
 
 class ModelReplicator:
-    def __init__(self, model, modelClass, args):
+    def __init__(self, model, modelClass, args, logger):
         self.gpuIDs = args.gpu
         self.alphaLimit = args.alpha_limit
         self.alphaLimitCounter = args.alpha_limit_counter
@@ -15,6 +15,10 @@ class ModelReplicator:
         self.nSamples = args.nSamples
         # init replications list
         self.replications = []
+        # save logger
+        self.logger = logger
+        self.title = 'Replications'
+        self.rows = []
 
         # create replications
         for gpu in self.gpuIDs:
@@ -25,20 +29,24 @@ class ModelReplicator:
                 cModel = modelClass(args)
                 # set model to cuda on specific GPU
                 cModel = cModel.cuda()
-                # turn off noise in 1st layer
-                layerIdx = 0
-                cModel.layersList[layerIdx].turnOffNoise(layerIdx)
                 # set model criterion to its GPU
                 cModel._criterion.cuda()
+                # model switch stages, make model quantized
+                self.__switch_stage(cModel)
                 # set mode to eval mode
                 cModel.eval()
                 # add model to replications
                 self.replications.append((cModel, gpu))
 
-        # update replications weights + quantize weights
-        self.updateModelWeights(model)
+        self.rows.insert(0, ['nReplications', len(self.replications)])
+
+        # update replications weights, take main model quantized weights
+        loggerFunc = [lambda msg: self.rows.append(['Init', msg])]
+        self.updateModelWeights(model, loggerFunc)
         # restore original gpu
         set_device(args.gpu[0])
+        # create info table
+        self.logger.addInfoTable(self.title, self.rows)
 
     # build args for pool.map
     @abstractmethod
@@ -60,22 +68,13 @@ class ModelReplicator:
     def processResults(self, model, results):
         raise NotImplementedError('subclasses must override processResults()!')
 
-    # quantize all replications ops
-    def quantize(self):
-        print('model replicator quantize()')
-        for cModel, _ in self.replications:
-            for layerIdx, layer in enumerate(cModel.layersList):
-                layer.quantize(layerIdx)
-                # for op in layer.getOps():
-                #     save_state(op, None)
+    def __switch_stage(self, cModel):
+        switchStageFlag = True
+        while switchStageFlag:
+            switchStageFlag = cModel.switch_stage()
 
-    def restore_quantize(self):
-        print('model replicator restore_quantize()')
-        for cModel, _ in self.replications:
-            for layerIdx, layer in enumerate(cModel.layersList):
-                layer.unQuantize(layerIdx)
-                # for op in layer.getOps():
-                #     restore_state(op, None, None)
+        assert (cModel.isQuantized() is True)
+        self.rows.append(['cModel [{}]'.format(len(self.replications)), 'Quantized'])
 
     # Wrapper function per process, i.e. per replication
     def replicationFunc(self, args):
@@ -88,6 +87,9 @@ class ModelReplicator:
 
         return result, counters
 
+    def logWeightsUpdateMsg(self, msg, nEpoch):
+        self.logger.addRowToInfoTableByTitle(self.title, [nEpoch, msg])
+
     def updateModelWeights(self, model, loggerFuncs=[]):
         assert (model.isQuantized() is True)
         # load model state dict
@@ -95,7 +97,7 @@ class ModelReplicator:
 
         # load model weights
         for cModel, _ in self.replications:
-            assert (cModel.layersList[0].quantized is False)
+            assert (cModel.isQuantized() is True)
             cModel.load_state_dict(modelStateDict)
 
         # apply loggers funcs
@@ -201,3 +203,16 @@ class ModelReplicator:
                                 filter.opsForwardCounters[prev_alpha][curr_alpha] += filterCounter[prev_alpha][curr_alpha]
 
             return res
+
+# # quantize all replications ops
+# def quantize(self):
+#     print('model replicator quantize()')
+#     for cModel, _ in self.replications:
+#         for layerIdx, layer in enumerate(cModel.layersList):
+#             layer.quantize(layerIdx)
+#
+# def restore_quantize(self):
+#     print('model replicator restore_quantize()')
+#     for cModel, _ in self.replications:
+#         for layerIdx, layer in enumerate(cModel.layersList):
+#             layer.unQuantize(layerIdx)
