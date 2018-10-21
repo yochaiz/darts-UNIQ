@@ -476,13 +476,11 @@ class TrainRegime:
                 # calc partition bops ratio
                 model.setFiltersByAlphas()
                 bopsRatio = model.calcBopsRatio()
-                # collect missing keys
-                dataRow[self.batchNumKey] = '{}/{}'.format(step, nBatches)
-                dataRow[self.timeKey] = endTime - startTime
-                dataRow[self.archLossKey] = loss
-                dataRow[self.crossEntropyKey] = crossEntropyLoss
-                dataRow[self.bopsLossKey] = bopsLoss
-                dataRow[self.pathBopsRatioKey] = bopsRatio
+                # add missing keys
+                dataRow.update({
+                    self.batchNumKey: '{}/{}'.format(step, nBatches), self.timeKey: endTime - startTime, self.archLossKey: loss,
+                    self.crossEntropyKey: crossEntropyLoss, self.bopsLossKey: bopsLoss, self.pathBopsRatioKey: bopsRatio
+                })
                 # apply formats
                 self.__applyFormats(dataRow)
                 # add row to data table
