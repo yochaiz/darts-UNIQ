@@ -27,11 +27,11 @@ class LayerSamePath(RandomPath):
                 # forward input in model
                 logits = cModel(input)
                 # calc loss
-                loss = cModel._criterion(logits, target, cModel.countBops()).detach()
+                loss, crossEntropyLoss, bopsLoss = cModel._criterion(logits, target, cModel.countBops())
                 # get sample model partition
                 modelPartition = [layer.getCurrentFiltersPartition() for layer in cModel.layersList]
                 # add sample data to list
-                samplesData.append((loss.item(), modelPartition))
+                samplesData.append((loss.item(), crossEntropyLoss.item(), bopsLoss.item(), modelPartition))
 
         return samplesData
 
@@ -43,10 +43,16 @@ class LayerSamePath(RandomPath):
             samplesData.extend(partialSamplesData)
 
         assert (len(samplesData) == self.nSamples)
-        # calc total loss
-        loss = sum(l for l, p in samplesData)
+        # calc total losses
+        totalLoss, crossEntropyLoss, bopsLoss = 0.0, 0.0, 0.0
+        for l, c, b, _ in samplesData:
+            totalLoss += l
+            crossEntropyLoss += c
+            bopsLoss += b
         # calc loss average
-        lossAvg = loss / self.nSamples
+        lossAvg = totalLoss / self.nSamples
+        crossEntropyAvg = crossEntropyLoss / self.nSamples
+        bopsAvg = bopsLoss / self.nSamples
         # calc gradient for all alphas
         for layerIdx, layer in enumerate(model.layersList):
             # calc layer alphas softmax
@@ -58,7 +64,7 @@ class LayerSamePath(RandomPath):
             v2 = []
             for alphaIdx in range(layer.numOfOps()):
                 # calc weighted loss average
-                weightedLossAvg = sum([l * p[layerIdx][alphaIdx] for l, p in samplesData]) / self.nSamples
+                weightedLossAvg = sum([l * p[layerIdx][alphaIdx] for l, _, _, p in samplesData]) / self.nSamples
                 v2.append(weightedLossAvg)
 
             # convert v2 to tensor
@@ -71,11 +77,11 @@ class LayerSamePath(RandomPath):
         # add average
         stats.containers[stats.lossAvgKey][0].append(lossAvg)
         # add variance
-        lossVariance = [((l - lossAvg) ** 2) for l, p in samplesData]
+        lossVariance = [((l - lossAvg) ** 2) for l, _, _, p in samplesData]
         lossVariance = sum(lossVariance) / (self.nSamples - 1)
         stats.containers[stats.lossVarianceKey][0].append(lossVariance)
 
-        return lossAvg
+        return lossAvg, crossEntropyAvg, bopsAvg
 
     # def lossPerReplication(self, args):
     #     cModel, input, target, nSamples, gpu = args
