@@ -7,6 +7,7 @@ from urllib.parse import quote
 from numpy import linspace
 
 import torch.nn.functional as F
+from torch import save as saveFile
 
 import matplotlib
 
@@ -56,6 +57,9 @@ class Statistics:
         self.plotLayersSeparateKeys = [self.alphaDistributionKey]
         # init colors map
         self.colormap = plt.cm.hot  # nipy_spectral, Set1,Paired
+        # init plots data dictionary
+        self.plotsDataFilePath = '{}/plots.data'.format(saveFolder)
+        self.plotsData = {}
 
     def addBatchData(self, model, nEpoch, nBatch):
         # add batch label
@@ -135,8 +139,12 @@ class Statistics:
         isPlotEmpty = True
         # init colors
         colors = [self.colormap(i) for i in linspace(0.7, 0.0, len(data))]
+        # reset plot data in plotsData dictionary
+        self.plotsData[title] = dict(x=xValues, data=[])
 
         for i, layerData in enumerate(data):
+            # add data to plotsData
+            self.plotsData[title]['data'].append(dict(y=layerData, style=self.ptsStyle, label=labelFunc(i), color=colors[i]))
             # plot by shortest length between xValues, layerData
             plotLength = min(len(xValues), len(layerData))
             xValues = xValues[:plotLength]
@@ -144,7 +152,8 @@ class Statistics:
 
             ax.plot(xValues, layerData, self.ptsStyle, label=labelFunc(i), c=colors[i])
             if axOther:
-                axOther.plot(xValues, layerData, '-', label=labelFunc(i), c=colors[i])
+                axOther.plot(xValues, layerData, self.ptsStyle, label=labelFunc(i), c=colors[i])
+
             isPlotEmpty = False
             dataMax = max(dataMax, max(layerData))
             dataSum.append(sum(layerData) / len(layerData))
@@ -158,7 +167,7 @@ class Statistics:
             # set yMax
             yMax = dataMax * 1.1
 
-            # axOther doesn't scale
+            # don't scale axOther
             if axOther:
                 if yLabel == self.alphaDistributionKey:
                     yMax = 1.1
@@ -229,6 +238,9 @@ class Statistics:
             self.__setFigProperties(fig, figSize=(40, 20))
             # save as HTML
             self.saveFigPDF(figs, fileName)
+
+        # save plots data
+        saveFile(self.plotsData, self.plotsDataFilePath)
 
     def plotBops(self, layersList):
         # create plot
