@@ -10,6 +10,7 @@ from torch import load as loadModel
 from torch import save as saveModel
 
 from cnn.MixedLayer import MixedLayer
+from cnn.MixedFilter import MixedConvWithReLU
 from cnn.uniq_loss import UniqLoss
 from cnn.statistics import Statistics
 
@@ -295,6 +296,38 @@ class BaseNet(Module):
             for filter in layer.filters:
                 # reset filter counters
                 filter.resetOpsForwardCounters()
+
+    # calc bops of uniform models, based on filters ops bitwidth
+    def calcBaselineBops(self):
+        baselineBops = {}
+        # iterate over model layers
+        for layer in self.layersList:
+            # we want to iterate only over MixedConvWithReLU filters layer
+            if isinstance(layer.filters[0], MixedConvWithReLU):
+                # get layer filters bitwidth list
+                layerBitwidths = layer.getAllBitwidths()
+                # iterate over bitwidth and calc bops for their uniform model
+                for idx, bitwidth in enumerate(layerBitwidths):
+                    # calc only for bitwidths that are not in baselineBops dictionary
+                    if bitwidth not in baselineBops:
+                        # if we need to calc bops for bitwidth uniform model, then we have to set filters curr_alpha_idx
+                        for layer2 in self.layersList:
+                            # get layer bitwidth list
+                            layerBitwidths2 = layer2.getAllBitwidths()
+                            # find target bitwidth in bitwidth list
+                            if bitwidth in layerBitwidths2:
+                                idx = layerBitwidths2.index(bitwidth)
+                            else:
+                                # if it is a MixedConv layer, then modify the bitwidth we are looking for
+                                modifiedBitwidth = (bitwidth[0], None)
+                                idx = layerBitwidths2.index(modifiedBitwidth)
+                            # set layers curr_alpha_idx to target bitwidth index
+                            for filter in layer2.filters:
+                                filter.curr_alpha_idx = idx
+                        # update bops value in dictionary
+                        baselineBops[bitwidth] = self.countBops()
+
+        return baselineBops
 
     # return top k operations per layer
     def topOps(self, k):
