@@ -98,9 +98,9 @@ class BaseNet(Module):
             self.layersPerm.append(list(range(len(layer.alphas))))
             self.nPerms *= len(layer.alphas)
 
-        # # init alphas DataFrame
-        # self.alphas_df = None
-        # self.__initAlphasDataFrame(saveFolder)
+        # init alphas DataFrame
+        self.alphas_df = None
+        self.__initAlphasDataFrame(saveFolder)
 
     @abstractmethod
     def initLayers(self, params):
@@ -137,34 +137,6 @@ class BaseNet(Module):
 
     def arch_parameters(self):
         return self.learnable_alphas
-
-    # def __loadStatistics(self, filename):
-    #     if exists(filename):
-    #         # stats is a list of dicts per layer
-    #         stats = loadModel(filename)
-    #         print('Loading statistics')
-    #
-    #         for i, layer in enumerate(self.layersList):
-    #             # get layer dict
-    #             layerStats = stats[i]
-    #             # iterate over layer filters
-    #             for filter in layer.filters:
-    #                 # iterate over filter modules
-    #                 for m in filter.modules():
-    #                     # create module type as string
-    #                     moduleType = '{}'.format(type(m))
-    #                     NICEprefix = "'NICE."
-    #                     if NICEprefix in moduleType:
-    #                         moduleType = moduleType.replace(NICEprefix, "'")
-    #
-    #                     # check if type string is in dict
-    #                     if moduleType in layerStats:
-    #                         # go over dict keys, which is the module variables
-    #                         for varName in layerStats[moduleType].keys():
-    #                             v = getattr(m, varName)
-    #                             # if variable has value in dict, assign it
-    #                             if v is not None:
-    #                                 v.data = layerStats[moduleType][varName].data
 
     def calcStatistics(self, statistics_queue):
         # prepare for collecting statistics, reset register_buffers values
@@ -349,31 +321,59 @@ class BaseNet(Module):
         for layerIdx, alphas in state:
             self.layersList[layerIdx].alphas.data = alphas
 
-# def __initAlphasDataFrame(self, saveFolder):
-#     if saveFolder:
-#         # update save path if saveFolder exists
-#         self.alphasCsvFileName = '{}/{}'.format(saveFolder, self.alphasCsvFileName)
-#         # init DataFrame cols
-#         cols = ['Epoch', 'Batch']
-#         cols += ['Layer_{}'.format(i) for i in range(self.nLayers())]
-#         self.cols = cols
-#         # init DataFrame
-#         self.alphas_df = DataFrame([], columns=cols)
-#         # set init data
-#         data = ['init', 'init']
-#         # save alphas data
-#         self.save_alphas_to_csv(data)
+    def __initAlphasDataFrame(self, saveFolder):
+        if saveFolder:
+            # update save path if saveFolder exists
+            self.alphasCsvFileName = '{}/{}'.format(saveFolder, self.alphasCsvFileName)
+            # init DataFrame cols
+            cols = ['Epoch', 'Batch']
+            cols += ['Layer_{}'.format(i) for i in range(self.nLayers())]
+            self.cols = cols
+            # init DataFrame
+            self.alphas_df = DataFrame([], columns=cols)
+            # set init data
+            data = ['init', 'init']
+            # save alphas data
+            self.save_alphas_to_csv(data)
 
-# # save alphas values to csv
-# def save_alphas_to_csv(self, data):
-#     if self.alphas_df is not None:
-#         data += [[round(e.item(), 5) for e in layer.alphas] for layer in self.layersList]
-#         # create new row
-#         d = DataFrame([data], columns=self.cols)
-#         # add row
-#         self.alphas_df = self.alphas_df.append(d)
-#         # save DataFrame
-#         self.alphas_df.to_csv(self.alphasCsvFileName)
+    # save alphas values to csv
+    def save_alphas_to_csv(self, data):
+        if self.alphas_df is not None:
+            data += [[round(e.item(), 5) for e in layer.alphas] for layer in self.layersList]
+            # create new row
+            d = DataFrame([data], columns=self.cols)
+            # add row
+            self.alphas_df = self.alphas_df.append(d)
+            # save DataFrame
+            self.alphas_df.to_csv(self.alphasCsvFileName)
+
+# def __loadStatistics(self, filename):
+#     if exists(filename):
+#         # stats is a list of dicts per layer
+#         stats = loadModel(filename)
+#         print('Loading statistics')
+#
+#         for i, layer in enumerate(self.layersList):
+#             # get layer dict
+#             layerStats = stats[i]
+#             # iterate over layer filters
+#             for filter in layer.filters:
+#                 # iterate over filter modules
+#                 for m in filter.modules():
+#                     # create module type as string
+#                     moduleType = '{}'.format(type(m))
+#                     NICEprefix = "'NICE."
+#                     if NICEprefix in moduleType:
+#                         moduleType = moduleType.replace(NICEprefix, "'")
+#
+#                     # check if type string is in dict
+#                     if moduleType in layerStats:
+#                         # go over dict keys, which is the module variables
+#                         for varName in layerStats[moduleType].keys():
+#                             v = getattr(m, varName)
+#                             # if variable has value in dict, assign it
+#                             if v is not None:
+#                                 v.data = layerStats[moduleType][varName].data
 
 # # select random alpha
 # def chooseRandomPath(self):
