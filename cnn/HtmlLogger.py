@@ -119,7 +119,7 @@ class HtmlLogger:
     def createInfoTable(self, title, rows):
         # open a new table
         res = '<button class="collapsible"> {} </button>'.format(title)
-        res += '<div class="content">'
+        res += '<div class="content" style="overflow: auto">'
         # add rows
         res += self.__createTableFromRows(rows)
         # close table
