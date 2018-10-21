@@ -76,6 +76,8 @@ class LayerSamePath(RandomPath):
         stats = model.stats
         # add average
         stats.containers[stats.lossAvgKey][0].append(lossAvg)
+        stats.containers[stats.crossEntropyLossAvgKey][0].append(crossEntropyAvg)
+        stats.containers[stats.bopsLossAvgKey][0].append(bopsAvg)
         # add variance
         lossVariance = [((l - lossAvg) ** 2) for l, _, _, p in samplesData]
         lossVariance = sum(lossVariance) / (self.nSamples - 1)
