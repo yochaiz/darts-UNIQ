@@ -455,17 +455,13 @@ def logDominantQuantizedOp(model, k, loggerFuncs):
         return
 
     rows = [['Layer #', 'Alphas']]
-    alphaCols = ['Index', 'Ratio', 'Value', 'Bitwidth', 'Act bitwidth']
+    alphaCols = ['Index', 'Ratio', 'Value', 'Bitwidth']
 
     top = model.topOps(k=k)
-    attributes = ['bitwidth', 'act_bitwidth']
     for i, layerTop in enumerate(top):
         layerRow = [alphaCols]
-        for idx, w, alpha, layer in layerTop:
-            alphaRow = [idx, '{:.5f}'.format(w), '{:.5f}'.format(alpha)]
-            for attr in attributes:
-                v = getattr(layer, attr, '')
-                alphaRow.append(v)
+        for idx, w, alpha, bitwidth in layerTop:
+            alphaRow = [idx, '{:.5f}'.format(w), '{:.5f}'.format(alpha), bitwidth]
             # add alpha data row to layer data table
             layerRow.append(alphaRow)
         # add layer data table to model table as row
