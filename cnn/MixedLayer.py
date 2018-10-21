@@ -277,15 +277,15 @@ class MixedLayer(Block):
     def outputLayer(self):
         return self
 
-    # bitwidth list is the same for all filters, therefore we can use the 1st filter list
-    # def getOutputBitwidthList(self):
-    #     return self.filters[0].getOutputBitwidthList()
-
     # select alpha based on alphas distribution
     def choosePathByAlphas(self):
         dist = Multinomial(total_count=self.nFilters(), logits=self.alphas)
         partition = dist.sample().type(IntTensor)
         self.setFiltersPartition(partition)
+
+    # bitwidth list is the same for all filters, therefore we can use the 1st filter list
+    # def getOutputBitwidthList(self):
+    #     return self.filters[0].getOutputBitwidthList()
 
     # def evalMode(self):
     #     pass
