@@ -4,8 +4,8 @@ from math import ceil
 from io import BytesIO
 from base64 import b64encode
 from urllib.parse import quote
+from numpy import linspace
 
-from torch import tensor, float32
 import torch.nn.functional as F
 
 import matplotlib
@@ -54,6 +54,8 @@ class Statistics:
         # map each list we plot for all layers on single plot to filename
         self.plotAllLayersKeys = [self.entropyKey, self.lossAvgKey, self.lossVarianceKey]
         self.plotLayersSeparateKeys = [self.alphaDistributionKey]
+        # init colors map
+        self.colormap = plt.cm.hot  # nipy_spectral, Set1,Paired
 
     def addBatchData(self, model, nEpoch, nBatch):
         # add batch label
@@ -123,8 +125,7 @@ class Statistics:
         self.__setAxesProperties(ax, xLabel, yLabel, yMax, title)
         self.__setFigProperties(fig)
 
-    def __plotContainer(self, data, xValues, xLabel, yLabel, title, labelFunc, axOther=None, scale=True,
-                        annotate=None):
+    def __plotContainer(self, data, xValues, xLabel, yLabel, title, labelFunc, axOther=None, scale=True, annotate=None):
         # create plot
         fig, ax = plt.subplots(nrows=1, ncols=1)
         # init ylim values
@@ -132,6 +133,8 @@ class Statistics:
         dataSum = []
         # init flag to check whether we have plotted something or not
         isPlotEmpty = True
+        # init colors
+        colors = [self.colormap(i) for i in linspace(0.7, 0.0, len(data))]
 
         for i, layerData in enumerate(data):
             # plot by shortest length between xValues, layerData
@@ -139,9 +142,9 @@ class Statistics:
             xValues = xValues[:plotLength]
             layerData = layerData[:plotLength]
 
-            ax.plot(xValues, layerData, self.ptsStyle, label=labelFunc(i))
+            ax.plot(xValues, layerData, self.ptsStyle, label=labelFunc(i), c=colors[i])
             if axOther:
-                axOther.plot(xValues, layerData, '-', label=labelFunc(i))
+                axOther.plot(xValues, layerData, '-', label=labelFunc(i), c=colors[i])
             isPlotEmpty = False
             dataMax = max(dataMax, max(layerData))
             dataSum.append(sum(layerData) / len(layerData))
