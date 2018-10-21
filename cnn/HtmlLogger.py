@@ -53,6 +53,8 @@ class HtmlLogger:
         self.dataTable = ''
         self.dataTableCols = None
         self.nColsDataTable = None
+        self.dataTableRowsNum = 0
+        self.nRowsPerColumnsRow = 10
 
     # converts dictionary to rows with nElementPerRow (k,v) elements at most in each row
     @staticmethod
@@ -178,6 +180,7 @@ class HtmlLogger:
         return '<tr><th colspan={} bgcolor="gray"> {} </th></tr>'.format(nCols, title)
 
     def createDataTable(self, title, columns):
+        self.dataTableRowsNum = 0
         res = ''
         # check if we need to close last data table in page, before starting a new one
         if len(self.dataTable) > 0:
@@ -216,6 +219,11 @@ class HtmlLogger:
         res += '</tr>'
         # add data to dataTable
         self.dataTable += res
+        # update number of data table rows
+        self.dataTableRowsNum += 1
+        # add columns row if needed
+        if self.dataTableRowsNum % self.nRowsPerColumnsRow == 0:
+            self.addColumnsRowToDataTable()
         if writeFile:
             # write to file
             self.__writeToFile()
@@ -236,7 +244,7 @@ class HtmlLogger:
         self.__writeToFile()
 
     def plot(self, **kwargs):
-        # data is a list, where each element is [x , y , 'bo' (i.e. pts style]
+        # data is a list, where each element is [x , y , 'bo' (i.e. pts style)]
         data = kwargs.get('data')
 
         if not data:
