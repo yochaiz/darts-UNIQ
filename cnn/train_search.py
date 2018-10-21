@@ -71,6 +71,8 @@ def parseArgs(lossFuncsLambda):
     parser.add_argument('--alpha_limit_counter', type=int, default=10,
                         help='how many consecutive steps the optimal alpha has to be over limit in order to stop layer alphas optimization')
 
+    parser.add_argument('--partition', type=int, default=0)
+
     parser.add_argument('--loss', type=str, default='UniqLoss', choices=[key for key in lossFuncsLambda.keys()])
     parser.add_argument('--lmbda', type=float, default=1.0, help='Lambda value for UniqLoss')
     parser.add_argument('--baselineBits', type=str, default='3,3', help='bits budget')
