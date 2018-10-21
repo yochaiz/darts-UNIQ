@@ -21,6 +21,8 @@ class TrainRegime:
     validLossKey = 'Validation loss'
     validAccKey = 'Validation acc'
     archLossKey = 'Arch loss'
+    crossEntropyKey = 'CrossEntropy loss'
+    bopsLossKey = 'Bops loss'
     epochNumKey = 'Epoch #'
     batchNumKey = 'Batch #'
     pathBopsRatioKey = 'Path bops ratio'
@@ -34,7 +36,8 @@ class TrainRegime:
 
     # init formats for keys
     formats = {validLossKey: '{:.5f}', validAccKey: '{:.3f}', optBopsRatioKey: '{:.3f}', timeKey: '{:.3f}', archLossKey: '{:.5f}', lrKey: '{:.5f}',
-               trainLossKey: '{:.5f}', trainAccKey: '{:.3f}', pathBopsRatioKey: '{:.3f}', validBopsRatioKey: '{:.3f}'}
+               trainLossKey: '{:.5f}', trainAccKey: '{:.3f}', pathBopsRatioKey: '{:.3f}', validBopsRatioKey: '{:.3f}', crossEntropyKey: '{:.5f}',
+               bopsLossKey: '{:.5f}'}
 
     initWeightsTrainTableTitle = 'Initial weights training'
     k = 2
@@ -42,7 +45,7 @@ class TrainRegime:
 
     colsTrainWeights = [batchNumKey, trainLossKey, trainAccKey, bitwidthKey, pathBopsRatioKey, statsKey, timeKey]
     colsMainInitWeightsTrain = [epochNumKey, trainLossKey, trainAccKey, validLossKey, validAccKey, validBopsRatioKey, lrKey]
-    colsTrainAlphas = [batchNumKey, archLossKey, alphasTableTitle, pathBopsRatioKey, forwardCountersKey, timeKey]
+    colsTrainAlphas = [batchNumKey, archLossKey, crossEntropyKey, bopsLossKey, alphasTableTitle, pathBopsRatioKey, forwardCountersKey, timeKey]
     colsValidation = [batchNumKey, validLossKey, validAccKey, statsKey, timeKey]
     colsValidationStatistics = [forwardCountersKey, bitwidthKey, validBopsRatioKey]
     colsMainLogger = [epochNumKey, archLossKey, trainLossKey, trainAccKey, validLossKey, validAccKey, validBopsRatioKey, bitwidthKey, lrKey]
@@ -65,22 +68,22 @@ class TrainRegime:
         # from torch import tensor, IntTensor
         # partition = None
         # if args.partition == 1:
-        #     # partition = [[0, 0, 3, 7, 6], [2, 8, 1, 1, 4], [6, 2, 2, 2, 4], [0, 0, 7, 4, 5], [1, 13, 0, 0, 2], [5, 2, 2, 5, 2], [0, 0, 7, 6, 3],
-        #     #              [7, 12, 4, 2, 7], [27, 0, 1, 1, 3], [18, 5, 2, 2, 5], [0, 0, 0, 29, 3], [4, 19, 3, 1, 5], [1, 1, 2, 6, 22],
-        #     #              [1, 0, 14, 11, 6], [3, 3, 53, 2, 3], [1, 0, 0, 0, 63], [3, 46, 7, 5, 3], [1, 0, 0, 61, 2], [2, 57, 1, 2, 2],
-        #     #              [58, 3, 1, 0, 2], [32, 20, 0, 3, 9]]
-        #     partition = [[0, 1, 12, 3, 0], [4, 9, 1, 1, 1], [1, 0, 10, 3, 2], [3, 1, 11, 0, 1], [3, 9, 2, 2, 0], [4, 2, 3, 7, 0], [1, 0, 10, 4, 1],
-        #               [7, 11, 4, 8, 2], [26, 0, 5, 1, 0], [18, 6, 2, 6, 0], [1, 2, 1, 28, 0], [3, 25, 0, 2, 2], [5, 2, 14, 6, 5], [0, 2, 22, 4, 4],
-        #                  [5, 1, 51, 5, 2], [22, 0, 0, 4, 38], [12, 6, 26, 17, 3], [9, 0, 1, 52, 2], [26, 3, 12, 22, 1], [60, 4, 0, 0, 0],
-        #                  [38, 9, 0, 9, 8]]
+        # partition = [[0, 0, 3, 7, 6], [2, 8, 1, 1, 4], [6, 2, 2, 2, 4], [0, 0, 7, 4, 5], [1, 13, 0, 0, 2], [5, 2, 2, 5, 2], [0, 0, 7, 6, 3],
+        #              [7, 12, 4, 2, 7], [27, 1, 1, 3], [18, 5, 2, 2, 5], [0, 0, 0, 29, 3], [4, 19, 3, 1, 5], [1, 1, 2, 6, 22],
+        #              [1, 0, 14, 11, 6], [3, 3, 53, 2, 3], [1, 0, 0, 63], [3, 46, 7, 5, 3], [1, 0, 0, 61, 2], [2, 57, 1, 2, 2],
+        #              [58, 3, 1, 0, 2], [32, 20, 0, 3, 9]]
+        # partition = [[0, 1, 12, 3, 0], [4, 9, 1, 1, 1], [1, 0, 10, 3, 2], [3, 1, 11, 0, 1], [3, 9, 2, 2, 0], [4, 2, 3, 7, 0], [1, 0, 10, 4, 1],
+        #              [7, 11, 4, 8, 2], [26, 5, 1, 0], [18, 6, 2, 6, 0], [1, 2, 1, 28, 0], [3, 25, 0, 2, 2], [5, 2, 14, 6, 5], [0, 2, 22, 4, 4],
+        #              [5, 1, 51, 5, 2], [22, 0, 4, 38], [12, 6, 26, 17, 3], [9, 0, 1, 52, 2], [26, 3, 12, 22, 1], [60, 4, 0, 0, 0],
+        #              [38, 9, 0, 9, 8]]
         # elif args.partition == 2:
         #     # partition = [[0, 0, 5, 7, 4], [4, 10, 1, 0, 1], [9, 1, 3, 2, 1], [1, 0, 10, 4, 1], [1, 13, 1, 1, 0], [3, 1, 4, 7, 1], [1, 0, 4, 9, 2],
-        #     #              [9, 13, 5, 1, 4], [30, 0, 0, 0, 2], [16, 7, 2, 3, 4], [2, 0, 0, 28, 2], [3, 20, 8, 0, 1], [0, 0, 4, 10, 18],
-        #     #              [1, 1, 15, 11, 4], [3, 3, 54, 3, 1], [2, 0, 1, 0, 61], [6, 46, 10, 2, 0], [0, 0, 0, 64, 0], [1, 60, 1, 1, 1],
+        #     #              [9, 13, 5, 1, 4], [30, 0, 0, 2], [16, 7, 2, 3, 4], [2, 0, 0, 28, 2], [3, 20, 8, 0, 1], [0, 0, 4, 10, 18],
+        #     #              [1, 1, 15, 11, 4], [3, 3, 54, 3, 1], [2, 1, 0, 61], [6, 46, 10, 2, 0], [0, 0, 0, 64, 0], [1, 60, 1, 1, 1],
         #     #              [57, 4, 1, 2, 0], [32, 23, 0, 3, 6]]
         #     partition = [[0, 0, 14, 2, 0], [0, 11, 1, 3, 1], [2, 3, 3, 4, 4], [3, 1, 8, 3, 1], [3, 12, 1, 0, 0], [4, 4, 5, 3, 0], [1, 1, 10, 2, 2],
-        #              [6, 11, 6, 5, 4], [22, 0, 4, 4, 2], [26, 3, 1, 1, 1], [1, 1, 3, 26, 1], [3, 21, 1, 2, 5], [6, 5, 12, 6, 3], [1, 1, 18, 8, 4],
-        #                  [6, 2, 55, 0, 1], [19, 0, 1, 5, 39], [14, 6, 25, 18, 1], [14, 2, 2, 45, 1], [16, 9, 14, 21, 4], [62, 2, 0, 0, 0],
+        #              [6, 11, 6, 5, 4], [22, 4, 4, 2], [26, 3, 1, 1, 1], [1, 1, 3, 26, 1], [3, 21, 1, 2, 5], [6, 5, 12, 6, 3], [1, 1, 18, 8, 4],
+        #                  [6, 2, 55, 0, 1], [19, 1, 5, 39], [14, 6, 25, 18, 1], [14, 2, 2, 45, 1], [16, 9, 14, 21, 4], [62, 2, 0, 0, 0],
         #                  [45, 9, 0, 5, 5]]
         #
         # for i in range(len(partition)):
@@ -89,6 +92,7 @@ class TrainRegime:
         # for p, layer in zip(partition, model.layersList):
         #     print(p)
         #     assert (p.sum() == layer.nFilters())
+        #     assert (len(p) == layer.numOfOps())
         #     layer.setFiltersPartition(p)
         # # ==============================================================================
         # load data
@@ -151,8 +155,7 @@ class TrainRegime:
 
         # if we loaded ops in the same layer with the same weights, then we loaded the optimal full precision model,
         # therefore we have to train the weights for each QuantizedOp
-        # if (args.loadedOpsWithDiffWeights is False) and args.init_weights_train:
-        if args.loadedOpsWithDiffWeights is False:
+        if (args.loadedOpsWithDiffWeights is False) and args.init_weights_train:
             self.epoch = self.initialWeightsTraining(trainFolderName='init_weights_train')
         else:
             rows = [['Switching stage']]
@@ -398,6 +401,9 @@ class TrainRegime:
     def trainAlphas(self, search_queue, model, architect, nEpoch, loggers):
         print('*** trainAlphas ***')
         loss_container = AvgrageMeter()
+        crossEntropy_container = AvgrageMeter()
+        bopsLoss_container = AvgrageMeter()
+
         modelReplicator = architect.modelReplicator
 
         model.train()
@@ -432,7 +438,7 @@ class TrainRegime:
             input = Variable(input, requires_grad=False).cuda()
             target = Variable(target, requires_grad=False).cuda(async=True)
 
-            loss = architect.step(model, input, target)
+            loss, crossEntropyLoss, bopsLoss = architect.step(model, input, target)
 
             # # train optimal model
             # optBopsRatio = self.trainOptimalModel(nEpoch, step)
@@ -446,12 +452,14 @@ class TrainRegime:
                 func = [forwardCountersFunc]
             # log forward counters. if loggerFuncs==[] then it is just resets counters
             logForwardCounters(model, loggerFuncs=func)
-            # # save alphas to csv
-            # model.save_alphas_to_csv(data=[nEpoch, step])
+            # save alphas to csv
+            model.save_alphas_to_csv(data=[nEpoch, step])
             # # log allocations
             # self.logAllocations()
             # save loss to container
             loss_container.update(loss, n)
+            crossEntropy_container.update(crossEntropyLoss, n)
+            bopsLoss_container.update(bopsLoss, n)
 
             endTime = time()
 
@@ -472,6 +480,8 @@ class TrainRegime:
                 dataRow[self.batchNumKey] = '{}/{}'.format(step, nBatches)
                 dataRow[self.timeKey] = endTime - startTime
                 dataRow[self.archLossKey] = loss
+                dataRow[self.crossEntropyKey] = crossEntropyLoss
+                dataRow[self.bopsLossKey] = bopsLoss
                 dataRow[self.pathBopsRatioKey] = bopsRatio
                 # apply formats
                 self.__applyFormats(dataRow)
@@ -479,7 +489,8 @@ class TrainRegime:
                 trainLogger.addDataRow(dataRow)
 
         # log accuracy, loss, etc.
-        summaryData = {self.epochNumKey: nEpoch, self.lrKey: architect.lr, self.batchNumKey: 'Summary', self.archLossKey: loss_container.avg}
+        summaryData = {self.epochNumKey: nEpoch, self.lrKey: architect.lr, self.batchNumKey: 'Summary', self.archLossKey: loss_container.avg,
+                       self.crossEntropyKey: crossEntropy_container.avg, self.bopsLossKey: bopsLoss_container.avg}
         self.__applyFormats(summaryData)
 
         for _, logger in loggers.items():
