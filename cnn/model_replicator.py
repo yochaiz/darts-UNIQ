@@ -40,9 +40,9 @@ class ModelReplicator:
 
         self.rows.insert(0, ['nReplications', len(self.replications)])
 
-        # update replications weights, take main model quantized weights
-        loggerFunc = [lambda msg: self.rows.append(['Init', msg])]
-        self.updateModelWeights(model, loggerFunc)
+        # # update replications weights, take main model quantized weights
+        # loggerFunc = [lambda msg: self.rows.append(['Init', msg])]
+        # self.updateModelWeights(model, loggerFunc)
         # restore original gpu
         set_device(args.gpu[0])
         # create info table
