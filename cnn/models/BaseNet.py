@@ -97,9 +97,9 @@ class BaseNet(Module):
             self.layersPerm.append(list(range(len(layer.alphas))))
             self.nPerms *= len(layer.alphas)
 
-        # init alphas DataFrame
-        self.alphas_df = None
-        self.__initAlphasDataFrame(saveFolder)
+        # # init alphas DataFrame
+        # self.alphas_df = None
+        # self.__initAlphasDataFrame(saveFolder)
 
     @abstractmethod
     def initLayers(self, params):
@@ -294,21 +294,6 @@ class BaseNet(Module):
 
         return loadOpsWithDifferentWeights
 
-    def __initAlphasDataFrame(self, saveFolder):
-        if saveFolder:
-            # update save path if saveFolder exists
-            self.alphasCsvFileName = '{}/{}'.format(saveFolder, self.alphasCsvFileName)
-            # init DataFrame cols
-            cols = ['Epoch', 'Batch']
-            cols += ['Layer_{}'.format(i) for i in range(self.nLayers())]
-            self.cols = cols
-            # init DataFrame
-            self.alphas_df = DataFrame([], columns=cols)
-            # set init data
-            data = ['init', 'init']
-            # save alphas data
-            self.save_alphas_to_csv(data)
-
     def turnOffAlphas(self):
         for layer in self.layersList:
             layer.alphas.grad = None
@@ -355,17 +340,6 @@ class BaseNet(Module):
 
         return top
 
-    # save alphas values to csv
-    def save_alphas_to_csv(self, data):
-        if self.alphas_df is not None:
-            data += [[round(e.item(), 5) for e in layer.alphas] for layer in self.layersList]
-            # create new row
-            d = DataFrame([data], columns=self.cols)
-            # add row
-            self.alphas_df = self.alphas_df.append(d)
-            # save DataFrame
-            self.alphas_df.to_csv(self.alphasCsvFileName)
-
     # create list of tuples (layer index, layer alphas)
     def save_alphas_state(self):
         return [(i, layer.alphas) for i, layer in enumerate(self.layersList)]
@@ -373,6 +347,32 @@ class BaseNet(Module):
     def load_alphas_state(self, state):
         for layerIdx, alphas in state:
             self.layersList[layerIdx].alphas.data = alphas
+
+# def __initAlphasDataFrame(self, saveFolder):
+#     if saveFolder:
+#         # update save path if saveFolder exists
+#         self.alphasCsvFileName = '{}/{}'.format(saveFolder, self.alphasCsvFileName)
+#         # init DataFrame cols
+#         cols = ['Epoch', 'Batch']
+#         cols += ['Layer_{}'.format(i) for i in range(self.nLayers())]
+#         self.cols = cols
+#         # init DataFrame
+#         self.alphas_df = DataFrame([], columns=cols)
+#         # set init data
+#         data = ['init', 'init']
+#         # save alphas data
+#         self.save_alphas_to_csv(data)
+
+# # save alphas values to csv
+# def save_alphas_to_csv(self, data):
+#     if self.alphas_df is not None:
+#         data += [[round(e.item(), 5) for e in layer.alphas] for layer in self.layersList]
+#         # create new row
+#         d = DataFrame([data], columns=self.cols)
+#         # add row
+#         self.alphas_df = self.alphas_df.append(d)
+#         # save DataFrame
+#         self.alphas_df.to_csv(self.alphasCsvFileName)
 
 # # select random alpha
 # def chooseRandomPath(self):
