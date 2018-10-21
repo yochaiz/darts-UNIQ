@@ -144,11 +144,11 @@ class HtmlLogger:
         # walk through the string to the desired position
         for v in valuesToFind:
             if idx >= 0:
-                idx = self.head.find(v, idx)
+                idx = self.infoTables.find(v, idx)
 
         if idx >= 0:
             # insert new row in desired position
-            self.head = self.head[:idx] + self.__addRow(row) + self.head[idx:]
+            self.infoTables = self.infoTables[:idx] + self.__addRow(row) + self.infoTables[idx:]
             # write to file
             self.__writeToFile()
 
