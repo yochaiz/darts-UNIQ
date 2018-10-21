@@ -5,8 +5,8 @@ from cnn.model_replicator import ModelReplicator, set_device
 
 
 class RandomPath(ModelReplicator):
-    def __init__(self, model, modelClass, args):
-        super(RandomPath, self).__init__(model, modelClass, args)
+    def __init__(self, model, modelClass, args, logger):
+        super(RandomPath, self).__init__(model, modelClass, args, logger)
 
     def getModel(self, args):
         return args[0]

@@ -7,8 +7,8 @@ from torch.nn import functional as F
 # select same paths to calculate loss for a layer.
 
 class LayerSamePath(RandomPath):
-    def __init__(self, model, modelClass, args):
-        super(LayerSamePath, self).__init__(model, modelClass, args)
+    def __init__(self, model, modelClass, args, logger):
+        super(LayerSamePath, self).__init__(model, modelClass, args, logger)
 
     def lossPerReplication(self, args):
         cModel, input, target, nSamples, gpu = args
