@@ -348,8 +348,10 @@ class BaseNet(Module):
             # keep only top-k
             wSorted = wSorted[:k]
             wIndices = wIndices[:k]
+            # get layer bitwidths
+            bitwidths = layer.getAllBitwidths()
             # add to top
-            top.append([(i, w.item(), layer.alphas[i], layer.filters[0].ops[0][i]) for w, i in zip(wSorted, wIndices)])
+            top.append([(i, w.item(), layer.alphas[i], bitwidths[i]) for w, i in zip(wSorted, wIndices)])
 
         return top
 
