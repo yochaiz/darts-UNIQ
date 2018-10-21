@@ -118,6 +118,8 @@ class MixedFilter(Block):
         # assure bitwidths is a list of integers
         if isinstance(bitwidths[0], list):
             bitwidths = bitwidths[0]
+        # remove duplicate values in bitwidth
+        bitwidths = self.__removeDuplicateValues(bitwidths)
 
         # init previous layer, put it in a list, in order to ignore it as a model in this instance
         prevLayer = None
@@ -184,6 +186,16 @@ class MixedFilter(Block):
 
     def outputLayer(self):
         return self
+
+    @staticmethod
+    def __removeDuplicateValues(values):
+        assert (isinstance(values, list))
+        newValues = []
+        for v in values:
+            if v not in newValues:
+                newValues.append(v)
+
+        return newValues
 
     def countOpsBops(self, countBopsParams):
         input_size, in_planes = countBopsParams
