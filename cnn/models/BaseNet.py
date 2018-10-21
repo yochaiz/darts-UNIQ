@@ -55,6 +55,7 @@ class BaseNet(Module):
             totalBops += layer.getBops(input_bitwidth)
             input_bitwidth = layer.getCurrentOutputBitwidth()
 
+        totalBops /= 1E9
         return totalBops
 
     def countBops(self):
