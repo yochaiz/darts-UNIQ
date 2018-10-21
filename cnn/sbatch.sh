@@ -2,9 +2,9 @@
 #SBATCH -c 3 # number of cores
 #SBATCH --gres=gpu:2 # number of gpu requested
 #SBATCH -J "F-BANNAS"
-#SBATCH -t 03-00:00:00
+#SBATCH -t 01-00:00:00
 #SBATCH -p gip,all
-#SBATCH -w gaon6
+#SBATCH -w gaon4
 #SBATCH --mail-user=yochaiz@cs.technion.ac.il
 #SBATCH --mail-type=ALL # Valid values are NONE, BEGIN, END, FAIL, REQUEUE, ALL
 
