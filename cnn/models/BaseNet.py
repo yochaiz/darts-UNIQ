@@ -165,7 +165,7 @@ class BaseNet(Module):
     #                             if v is not None:
     #                                 v.data = layerStats[moduleType][varName].data
 
-    def calcStatistics(self):
+    def calcStatistics(self, statistics_queue):
         # prepare for collecting statistics, reset register_buffers values
         for layer in self.layersList:
             for op in layer.opsList:
@@ -194,7 +194,7 @@ class BaseNet(Module):
         nBatches = 80
         self.eval()
         with no_grad():
-            for step, (input, target) in enumerate(self.statistics_queue):
+            for step, (input, target) in enumerate(statistics_queue):
                 if step >= nBatches:
                     break
 
@@ -218,13 +218,13 @@ class BaseNet(Module):
         #     self.layersList[layerIdx].turnOnNoise(layerIdx)
 
     # updates statistics in checkpoint, in order to avoid calculating statistics when loading model from checkpoint
-    def updateCheckpointStatistics(self, checkpoint, path):
+    def updateCheckpointStatistics(self, checkpoint, path, statistics_queue):
         needToUpdate = ('updated_statistics' not in checkpoint) or (checkpoint['updated_statistics'] is not True)
         if needToUpdate:
             # load checkpoint weights
             self.load_state_dict(checkpoint['state_dict'])
             # calc weights statistics
-            self.calcStatistics()
+            self.calcStatistics(statistics_queue)
             # update checkpoint
             checkpoint['state_dict'] = self.state_dict()
             checkpoint['updated_statistics'] = True
