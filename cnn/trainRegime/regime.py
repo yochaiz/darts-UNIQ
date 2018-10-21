@@ -53,16 +53,12 @@ class TrainRegime:
     def __init__(self, args, logger):
         # build model for uniform distribution of bits
         modelClass = models.__dict__[args.model]
-        uniform_args = Namespace(**vars(args))
-        uniform_args.bitwidth = args.baselineBits
-        # build model, it updates uniform_args.baselineBops value
-        modelClass(uniform_args)
-        # init maxBops
-        args.baselineBops = uniform_args.baselineBops
-
         # init model
         model = modelClass(args)
         model = model.cuda()
+        # init baseline bops
+        baselineBops = model.calcBaselineBops()
+        args.baselineBops = baselineBops[args.baselineBits[0]]
 
         # # ==============================================================================
         # from torch import tensor, IntTensor
