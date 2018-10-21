@@ -22,6 +22,8 @@ class Statistics:
     alphaDistributionKey = 'alphas_distribution'
     lossVarianceKey = 'loss_variance'
     lossAvgKey = 'loss_avg'
+    crossEntropyLossAvgKey = 'cross_entropy_loss_avg'
+    bopsLossAvgKey = 'bops_loss_avg'
     bopsKey = 'bops'
 
     # set plot points style
@@ -48,15 +50,14 @@ class Statistics:
         # init containers
         self.containers = {
             self.entropyKey: [[] for _ in range(nLayers)],
-            self.lossVarianceKey: [[]],
-            self.lossAvgKey: [[]],
-            self.alphaDistributionKey: [[[] for _ in range(layer.numOfOps())] for layer in layersList]
+            self.lossVarianceKey: [[]], self.alphaDistributionKey: [[[] for _ in range(layer.numOfOps())] for layer in layersList],
+            self.lossAvgKey: [[]], self.crossEntropyLossAvgKey: [[]], self.bopsLossAvgKey: [[]]
         }
         # map each list we plot for all layers on single plot to filename
-        self.plotAllLayersKeys = [self.entropyKey, self.lossAvgKey, self.lossVarianceKey]
+        self.plotAllLayersKeys = [self.entropyKey, self.lossAvgKey, self.crossEntropyLossAvgKey, self.bopsLossAvgKey, self.lossVarianceKey]
         self.plotLayersSeparateKeys = [self.alphaDistributionKey]
         # init colors map
-        self.colormap = plt.cm.hot  # nipy_spectral, Set1,Paired
+        self.colormap = plt.cm.hot
         # init plots data dictionary
         self.plotsDataFilePath = '{}/plots.data'.format(saveFolder)
         self.plotsData = {}
