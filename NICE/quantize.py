@@ -129,7 +129,7 @@ class quantize(object):
         std_p = x.std()
         std_clamp = (mean_p > 0).float() * (mean_p + self.std_weight_clamp * std_p) + \
                     (mean_p < 0).float() * (mean_p - self.std_weight_clamp * std_p)
-        clamp_value = abs(std_clamp)
+        clamp_value = abs(std_clamp).view(1)
         return clamp_value
 
     def get_weight_clamp_value(self, m):
