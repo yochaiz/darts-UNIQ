@@ -52,24 +52,38 @@ modelsRefsUNIQ = {
 }
 
 
-def logBaselineModel(args, logger, copyKeys=True):
+def loadCheckpoint(dataset, model, bitwidth):
     # init project base folder
     baseFolder = path.dirname(path.abspath(getfile(currentframe())))  # script directory
-    # get uniform path
-    uniformBops = args.baselineBits[0]
-    uniformKey = '{}_{}'.format(args.model, uniformBops)
-    uniformPath = '{}/../pre_trained/{}/train_portion_1.0/{}/train/model_opt.pth.tar'.format(baseFolder, args.dataset, uniformKey)
-    keysFromUniform = ['epochs', 'learning_rate']
-    loggerRows = []
+    # init checkpoint key
+    checkpointKey = '{}_{}'.format(model, bitwidth)
+    # init checkpoint path
+    checkpointPath = '{}/../pre_trained/{}/train_portion_1.0/{}/train/model_opt.pth.tar'.format(baseFolder, dataset, checkpointKey)
+    # load checkpoint
+    checkpoint = None
+    if path.exists(checkpointPath):
+        checkpoint = loadModel(checkpointPath, map_location=lambda storage, loc: storage.cuda())
 
+    return checkpoint, checkpointKey
+
+
+def logBaselineModel(args, logger, copyKeys=True):
+    # get baseline bitwidth
+    bitwidth = args.baselineBits[0]
+    # load baseline checkpoint
+    checkpoint, checkpointKey = loadCheckpoint(args.dataset, args.model, bitwidth)
+    # init logger rows
+    loggerRows = []
+    # init best_prec1 values
     best_prec1 = None
     best_prec1_str = 'Not found'
-    if path.exists(uniformPath):
-        uniform_checkpoint = loadModel(uniformPath, map_location=lambda storage, loc: storage.cuda(args.gpu[0]))
+
+    if checkpoint is not None:
+        keysFromUniform = ['epochs', 'learning_rate']
         # extract keys from uniform checkpoint
         for key in keysFromUniform:
-            if key in uniform_checkpoint:
-                value = uniform_checkpoint.get(key)
+            if key in checkpoint:
+                value = checkpoint.get(key)
                 if copyKeys:
                     setattr(args, key, value)
                     if logger:
@@ -77,17 +91,17 @@ def logBaselineModel(args, logger, copyKeys=True):
                 elif logger:
                     loggerRows.append(['{}'.format(key), '{}'.format(value)])
         # extract best_prec1 from uniform checkpoint
-        best_prec1 = uniform_checkpoint.get('best_prec1')
+        best_prec1 = checkpoint.get('best_prec1')
         if best_prec1:
             best_prec1_str = '{:.3f}'.format(best_prec1)
 
     # print result
     if logger:
-        loggerRows.append(['Model', '{}'.format(uniformKey)])
+        loggerRows.append(['Model', '{}'.format(checkpointKey)])
         loggerRows.append(['Validation accuracy', '{}'.format(best_prec1_str)])
         logger.addInfoTable('Baseline model', loggerRows)
 
-    return best_prec1, uniformKey
+    return best_prec1, checkpointKey
 
 
 # collect possible models names
