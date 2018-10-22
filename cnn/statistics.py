@@ -9,6 +9,8 @@ from numpy import linspace
 import torch.nn.functional as F
 from torch import save as saveFile
 
+import cnn.utils
+
 import matplotlib
 
 matplotlib.use('Agg')
@@ -45,8 +47,6 @@ class Statistics:
         self.batchLabels = []
         # collect ops bitwidth per layer in model
         self.layersBitwidths = [layer.getAllBitwidths() for layer in layersList]
-        # # plot bops plot
-        # self.plotBops(layersList)
         # init containers
         self.containers = {
             self.entropyKey: [[] for _ in range(nLayers)],
@@ -61,6 +61,8 @@ class Statistics:
         # init plots data dictionary
         self.plotsDataFilePath = '{}/plots.data'.format(saveFolder)
         self.plotsData = {}
+        # init bopsData, which is a map where keys are labels (pts type) and values are list of tuples (bitwidth, bops, accuracy)
+        self.bopsData = {}
 
     def addBatchData(self, model, nEpoch, nBatch):
         # add batch label
@@ -77,6 +79,25 @@ class Statistics:
 
         # plot data
         self.plotData()
+
+    # bopsData_ is a map where keys are bitwidth and values are bops.
+    # we need to find the appropriate checkpoint for accuracy values.
+    def addBopsData(self, args, bopsData_, label):
+        # init label list if label doesn't exist
+        if label not in self.bopsData.keys():
+            self.bopsData[label] = []
+
+        # add data to list
+        for bitwidth, bops in bopsData_.items():
+            # load checkpoint
+            checkpoint, _ = cnn.utils.loadCheckpoint(args.dataset, args.model, bitwidth)
+            if checkpoint is not None:
+                accuracy = checkpoint.get('best_prec1')
+                if accuracy is not None:
+                    self.bopsData[label].append((bitwidth, bops, accuracy))
+
+        # update plot
+        self.__plotBops()
 
     def saveFigPDF(self, figs, fileName):
         pdf = PdfPages('{}/{}.pdf'.format(self.saveFolder, fileName))
@@ -243,34 +264,54 @@ class Statistics:
         # save plots data
         saveFile(self.plotsData, self.plotsDataFilePath)
 
-    def plotBops(self, layersList):
+    def __plotBops(self):
         # create plot
         fig, ax = plt.subplots(nrows=1, ncols=1)
-        # init axis values
-        xValues = [[[] for _ in range(layer.numOfOps())] for layer in layersList]
-        yValues = [[[] for _ in range(layer.numOfOps())] for layer in layersList]
-        # init y axis max value
-        yMax = 0
-        for i, layer in enumerate(layersList):
-            for input_bitwidth in layer.bops.keys():
-                for j, bops in enumerate(layer.bops[input_bitwidth]):
-                    v = bops / 1E6
-                    xValues[i][j].append(i)
-                    yValues[i][j].append(v)
-                    ax.annotate('input:[{}]'.format(input_bitwidth), (i, v))
-                    yMax = max(yMax, v)
 
-        colors = {}
-        for i, (xLayerValues, yLayerValues) in enumerate(zip(xValues, yValues)):
-            for j, (x, y) in enumerate(zip(xLayerValues, yLayerValues)):
-                label = self.layersBitwidths[i][j]
-                if label in colors.keys():
-                    ax.plot(x, y, 'o', label=label, color=colors[label])
-                else:
-                    info = ax.plot(x, y, 'o', label=label)
-                    colors[label] = info[0].get_color()
+        for label, labelBopsData in self.bopsData.items():
+            xValues = []
+            yValues = []
+            for bitwidth, bops, accuracy in labelBopsData:
+                xValues.append(bops)
+                yValues.append(accuracy)
+                ax.annotate('{},{:.3f}'.format(bitwidth, accuracy), (bops, accuracy))
 
-        yMax *= 1.1
-        self.__setPlotProperties(fig, ax, xLabel='Layer #', yLabel='M-bops', yMax=yMax, title='bops per op in layer')
+            # plot label values
+            ax.plot(xValues, yValues, 'o', label=label)
+
+        # set plot properties
+        self.__setPlotProperties(fig, ax, xLabel='Bops', yLabel='Accuracy', yMax=100.0, title='Accuracy vs. Bops')
         # save as HTML
         self.saveFigPDF([fig], fileName=self.bopsKey)
+
+# def plotBops(self, layersList):
+#     # create plot
+#     fig, ax = plt.subplots(nrows=1, ncols=1)
+#     # init axis values
+#     xValues = [[[] for _ in range(layer.numOfOps())] for layer in layersList]
+#     yValues = [[[] for _ in range(layer.numOfOps())] for layer in layersList]
+#     # init y axis max value
+#     yMax = 0
+#     for i, layer in enumerate(layersList):
+#         for input_bitwidth in layer.bops.keys():
+#             for j, bops in enumerate(layer.bops[input_bitwidth]):
+#                 v = bops / 1E6
+#                 xValues[i][j].append(i)
+#                 yValues[i][j].append(v)
+#                 ax.annotate('input:[{}]'.format(input_bitwidth), (i, v))
+#                 yMax = max(yMax, v)
+#
+#     colors = {}
+#     for i, (xLayerValues, yLayerValues) in enumerate(zip(xValues, yValues)):
+#         for j, (x, y) in enumerate(zip(xLayerValues, yLayerValues)):
+#             label = self.layersBitwidths[i][j]
+#             if label in colors.keys():
+#                 ax.plot(x, y, 'o', label=label, color=colors[label])
+#             else:
+#                 info = ax.plot(x, y, 'o', label=label)
+#                 colors[label] = info[0].get_color()
+#
+#     yMax *= 1.1
+#     self.__setPlotProperties(fig, ax, xLabel='Layer #', yLabel='M-bops', yMax=yMax, title='bops per op in layer')
+#     # save as HTML
+#     self.saveFigPDF([fig], fileName=self.bopsKey)
