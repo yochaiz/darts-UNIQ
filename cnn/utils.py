@@ -28,8 +28,6 @@ import cnn.models as models
 from cnn.HtmlLogger import HtmlLogger
 import cnn.gradEstimators as gradEstimators
 
-# references to models pre-trained
-modelsRefs = {}
 # references to UNIQ baseline models
 modelsRefsUNIQ = {
     'thin_resnet': '/home/yochaiz/DropDarts/cnn/pre_trained/thin_resnet/train/model_opt.pth.tar',
@@ -55,15 +53,18 @@ modelsRefsUNIQ = {
 
 
 def logBaselineModel(args, logger, copyKeys=True):
+    # init project base folder
+    baseFolder = path.dirname(path.abspath(getfile(currentframe())))  # script directory
+    # get uniform path
     uniformBops = args.baselineBits[0]
-    uniformKey = '{}_w:[{}]_a:[{}]'.format(args.model, uniformBops[0], uniformBops[-1])
-    uniformPath = modelsRefs.get(uniformKey)
+    uniformKey = '{}_{}'.format(args.model, uniformBops)
+    uniformPath = '{}/../pre_trained/{}/train_portion_1.0/{}/train/model_opt.pth.tar'.format(baseFolder, args.dataset, uniformKey)
     keysFromUniform = ['epochs', 'learning_rate']
     loggerRows = []
 
     best_prec1 = None
     best_prec1_str = 'Not found'
-    if uniformPath and path.exists(uniformPath):
+    if path.exists(uniformPath):
         uniform_checkpoint = loadModel(uniformPath, map_location=lambda storage, loc: storage.cuda(args.gpu[0]))
         # extract keys from uniform checkpoint
         for key in keysFromUniform:
@@ -129,28 +130,6 @@ def accuracy(output, target, topk=(1,)):
     return res
 
 
-class Cutout(object):
-    def __init__(self, length):
-        self.length = length
-
-    def __call__(self, img):
-        h, w = img.size(1), img.size(2)
-        mask = np.ones((h, w), np.float32)
-        y = np.random.randint(h)
-        x = np.random.randint(w)
-
-        y1 = np.clip(y - self.length // 2, 0, h)
-        y2 = np.clip(y + self.length // 2, 0, h)
-        x1 = np.clip(x - self.length // 2, 0, w)
-        x2 = np.clip(x + self.length // 2, 0, w)
-
-        mask[y1: y2, x1: x2] = 0.
-        mask = torch.from_numpy(mask)
-        mask = mask.expand_as(img)
-        img *= mask
-        return img
-
-
 def count_parameters_in_MB(model):
     return np.sum(np.prod(v.size()) for v in model.parameters()) / 1e6
 
@@ -185,7 +164,7 @@ def logParameters(logger, args, model):
 
     # calc number of permutations
     permutationStr = model.nPerms
-    for p in [9, 6, 3]:
+    for p in [12, 9, 6, 3]:
         v = model.nPerms / (10 ** p)
         if v > 1:
             permutationStr = '{:.3f} * 10<sup>{}</sup>'.format(v, p)
@@ -198,8 +177,8 @@ def logParameters(logger, args, model):
             'Ops per layer': [layer.numOfOps() for layer in model.layersList],
             'Permutations': permutationStr
         }, nElementPerRow=2))
-    # # log baseline model
-    # uniform_best_prec1, uniformKey = logBaselineModel(args, logger, copyKeys=False)
+    # log baseline model
+    uniform_best_prec1, uniformKey = logBaselineModel(args, logger, copyKeys=False)
     # log args
     logger.addInfoTable('args', HtmlLogger.dictToRows(vars(args), nElementPerRow=3))
     # print args
@@ -207,7 +186,7 @@ def logParameters(logger, args, model):
     # log model architecture to file
     printModelToFile(model, args.save)
 
-    # return uniform_best_prec1, uniformKey
+    return uniform_best_prec1, uniformKey
 
 
 def zipFolder(p, zipf):
@@ -506,25 +485,6 @@ def printModelToFile(model, save_path, fname='model'):
     logDominantQuantizedOpOLD(model, k=2, logger=logger)
 
 
-# def _data_transforms_cifar10(args):
-#     CIFAR_MEAN = [0.49139968, 0.48215827, 0.44653124]
-#     CIFAR_STD = [0.24703233, 0.24348505, 0.26158768]
-#
-#     train_transform = transforms.Compose([
-#         transforms.RandomCrop(32, padding=4),
-#         transforms.RandomHorizontalFlip(),
-#         transforms.ToTensor(),
-#         transforms.Normalize(CIFAR_MEAN, CIFAR_STD),
-#     ])
-#     if args.cutout:
-#         train_transform.transforms.append(Cutout(args.cutout_length))
-#
-#     valid_transform = transforms.Compose([
-#         transforms.ToTensor(),
-#         transforms.Normalize(CIFAR_MEAN, CIFAR_STD),
-#     ])
-#     return train_transform, valid_transform
-
 def loadDatasets():
     return dict(cifar10=10, cifar100=100, imagenet=1000)
 
@@ -574,3 +534,43 @@ def load_data(args):
     search_queue.append(dl)
 
     return train_queue, search_queue, valid_queue, statistics_queue
+
+# def _data_transforms_cifar10(args):
+#     CIFAR_MEAN = [0.49139968, 0.48215827, 0.44653124]
+#     CIFAR_STD = [0.24703233, 0.24348505, 0.26158768]
+#
+#     train_transform = transforms.Compose([
+#         transforms.RandomCrop(32, padding=4),
+#         transforms.RandomHorizontalFlip(),
+#         transforms.ToTensor(),
+#         transforms.Normalize(CIFAR_MEAN, CIFAR_STD),
+#     ])
+#     if args.cutout:
+#         train_transform.transforms.append(Cutout(args.cutout_length))
+#
+#     valid_transform = transforms.Compose([
+#         transforms.ToTensor(),
+#         transforms.Normalize(CIFAR_MEAN, CIFAR_STD),
+#     ])
+#     return train_transform, valid_transform
+
+# class Cutout(object):
+#     def __init__(self, length):
+#         self.length = length
+#
+#     def __call__(self, img):
+#         h, w = img.size(1), img.size(2)
+#         mask = np.ones((h, w), np.float32)
+#         y = np.random.randint(h)
+#         x = np.random.randint(w)
+#
+#         y1 = np.clip(y - self.length // 2, 0, h)
+#         y2 = np.clip(y + self.length // 2, 0, h)
+#         x1 = np.clip(x - self.length // 2, 0, w)
+#         x2 = np.clip(x + self.length // 2, 0, w)
+#
+#         mask[y1: y2, x1: x2] = 0.
+#         mask = torch.from_numpy(mask)
+#         mask = mask.expand_as(img)
+#         img *= mask
+#         return img
