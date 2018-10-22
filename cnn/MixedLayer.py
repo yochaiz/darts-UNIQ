@@ -1,6 +1,6 @@
 from itertools import groupby
 
-from torch import cat, chunk, tensor, zeros, IntTensor
+from torch import cat, chunk, tensor, zeros, int32
 from torch.nn import ModuleList, BatchNorm2d
 from torch.distributions.multinomial import Multinomial
 from torch.nn import functional as F
@@ -61,7 +61,7 @@ class MixedLayer(Block):
         self.alphas = tensor((zeros(self.numOfOps())).cuda(), requires_grad=True)
         self.alphas = self.alphas.cuda()
         # init filters current partition by alphas, i.e. how many filters are for each alpha, from each quantization
-        self.currFiltersPartition = [0] * self.numOfOps()
+        self.currFiltersPartition = zeros(self.numOfOps(), dtype=int32).cuda()
 
         # # set filters distribution
         # if self.numOfOps() > 1:
@@ -147,8 +147,8 @@ class MixedLayer(Block):
     # partition is IntTensor
     def setFiltersPartition(self, partition):
         assert (partition.sum().item() == self.nFilters())
-        # save current filters partition by alphas
-        self.currFiltersPartition = [0] * self.numOfOps()
+        # reset current filters partition by alphas
+        self.currFiltersPartition.fill_(0)
         # update filters curr_alpha_idx
         idx = 0
         for i, r in enumerate(partition):
@@ -161,7 +161,7 @@ class MixedLayer(Block):
     # ratio is a tensor
     def __setFiltersPartitionFromRatio(self, ratio):
         # calc partition
-        partition = (ratio * self.nFilters()).type(IntTensor)
+        partition = (ratio * self.nFilters()).type(int32)
         # fix last ratio value to sum to nFilters
         if partition.sum().item() < self.nFilters():
             partition[-1] = self.nFilters() - partition[:-1].sum().item()
@@ -280,7 +280,7 @@ class MixedLayer(Block):
     # select alpha based on alphas distribution
     def choosePathByAlphas(self):
         dist = Multinomial(total_count=self.nFilters(), logits=self.alphas)
-        partition = dist.sample().type(IntTensor)
+        partition = dist.sample().type(int32)
         self.setFiltersPartition(partition)
 
     # bitwidth list is the same for all filters, therefore we can use the 1st filter list
