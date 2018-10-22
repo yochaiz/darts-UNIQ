@@ -213,7 +213,10 @@ class HtmlLogger:
                 if isinstance(values[c], list):
                     res += self.__createTableFromRows(values[c])
                 else:
-                    res += '{}'.format(values[c])
+                    content = '{}'.format(values[c])
+                    if len(content) > self.maxTableCellLength:
+                        content = '<div style="width: 300px; overflow: auto"> {} </div>'.format(content)
+                    res += content
             res += '</td>'
         # close row
         res += '</tr>'
