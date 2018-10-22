@@ -61,17 +61,16 @@ def parseArgs(lossFuncsLambda):
     parser.add_argument('--bitwidth', type=str, default=None, help='list of bitwidth values, e.g. 1,4,16')
     parser.add_argument('--kernel', type=str, default='3', help='list of conv kernel sizes, e.g. 1,3,5')
 
-    parser.add_argument('--alphas_regime', default='alphas_weights_loop', choices=alphasRegimeNames,
-                        help='alphas optimization method')
-    parser.add_argument('--grad_estimator', default='layer_same_path', choices=gradEstimatorsNames,
-                        help='gradient estimation method')
+    parser.add_argument('--alphas', default=None, help='list of alphas tensors to update model layers alphas values')
+    parser.add_argument('--alphas_regime', default='alphas_weights_loop', choices=alphasRegimeNames, help='alphas optimization method')
+    parser.add_argument('--grad_estimator', default='layer_same_path', choices=gradEstimatorsNames, help='gradient estimation method')
     parser.add_argument('--nSamples', type=int, default=20, help='How many paths to sample in order to estimate gradient')
     parser.add_argument('--alphas_data_parts', type=int, default=4, help='split alphas training data to parts. each loop uses single part')
     parser.add_argument('--alpha_limit', type=float, default=0.8, help='if a layer opt alpha reached alpha_limit, then stop optimize layer alphas')
     parser.add_argument('--alpha_limit_counter', type=int, default=10,
                         help='how many consecutive steps the optimal alpha has to be over limit in order to stop layer alphas optimization')
 
-    parser.add_argument('--partition', type=int, default=0)
+    parser.add_argument('--partition', default=None, help='list of model layers partition')
 
     parser.add_argument('--loss', type=str, default='UniqLoss', choices=[key for key in lossFuncsLambda.keys()])
     parser.add_argument('--lmbda', type=float, default=1.0, help='Lambda value for UniqLoss')
