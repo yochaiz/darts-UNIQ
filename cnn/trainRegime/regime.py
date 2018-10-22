@@ -58,6 +58,8 @@ class TrainRegime:
         # init baseline bops
         baselineBops = model.calcBaselineBops()
         args.baselineBops = baselineBops[args.baselineBits[0]]
+        # plot baselines bops
+        model.stats.addBopsData(args, baselineBops, label='Baseline')
 
         # # ==============================================================================
         # from torch import tensor, IntTensor
