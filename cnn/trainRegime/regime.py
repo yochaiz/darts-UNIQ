@@ -1,7 +1,6 @@
 from time import time, sleep
 from abc import abstractmethod
 from os import makedirs, path, system
-from argparse import Namespace
 
 from torch.nn.utils.clip_grad import clip_grad_norm_
 from torch.optim.lr_scheduler import CosineAnnealingLR
@@ -283,6 +282,7 @@ class TrainRegime:
 
         # init validation best precision value
         best_prec1 = 0.0
+        is_best = False
 
         epoch = 0
         # init table in main logger
@@ -300,7 +300,6 @@ class TrainRegime:
 
             # set loggers dictionary
             loggersDict = dict(train=trainLogger)
-
             # training
             print('========== Epoch:[{}] =============='.format(epoch))
             trainData = self.trainWeights(optimizer, epoch, loggersDict)
@@ -327,10 +326,11 @@ class TrainRegime:
                     optimizer = SGD(model.parameters(), scheduler.get_lr()[0], momentum=args.momentum, weight_decay=args.weight_decay)
                     scheduler = CosineAnnealingLR(optimizer, float(nEpochs), eta_min=args.learning_rate_min)
                     scheduler.step()
-
+                else:
+                    # update best precision only after switching stage is complete
+                    is_best = valid_acc > best_prec1
+                    best_prec1 = max(valid_acc, best_prec1)
                 # save model checkpoint
-                is_best = valid_acc > best_prec1
-                best_prec1 = max(valid_acc, best_prec1)
                 checkpoint, (_, optimalPath) = save_checkpoint(self.trainFolderPath, model, args, epoch, best_prec1, is_best, filename)
                 if is_best:
                     assert (optimalPath is not None)
