@@ -275,14 +275,36 @@ class BaseNet(Module):
     def calcBopsRatio(self):
         return self._criterion.calcBopsRatio(self.countBops())
 
-    def choosePathByAlphas(self):
+    def choosePathByAlphas(self, loggerFuncs=[]):
         for l in self.layers:
             l.choosePathByAlphas()
 
+        logMsg = 'Model layers filters partition has been updated by alphas distribution'
+        for f in loggerFuncs:
+            f(logMsg)
+
     # set curr_alpha_idx to each filter by alphas values
-    def setFiltersByAlphas(self):
+    def setFiltersByAlphas(self, loggerFuncs=[]):
         for layer in self.layersList:
             layer.setFiltersPartitionByAlphas()
+
+        logMsg = 'Model layers filters partition has been updated by alphas values'
+        for f in loggerFuncs:
+            f(logMsg)
+
+    # returns list of layers filters partition
+    def getCurrentFiltersPartition(self):
+        return [layer.getCurrentFiltersPartition() for layer in self.layersList]
+
+    # partition is list of int tensors
+    # given a partition, set model filters accordingly
+    def setFiltersByPartition(self, partition, loggerFuncs=[]):
+        for layer, p in zip(self.layersList, partition):
+            layer.setFiltersPartition(p)
+
+        logMsg = 'Model layers filters partition has been updated by given partition'
+        for f in loggerFuncs:
+            f(logMsg)
 
     def isQuantized(self):
         for layer in self.layersList:
@@ -350,9 +372,16 @@ class BaseNet(Module):
     def save_alphas_state(self):
         return [(i, layer.alphas) for i, layer in enumerate(self.layersList)]
 
-    def load_alphas_state(self, state):
+    def load_alphas_state(self, state, loggerFuncs=[]):
         for layerIdx, alphas in state:
-            self.layersList[layerIdx].alphas.data = alphas
+            layerAlphas = self.layersList[layerIdx].alphas
+            device = layerAlphas.device
+            layerAlphas.data = alphas.data.to(device)
+
+        logMsg = 'Loaded alphas from checkpoint'
+        # log message to all loggers
+        for f in loggerFuncs:
+            f(logMsg)
 
     def __initAlphasDataFrame(self, saveFolder):
         if saveFolder:
