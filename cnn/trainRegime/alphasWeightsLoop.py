@@ -85,13 +85,12 @@ def manageJobs(epochJobs, epoch):
             if retVal != 0:
                 nJobs -= 1
 
-            sleep(10)
+            sleep(30)
 
         # if didn't manage to send any job, wait 10 mins
         if retVal != 0:
             print('Epoch:[{}] - did not manage to send trainings,  waiting [{}] mins'.format(epoch, nMinsWaiting))
-            # sleep(nMinsWaiting * 60)
-            sleep(10)
+            sleep(nMinsWaiting * 60)
 
     print('Epoch:[{}] - sent all jobs successfully'.format(epoch))
     print('Epoch:[{}] - Done !'.format(epoch))
