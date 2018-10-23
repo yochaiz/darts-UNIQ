@@ -67,7 +67,7 @@ def loadCheckpoint(dataset, model, bitwidth):
     return checkpoint, checkpointKey
 
 
-def logBaselineModel(args, logger, copyKeys=True):
+def logBaselineModel(args, logger):
     # get baseline bitwidth
     bitwidth = args.baselineBits[0]
     # load baseline checkpoint
@@ -75,7 +75,6 @@ def logBaselineModel(args, logger, copyKeys=True):
     # init logger rows
     loggerRows = []
     # init best_prec1 values
-    best_prec1 = None
     best_prec1_str = 'Not found'
 
     if checkpoint is not None:
@@ -84,7 +83,7 @@ def logBaselineModel(args, logger, copyKeys=True):
         for key in keysFromUniform:
             if key in checkpoint:
                 value = checkpoint.get(key)
-                if copyKeys:
+                if args.copyBaselineKeys:
                     setattr(args, key, value)
                     if logger:
                         loggerRows.append(['Loaded key', '{} from checkpoint:[{}]'.format(key, value)])
@@ -100,8 +99,6 @@ def logBaselineModel(args, logger, copyKeys=True):
         loggerRows.append(['Model', '{}'.format(checkpointKey)])
         loggerRows.append(['Validation accuracy', '{}'.format(best_prec1_str)])
         logger.addInfoTable('Baseline model', loggerRows)
-
-    return best_prec1, checkpointKey
 
 
 # collect possible models names
@@ -192,15 +189,13 @@ def logParameters(logger, args, model):
             'Permutations': permutationStr
         }, nElementPerRow=2))
     # log baseline model
-    uniform_best_prec1, uniformKey = logBaselineModel(args, logger, copyKeys=False)
+    logBaselineModel(args, logger)
     # log args
     logger.addInfoTable('args', HtmlLogger.dictToRows(vars(args), nElementPerRow=3))
     # print args
     print(args)
     # log model architecture to file
     printModelToFile(model, args.save)
-
-    return uniform_best_prec1, uniformKey
 
 
 def zipFolder(p, zipf):
