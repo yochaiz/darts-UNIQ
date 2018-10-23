@@ -197,11 +197,11 @@ class AlphasWeightsLoop(TrainRegime):
         # init number of epochs
         nEpochs = self.model.nLayers()
 
-        # ========================== DEBUG ===============================
-        # create epoch jobs
-        for epoch in range(1, 4):
-            epochJobsList = self.__createEpochJobs(epoch)
-        # ================================================================
+        # # ========================== DEBUG ===============================
+        # # create epoch jobs
+        # for epoch in range(1, 4):
+        #     epochJobsList = self.__createEpochJobs(epoch)
+        # # ================================================================
 
         for epoch in range(1, nEpochs + 1):
             print('========== Epoch:[{}] =============='.format(epoch))
