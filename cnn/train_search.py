@@ -165,9 +165,6 @@ if __name__ == '__main__':
         alphasRegime = alphasRegimeClass(args, logger)
         # train according to chosen regime
         alphasRegime.train()
-        # wait for sending all queued jobs
-        alphasRegime.waitForQueuedJobs()
-
         logger.addInfoToDataTable('Done !')
 
     except Exception as e:
