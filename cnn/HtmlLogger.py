@@ -246,6 +246,9 @@ class HtmlLogger:
         # write to file
         self.__writeToFile()
 
+    def replaceValueInDataTable(self, oldVal, newVal):
+        self.dataTable = self.dataTable.replace(oldVal, newVal)
+
     def plot(self, **kwargs):
         # data is a list, where each element is [x , y , 'bo' (i.e. pts style)]
         data = kwargs.get('data')
