@@ -86,7 +86,7 @@ def logBaselineModel(args, logger):
                 if args.copyBaselineKeys:
                     setattr(args, key, value)
                     if logger:
-                        loggerRows.append(['Loaded key', '{} from checkpoint:[{}]'.format(key, value)])
+                        loggerRows.append(['Loaded key [{}]'.format(key), value])
                 elif logger:
                     loggerRows.append(['{}'.format(key), '{}'.format(value)])
         # extract best_prec1 from uniform checkpoint
