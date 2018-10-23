@@ -82,7 +82,8 @@ class Statistics:
 
     # bopsData_ is a map where keys are bitwidth and values are bops.
     # we need to find the appropriate checkpoint for accuracy values.
-    def addBopsData(self, args, bopsData_, label):
+    def addBaselineBopsData(self, args, bopsData_):
+        label = 'Baseline'
         # init label list if label doesn't exist
         if label not in self.bopsData.keys():
             self.bopsData[label] = []
@@ -95,6 +96,19 @@ class Statistics:
                 accuracy = checkpoint.get('best_prec1')
                 if accuracy is not None:
                     self.bopsData[label].append((bitwidth, bops, accuracy))
+
+        # update plot
+        self.__plotBops()
+
+    # bopsData_ is a dictionary where keys are labels and values are list of tuples of (bitwidth, bops, accuracy)
+    def addBopsData(self, bopsData_):
+        for label in bopsData_.keys():
+            # init label list if label doesn't exist
+            if label not in self.bopsData.keys():
+                self.bopsData[label] = []
+
+            # append values to self.bopsData
+            self.bopsData[label].extend(bopsData_[label])
 
         # update plot
         self.__plotBops()
@@ -274,7 +288,12 @@ class Statistics:
             for bitwidth, bops, accuracy in labelBopsData:
                 xValues.append(bops)
                 yValues.append(accuracy)
-                ax.annotate('{},{:.3f}'.format(bitwidth, accuracy), (bops, accuracy))
+                # bitwidth might be None
+                txt = '{:.3f}'.format(accuracy)
+                if bitwidth:
+                    txt = '{},{}'.format(bitwidth, txt)
+                # annotate
+                ax.annotate(txt, (bops, accuracy))
 
             # plot label values
             ax.plot(xValues, yValues, 'o', label=label)
