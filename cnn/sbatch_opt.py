@@ -23,11 +23,21 @@ args = parser.parse_args()
 now = datetime.now()
 outputFile = '{}.out'.format(datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
 
-commands = [
-    [executable, './train_opt2.py',
-     '--data', args.data
-     ]
-]
+# parse data to list
+jsonFilesList = args.data.split('?')
+print(jsonFilesList)
+
+commandsList = []
+for gpuID, jsonFileName in enumerate(jsonFilesList):
+    command = [executable, './train_opt2.py', '--data', jsonFileName, '--gpu', '{}'.format(gpuID)]
+    commandsList.append(command)
+
+# commands = [
+#     [executable, './train_opt2.py',
+#      '--data', args.data,
+#      '--gpu', '0'
+#      ]
+# ]
 
 # # resume training
 # folders = ['2018-07-16_16-31-25']
@@ -46,7 +56,7 @@ with open(outputFile, mode='w') as out:
     # log pid
     out.write('PID:[{}]\n'.format(getpid()))
     # run processes
-    for cmd in commands:
+    for cmd in commandsList:
         # copy2(file, dstFile)
         # out.write('copied [{}] to [{}]'.format(file, dstFile))
         p = Popen(cmd, stdout=out, stderr=out)
