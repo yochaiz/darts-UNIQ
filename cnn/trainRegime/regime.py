@@ -59,39 +59,18 @@ class TrainRegime:
         baselineBops = model.calcBaselineBops()
         args.baselineBops = baselineBops[args.baselineBits[0]]
         # plot baselines bops
-        model.stats.addBopsData(args, baselineBops, label='Baseline')
+        model.stats.addBaselineBopsData(args, baselineBops)
+        # load partition if exists
+        if args.partition is not None:
+            assert (isinstance(args.partition, list))
+            model.setFiltersByPartition(args.partition, loggerFuncs=[lambda msg: logger.addInfoTable('Partition', [[msg]])])
 
-        # # ==============================================================================
-        # from torch import tensor, IntTensor
-        # partition = None
-        # if args.partition == 1:
-        # partition = [[0, 0, 3, 7, 6], [2, 8, 1, 1, 4], [6, 2, 2, 2, 4], [0, 0, 7, 4, 5], [1, 13, 0, 0, 2], [5, 2, 2, 5, 2], [0, 0, 7, 6, 3],
-        #              [7, 12, 4, 2, 7], [27, 1, 1, 3], [18, 5, 2, 2, 5], [0, 0, 0, 29, 3], [4, 19, 3, 1, 5], [1, 1, 2, 6, 22],
-        #              [1, 0, 14, 11, 6], [3, 3, 53, 2, 3], [1, 0, 0, 63], [3, 46, 7, 5, 3], [1, 0, 0, 61, 2], [2, 57, 1, 2, 2],
-        #              [58, 3, 1, 0, 2], [32, 20, 0, 3, 9]]
-        # partition = [[0, 1, 12, 3, 0], [4, 9, 1, 1, 1], [1, 0, 10, 3, 2], [3, 1, 11, 0, 1], [3, 9, 2, 2, 0], [4, 2, 3, 7, 0], [1, 0, 10, 4, 1],
-        #              [7, 11, 4, 8, 2], [26, 5, 1, 0], [18, 6, 2, 6, 0], [1, 2, 1, 28, 0], [3, 25, 0, 2, 2], [5, 2, 14, 6, 5], [0, 2, 22, 4, 4],
-        #              [5, 1, 51, 5, 2], [22, 0, 4, 38], [12, 6, 26, 17, 3], [9, 0, 1, 52, 2], [26, 3, 12, 22, 1], [60, 4, 0, 0, 0],
-        #              [38, 9, 0, 9, 8]]
-        # elif args.partition == 2:
-        #     # partition = [[0, 0, 5, 7, 4], [4, 10, 1, 0, 1], [9, 1, 3, 2, 1], [1, 0, 10, 4, 1], [1, 13, 1, 1, 0], [3, 1, 4, 7, 1], [1, 0, 4, 9, 2],
-        #     #              [9, 13, 5, 1, 4], [30, 0, 0, 2], [16, 7, 2, 3, 4], [2, 0, 0, 28, 2], [3, 20, 8, 0, 1], [0, 0, 4, 10, 18],
-        #     #              [1, 1, 15, 11, 4], [3, 3, 54, 3, 1], [2, 1, 0, 61], [6, 46, 10, 2, 0], [0, 0, 0, 64, 0], [1, 60, 1, 1, 1],
-        #     #              [57, 4, 1, 2, 0], [32, 23, 0, 3, 6]]
-        #     partition = [[0, 0, 14, 2, 0], [0, 11, 1, 3, 1], [2, 3, 3, 4, 4], [3, 1, 8, 3, 1], [3, 12, 1, 0, 0], [4, 4, 5, 3, 0], [1, 1, 10, 2, 2],
-        #              [6, 11, 6, 5, 4], [22, 4, 4, 2], [26, 3, 1, 1, 1], [1, 1, 3, 26, 1], [3, 21, 1, 2, 5], [6, 5, 12, 6, 3], [1, 1, 18, 8, 4],
-        #                  [6, 2, 55, 0, 1], [19, 1, 5, 39], [14, 6, 25, 18, 1], [14, 2, 2, 45, 1], [16, 9, 14, 21, 4], [62, 2, 0, 0, 0],
-        #                  [45, 9, 0, 5, 5]]
-        #
-        # for i in range(len(partition)):
-        #     partition[i] = tensor(partition[i]).type(IntTensor)
-        #
-        # for p, layer in zip(partition, model.layersList):
-        #     print(p)
-        #     assert (p.sum() == layer.nFilters())
-        #     assert (len(p) == layer.numOfOps())
-        #     layer.setFiltersPartition(p)
-        # # ==============================================================================
+        # # ========================== DEBUG ===============================
+        # self.model = model
+        # self.args = args
+        # self.logger = logger
+        # return
+        # ==================================================================
         # load data
         self.train_queue, self.search_queue, self.valid_queue, self.statistics_queue = load_data(args)
         # load pre-trained full-precision model
@@ -232,12 +211,10 @@ class TrainRegime:
             # save args to JSON
             saveArgsToJSON(args)
             # init args JSON destination path on server
-            dstPath = '/home/yochaiz/DropDarts/cnn/optimal_models/{}/{}-[{}-{}].json' \
-                .format(args.model, args.folderName, nEpoch, nBatch)
+            dstPath = '/home/yochaiz/F-BANNAS/cnn/optimal_models/{}/{}-[{}-{}].json'.format(args.model, args.folderName, nEpoch, nBatch)
             # init copy command & train command
             copyJSONcommand = 'scp {} yochaiz@132.68.39.32:{}'.format(args.jsonPath, dstPath)
-            trainOptCommand = 'ssh yochaiz@132.68.39.32 sbatch /home/yochaiz/DropDarts/cnn/sbatch_opt.sh --data {}' \
-                .format(dstPath)
+            trainOptCommand = 'ssh yochaiz@132.68.39.32 sbatch /home/yochaiz/DropDarts/cnn/sbatch_opt.sh --data {}'.format(dstPath)
             # perform commands
             print('%%%%%%%%%%%%%%')
             print('sent model with allocation:{}, queue size:[{}]'
@@ -284,6 +261,7 @@ class TrainRegime:
 
         # init validation best precision value
         best_prec1 = 0.0
+        best_valid_loss = 0.0
         is_best = False
 
         epoch = 0
@@ -314,7 +292,7 @@ class TrainRegime:
             # switch stage, i.e. freeze one more layer
             if (epoch in self.epochsSwitchStage) or (epoch == nEpochs):
                 # validation
-                valid_acc, validData = self.infer(model.setFiltersByAlphas, epoch, loggersDict)
+                valid_acc, valid_loss, validData = self.infer(model.setFiltersByAlphas, epoch, loggersDict)
 
                 # merge trainData with validData
                 for k, v in validData.items():
@@ -331,7 +309,9 @@ class TrainRegime:
                 else:
                     # update best precision only after switching stage is complete
                     is_best = valid_acc > best_prec1
-                    best_prec1 = max(valid_acc, best_prec1)
+                    if is_best:
+                        best_prec1 = valid_acc
+                        best_valid_loss = valid_loss
                 # save model checkpoint
                 checkpoint, (_, optimalPath) = save_checkpoint(self.trainFolderPath, model, args, epoch, best_prec1, is_best, filename)
                 if is_best:
@@ -350,7 +330,9 @@ class TrainRegime:
         # # save pre-trained checkpoint
         # save_checkpoint(self.trainFolderPath, model, args, epoch, best_prec1, is_best=False, filename='pre_trained')
 
-        args.best_prec1 = best_prec1
+        # save optimal validation values
+        setattr(args, self.validAccKey, best_prec1)
+        setattr(args, self.validLossKey, best_valid_loss)
 
         return epoch
 
@@ -363,7 +345,7 @@ class TrainRegime:
         sendDataEmail(self.model, self.args, self.logger, content)
 
     # apply defined formats on dict values by keys
-    def __applyFormats(self, dict):
+    def _applyFormats(self, dict):
         for k in dict.keys():
             if k in self.formats:
                 dict[k] = self.formats[k].format(dict[k])
@@ -480,14 +462,14 @@ class TrainRegime:
                     self.crossEntropyKey: crossEntropyLoss, self.bopsLossKey: bopsLoss, self.pathBopsRatioKey: bopsRatio
                 })
                 # apply formats
-                self.__applyFormats(dataRow)
+                self._applyFormats(dataRow)
                 # add row to data table
                 trainLogger.addDataRow(dataRow)
 
         # log accuracy, loss, etc.
         summaryData = {self.epochNumKey: nEpoch, self.lrKey: architect.lr, self.batchNumKey: 'Summary', self.archLossKey: loss_container.avg,
                        self.crossEntropyKey: crossEntropy_container.avg, self.bopsLossKey: bopsLoss_container.avg}
-        self.__applyFormats(summaryData)
+        self._applyFormats(summaryData)
 
         for _, logger in loggers.items():
             logger.addSummaryDataRow(summaryData)
@@ -520,8 +502,9 @@ class TrainRegime:
             input = Variable(input, requires_grad=False).cuda()
             target = Variable(target, requires_grad=False).cuda(async=True)
 
-            # choose filters partition per layer
-            model.choosePathByAlphas()
+            # choose model partition if we haven't set partition to model
+            if self.args.partition is None:
+                model.choosePathByAlphas()
             # optimize model weights
             optimizer.zero_grad()
             logits = model(input)
@@ -548,14 +531,14 @@ class TrainRegime:
                 # if (step + 1) % 20 == 0:
                 #     dataRow[self.statsKey] = self.createForwardStatsInfoTable(model, trainLogger)
                 # apply formats
-                self.__applyFormats(dataRow)
+                self._applyFormats(dataRow)
                 # add row to data table
                 trainLogger.addDataRow(dataRow)
 
         # log accuracy, loss, etc.
         summaryData = {self.trainLossKey: loss_container.avg, self.trainAccKey: top1.avg, self.batchNumKey: 'Summary'}
         # apply formats
-        self.__applyFormats(summaryData)
+        self._applyFormats(summaryData)
 
         for _, logger in loggers.items():
             logger.addSummaryDataRow(summaryData)
@@ -571,7 +554,7 @@ class TrainRegime:
 
         return summaryData
 
-    def infer(self, setModelPathFunc, nEpoch, loggers):
+    def infer(self, setModelPartitionFunc, nEpoch, loggers):
         print('*** infer() ***')
         objs = AvgrageMeter()
         top1 = AvgrageMeter()
@@ -603,8 +586,9 @@ class TrainRegime:
         # log UNIQ status after quantizing all layers
         self.addModelUNIQstatusTable(model, trainLogger, 'UNIQ status - quantizated for validation')
 
-        # choose model path
-        setModelPathFunc()
+        # choose model partition if we haven't set partition to model
+        if self.args.partition is None:
+            setModelPartitionFunc(loggerFuncs=[lambda msg: trainLogger.addInfoToDataTable(msg)])
         # calculate its bops
         bopsRatio = model.calcBopsRatio()
 
@@ -633,7 +617,7 @@ class TrainRegime:
                     # if (step + 1) % 20 == 0:
                     #     dataRow[self.statsKey] = self.createForwardStatsInfoTable(model, trainLogger)
                     # apply formats
-                    self.__applyFormats(dataRow)
+                    self._applyFormats(dataRow)
                     # add row to data table
                     trainLogger.addDataRow(dataRow)
 
@@ -652,7 +636,7 @@ class TrainRegime:
         # create summary row
         summaryRow = {self.batchNumKey: 'Summary', self.validLossKey: objs.avg, self.validAccKey: top1.avg, self.validBopsRatioKey: bopsRatio}
         # apply formats
-        self.__applyFormats(summaryRow)
+        self._applyFormats(summaryRow)
 
         for _, logger in loggers.items():
             logger.addSummaryDataRow(summaryRow)
@@ -674,13 +658,13 @@ class TrainRegime:
                 self.forwardCountersKey: forwardCountersData[-1], self.validBopsRatioKey: bopsRatio
             }
             # apply formats
-            self.__applyFormats(dataRow)
+            self._applyFormats(dataRow)
             # add row to table
             trainLogger.addDataRow(dataRow)
             # add bitwidth to summary row
             summaryRow[self.bitwidthKey] = dataRow[self.bitwidthKey]
 
-        return top1.avg, summaryRow
+        return top1.avg, objs.avg, summaryRow
 
     def logAllocations(self):
         logger = HtmlLogger(self.args.save, 'allocations', overwrite=True)
@@ -698,3 +682,58 @@ class TrainRegime:
             #     bitwidthStr += 'Layer [{}]: {}\n'.format(layerIdx, b)
             #
             # logger.addDataRow({allocationKey: bitwidthStr, nBatchesKey: nBatches})
+
+# # ======================================
+# # set model partition
+# model.choosePathByAlphas()
+# # save model layers partition
+# args.partition = model.getCurrentFiltersPartition()
+# # save args to checkpoint
+# from torch import save as saveCheckpoint
+# checkpointPath = '{}/chkpnt.json'.format(args.save)
+# saveCheckpoint(args, checkpointPath)
+# # init args JSON destination path on server
+# jsonFileName = '{}-{}-[{}].json'.format(args.folderName, 0, 0)
+# dstPath = '/home/vista/Desktop/Architecture_Search/F-BANNAS/cnn/trained_models/{}/{}/{}'.format(args.model, args.dataset, jsonFileName)
+# from shutil import copy
+# copy(checkpointPath, dstPath)
+# from cnn.train_opt2 import G
+# t = dict(data=dstPath, gpu=[0])
+# from argparse import Namespace
+# t = Namespace(**t)
+# G(t)
+# # reset args.alphas
+# args.alphas = None
+# # =====================================
+
+# # ==============================================================================
+# from torch import tensor, IntTensor
+# partition = None
+# if args.partition == 1:
+# partition = [[0, 0, 3, 7, 6], [2, 8, 1, 1, 4], [6, 2, 2, 2, 4], [0, 0, 7, 4, 5], [1, 13, 0, 0, 2], [5, 2, 2, 5, 2], [0, 0, 7, 6, 3],
+#              [7, 12, 4, 2, 7], [27, 1, 1, 3], [18, 5, 2, 2, 5], [0, 0, 0, 29, 3], [4, 19, 3, 1, 5], [1, 1, 2, 6, 22],
+#              [1, 0, 14, 11, 6], [3, 3, 53, 2, 3], [1, 0, 0, 63], [3, 46, 7, 5, 3], [1, 0, 0, 61, 2], [2, 57, 1, 2, 2],
+#              [58, 3, 1, 0, 2], [32, 20, 0, 3, 9]]
+# partition = [[0, 1, 12, 3, 0], [4, 9, 1, 1, 1], [1, 0, 10, 3, 2], [3, 1, 11, 0, 1], [3, 9, 2, 2, 0], [4, 2, 3, 7, 0], [1, 0, 10, 4, 1],
+#              [7, 11, 4, 8, 2], [26, 5, 1, 0], [18, 6, 2, 6, 0], [1, 2, 1, 28, 0], [3, 25, 0, 2, 2], [5, 2, 14, 6, 5], [0, 2, 22, 4, 4],
+#              [5, 1, 51, 5, 2], [22, 0, 4, 38], [12, 6, 26, 17, 3], [9, 0, 1, 52, 2], [26, 3, 12, 22, 1], [60, 4, 0, 0, 0],
+#              [38, 9, 0, 9, 8]]
+# elif args.partition == 2:
+#     # partition = [[0, 0, 5, 7, 4], [4, 10, 1, 0, 1], [9, 1, 3, 2, 1], [1, 0, 10, 4, 1], [1, 13, 1, 1, 0], [3, 1, 4, 7, 1], [1, 0, 4, 9, 2],
+#     #              [9, 13, 5, 1, 4], [30, 0, 0, 2], [16, 7, 2, 3, 4], [2, 0, 0, 28, 2], [3, 20, 8, 0, 1], [0, 0, 4, 10, 18],
+#     #              [1, 1, 15, 11, 4], [3, 3, 54, 3, 1], [2, 1, 0, 61], [6, 46, 10, 2, 0], [0, 0, 0, 64, 0], [1, 60, 1, 1, 1],
+#     #              [57, 4, 1, 2, 0], [32, 23, 0, 3, 6]]
+#     partition = [[0, 0, 14, 2, 0], [0, 11, 1, 3, 1], [2, 3, 3, 4, 4], [3, 1, 8, 3, 1], [3, 12, 1, 0, 0], [4, 4, 5, 3, 0], [1, 1, 10, 2, 2],
+#              [6, 11, 6, 5, 4], [22, 4, 4, 2], [26, 3, 1, 1, 1], [1, 1, 3, 26, 1], [3, 21, 1, 2, 5], [6, 5, 12, 6, 3], [1, 1, 18, 8, 4],
+#                  [6, 2, 55, 0, 1], [19, 1, 5, 39], [14, 6, 25, 18, 1], [14, 2, 2, 45, 1], [16, 9, 14, 21, 4], [62, 2, 0, 0, 0],
+#                  [45, 9, 0, 5, 5]]
+#
+# for i in range(len(partition)):
+#     partition[i] = tensor(partition[i]).type(IntTensor)
+#
+# for p, layer in zip(partition, model.layersList):
+#     print(p)
+#     assert (p.sum() == layer.nFilters())
+#     assert (len(p) == layer.numOfOps())
+#     layer.setFiltersPartition(p)
+# # ==============================================================================
