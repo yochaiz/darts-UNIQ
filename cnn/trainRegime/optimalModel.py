@@ -21,7 +21,8 @@ class OptimalModel(TrainRegime):
         # update statistics in current model, i.e. last checkpoint
         self.model.calcStatistics(self.statistics_queue)
         # save model checkpoint
-        checkpoint, (lastPath, _) = save_checkpoint(self.trainFolderPath, self.model, self.args, self.epoch, self.args.best_prec1, is_best=False)
+        checkpoint, (lastPath, _) = save_checkpoint(self.trainFolderPath, self.model, self.args, self.epoch,
+                                                    getattr(self.args, self.validAccKey, 0.0), is_best=False)
         checkpoint['updated_statistics'] = True
         saveModel(checkpoint, lastPath)
         self.logger.addInfoToDataTable('Updated statistics in last checkpoint: [{}]'.format(checkpoint['updated_statistics']))
