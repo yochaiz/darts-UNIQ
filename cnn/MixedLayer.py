@@ -61,7 +61,7 @@ class MixedLayer(Block):
         self.alphas = tensor((zeros(self.numOfOps())).cuda(), requires_grad=True)
         self.alphas = self.alphas.cuda()
         # init filters current partition by alphas, i.e. how many filters are for each alpha, from each quantization
-        self.currFiltersPartition = zeros(self.numOfOps(), dtype=int32).cuda()
+        self.currFiltersPartition = [0] * self.numOfOps()
 
         # # set filters distribution
         # if self.numOfOps() > 1:
@@ -148,7 +148,7 @@ class MixedLayer(Block):
     def setFiltersPartition(self, partition):
         assert (partition.sum().item() == self.nFilters())
         # reset current filters partition by alphas
-        self.currFiltersPartition.fill_(0)
+        self.currFiltersPartition = [0] * self.numOfOps()
         # update filters curr_alpha_idx
         idx = 0
         for i, r in enumerate(partition):
