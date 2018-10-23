@@ -22,6 +22,15 @@ if not is_available():
 def G(scriptArgs):
     # load args from file
     args = loadCheckpoint(scriptArgs.data, map_location=lambda storage, loc: storage.cuda())
+
+    # # ========================== DEBUG ===============================
+    # print(args)
+    # setattr(args, 'Validation acc', 33.4)
+    # setattr(args, 'Validation loss', 1.347)
+    # saveCheckpoint(args, scriptArgs.data)
+    # exit(0)
+    # # ================================================================
+
     # update cudnn parameters
     random.seed(args.seed)
     set_device(scriptArgs.gpu[0])
