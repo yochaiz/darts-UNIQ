@@ -322,6 +322,8 @@ class BaseNet(Module):
     # calc bops of uniform models, based on filters ops bitwidth
     def calcBaselineBops(self):
         baselineBops = {}
+        # save current model filters curr_alpha_idx
+        modelFiltersIdx = [[filter.curr_alpha_idx for filter in layer.filters] for layer in self.layersList]
         # iterate over model layers
         for layer in self.layersList:
             # we want to iterate only over MixedConvWithReLU filters layer
@@ -348,6 +350,11 @@ class BaseNet(Module):
                                 filter.curr_alpha_idx = idx
                         # update bops value in dictionary
                         baselineBops[bitwidth] = self.countBops()
+
+        # restore filters curr_alpha_idx
+        for layer, layerFiltersIdx in zip(self.layersList, modelFiltersIdx):
+            for filter, filterIdx in zip(layer.filters, layerFiltersIdx):
+                filter.curr_alpha_idx = filterIdx
 
         return baselineBops
 
