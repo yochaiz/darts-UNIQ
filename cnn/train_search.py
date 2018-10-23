@@ -124,6 +124,10 @@ def parseArgs(lossFuncsLambda):
     # args.recipients = ['evron.itay@gmail.com', 'chaimbaskin@cs.technion.ac.il', 'evgeniizh@campus.technion.ac.il', 'yochaiz.cs@gmail.com']
     args.recipients = ['yochaiz.cs@gmail.com']
 
+    # copyBaselineKeys is a parameter whether to copy keys like epochs, learning rate from baseline to current model training regime
+    # used mostly in OptimalModel subclass
+    args.copyBaselineKeys = False
+
     # save args to JSON
     saveArgsToJSON(args)
 
