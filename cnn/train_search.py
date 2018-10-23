@@ -3,8 +3,9 @@ from sys import exit
 from time import strftime
 import numpy as np
 import argparse
-from inspect import isclass
 from traceback import format_exc
+from os.path import dirname, abspath
+from inspect import getfile, currentframe, isclass
 
 import torch.backends.cudnn as cudnn
 from torch.cuda import is_available, set_device
@@ -114,10 +115,12 @@ def parseArgs(lossFuncsLambda):
     # set train folder name
     args.trainFolder = 'train'
 
+    # init current file folder
+    baseFolder = dirname(abspath(getfile(currentframe())))  # script directory
     # create folder
     # args.folderName = 'search-{}-{}'.format(args.save, strftime("%Y%m%d-%H%M%S"))
     args.folderName = '{},[{}],[{}],[{}]'.format(args.bitwidth, args.lmbda, args.dataset, strftime("%Y%m%d-%H%M%S"))
-    args.save = 'results/{}'.format(args.folderName)
+    args.save = '{}/results/{}'.format(baseFolder, args.folderName)
     create_exp_dir(args.save)
 
     # init emails recipients
@@ -156,27 +159,6 @@ if __name__ == '__main__':
     except RuntimeError:
         raise ValueError('spawn failed')
 
-    ## ======================================
-    # # set optimal model bitwidth per layer
-    # model.evalMode()
-    # args.optModel_bitwidth = [layer.getBitwidth() for layer in model.layersList]
-    # # save args to JSON
-    # saveArgsToJSON(args)
-    # # init args JSON destination path on server
-    # dstPath = '/home/vista/Desktop/Architecture_Search/DropDarts/cnn/optimal_models/{}/{}.json' \
-    #     .format(args.model, args.folderName)
-    # from shutil import copyfile
-    #
-    # copyfile(args.jsonPath, dstPath)
-    # from cnn.train_opt2 import G
-    #
-    # t = {'data': dstPath, 'epochs': [5], 'learning_rate': 0.1}
-    # from argparse import Namespace
-    #
-    # t = Namespace(**t)
-    # G(t)
-    ## =====================================
-
     try:
         # build regime for alphas optimization
         alphasRegimeClass = trainRegimes.__dict__[args.alphas_regime]
@@ -204,3 +186,24 @@ if __name__ == '__main__':
 
         # forward exception
         raise e
+
+ ## ======================================
+# # set optimal model bitwidth per layer
+# model.evalMode()
+# args.optModel_bitwidth = [layer.getBitwidth() for layer in model.layersList]
+# # save args to JSON
+# saveArgsToJSON(args)
+# # init args JSON destination path on server
+# dstPath = '/home/vista/Desktop/Architecture_Search/DropDarts/cnn/optimal_models/{}/{}.json' \
+#     .format(args.model, args.folderName)
+# from shutil import copyfile
+#
+# copyfile(args.jsonPath, dstPath)
+# from cnn.train_opt2 import G
+#
+# t = {'data': dstPath, 'epochs': [5], 'learning_rate': 0.1}
+# from argparse import Namespace
+#
+# t = Namespace(**t)
+# G(t)
+## =====================================
