@@ -115,7 +115,8 @@ def parseArgs(lossFuncsLambda):
     args.trainFolder = 'train'
 
     # create folder
-    args.folderName = 'search-{}-{}'.format(args.save, strftime("%Y%m%d-%H%M%S"))
+    # args.folderName = 'search-{}-{}'.format(args.save, strftime("%Y%m%d-%H%M%S"))
+    args.folderName = '{},[{}],[{}],[{}]'.format(args.bitwidth, args.lmbda, args.dataset, strftime("%Y%m%d-%H%M%S"))
     args.save = 'results/{}'.format(args.folderName)
     create_exp_dir(args.save)
 
