@@ -149,100 +149,6 @@ class TrainRegime:
     def train(self):
         raise NotImplementedError('subclasses must override train()!')
 
-    @staticmethod
-    def __getBitwidthKey(optModel_bitwidth):
-        return '{}'.format(optModel_bitwidth)
-
-    def setOptModelBitwidth(self):
-        model = self.model
-        args = self.args
-
-        args.optModel_bitwidth = [layer.getCurrentBitwidth() for layer in model.layersList]
-        # check if current bitwidth has already been sent for training
-        bitwidthKey = self.__getBitwidthKey(args.optModel_bitwidth)
-
-        return bitwidthKey
-
-    # wait for sending all queued jobs
-    def waitForQueuedJobs(self):
-        while len(self.optModelTrainingQueue) > 0:
-            self.logger.addInfoToDataTable('Waiting for queued jobs, queue size:[{}]'.format(len(self.optModelTrainingQueue)))
-            self.trySendQueuedJobs()
-            sleep(60)
-
-    # try to send more queued jobs to server
-    def trySendQueuedJobs(self):
-        args = self.args
-
-        trySendJobs = len(self.optModelTrainingQueue) > 0
-        while trySendJobs:
-            # take last job in queue
-            command, optModel_bitwidth = self.optModelTrainingQueue[-1]
-            # update optModel_bitwidth in args
-            args.optModel_bitwidth = optModel_bitwidth
-            # get key
-            bitwidthKey = self.__getBitwidthKey(optModel_bitwidth)
-            # save args to JSON
-            saveArgsToJSON(args)
-            # send job
-            retVal = system(command)
-
-            if retVal == 0:
-                # delete the job we sent from queue
-                self.optModelTrainingQueue = self.optModelTrainingQueue[:-1]
-                print('sent model with allocation:{}, queue size:[{}]'
-                      .format(bitwidthKey, len(self.optModelTrainingQueue)))
-
-            # update loop flag, keep sending if current job sent successfully & there are more jobs to send
-            trySendJobs = (retVal == 0) and (len(self.optModelTrainingQueue) > 0)
-
-    def sendOptModel(self, bitwidthKey, nEpoch, nBatch):
-        args = self.args
-
-        # check if this is the 1st time this allocation is optimal
-        if bitwidthKey not in self.optModelBitwidthCounter:
-            self.optModelBitwidthCounter[bitwidthKey] = 0
-
-        # increase model allocation counter
-        self.optModelBitwidthCounter[bitwidthKey] += 1
-
-        # if this allocation has been optimal enough batches, let's train it
-        if self.optModelBitwidthCounter[bitwidthKey] == self.nBatchesOptModel:
-            # save args to JSON
-            saveArgsToJSON(args)
-            # init args JSON destination path on server
-            dstPath = '/home/yochaiz/F-BANNAS/cnn/optimal_models/{}/{}-[{}-{}].json'.format(args.model, args.folderName, nEpoch, nBatch)
-            # init copy command & train command
-            copyJSONcommand = 'scp {} yochaiz@132.68.39.32:{}'.format(args.jsonPath, dstPath)
-            trainOptCommand = 'ssh yochaiz@132.68.39.32 sbatch /home/yochaiz/DropDarts/cnn/sbatch_opt.sh --data {}'.format(dstPath)
-            # perform commands
-            print('%%%%%%%%%%%%%%')
-            print('sent model with allocation:{}, queue size:[{}]'
-                  .format(bitwidthKey, len(self.optModelTrainingQueue)))
-            command = '{} && {}'.format(copyJSONcommand, trainOptCommand)
-            retVal = system(command)
-
-            if retVal != 0:
-                # server is full with jobs, add current job to queue
-                self.optModelTrainingQueue.append((command, args.optModel_bitwidth))
-                print('No available GPU, adding {} to queue, queue size:[{}]'
-                      .format(bitwidthKey, len(self.optModelTrainingQueue)))
-                # remove args JSON
-                system('ssh yochaiz@132.68.39.32 rm {}'.format(dstPath))
-
-        # try to send queued jobs, regardless current optimal model
-        self.trySendQueuedJobs()
-
-    def trainOptimalModel(self, nEpoch, nBatch):
-        model = self.model
-        # set optimal model bitwidth per layer
-        optBopsRatio = model.evalMode()
-        bitwidthKey = self.setOptModelBitwidth()
-        # train optimal model
-        self.sendOptModel(bitwidthKey, nEpoch, nBatch)
-
-        return optBopsRatio
-
     def initialWeightsTraining(self, trainFolderName, filename=None):
         model = self.model
         args = self.args
@@ -420,8 +326,6 @@ class TrainRegime:
 
             loss, crossEntropyLoss, bopsLoss = architect.step(model, input, target)
 
-            # # train optimal model
-            # optBopsRatio = self.trainOptimalModel(nEpoch, step)
             # add alphas data to statistics
             model.stats.addBatchData(model, nEpoch, step)
 
@@ -683,6 +587,99 @@ class TrainRegime:
             #
             # logger.addDataRow({allocationKey: bitwidthStr, nBatchesKey: nBatches})
 
+# @staticmethod
+# def __getBitwidthKey(optModel_bitwidth):
+#     return '{}'.format(optModel_bitwidth)
+
+# def setOptModelBitwidth(self):
+#     model = self.model
+#     args = self.args
+#
+#     args.optModel_bitwidth = [layer.getCurrentBitwidth() for layer in model.layersList]
+#     # check if current bitwidth has already been sent for training
+#     bitwidthKey = self.__getBitwidthKey(args.optModel_bitwidth)
+#
+#     return bitwidthKey
+
+# # wait for sending all queued jobs
+# def waitForQueuedJobs(self):
+#     while len(self.optModelTrainingQueue) > 0:
+#         self.logger.addInfoToDataTable('Waiting for queued jobs, queue size:[{}]'.format(len(self.optModelTrainingQueue)))
+#         self.trySendQueuedJobs()
+#         sleep(60)
+
+# # try to send more queued jobs to server
+# def trySendQueuedJobs(self):
+#     args = self.args
+#
+#     trySendJobs = len(self.optModelTrainingQueue) > 0
+#     while trySendJobs:
+#         # take last job in queue
+#         command, optModel_bitwidth = self.optModelTrainingQueue[-1]
+#         # update optModel_bitwidth in args
+#         args.optModel_bitwidth = optModel_bitwidth
+#         # get key
+#         bitwidthKey = self.__getBitwidthKey(optModel_bitwidth)
+#         # save args to JSON
+#         saveArgsToJSON(args)
+#         # send job
+#         retVal = system(command)
+#
+#         if retVal == 0:
+#             # delete the job we sent from queue
+#             self.optModelTrainingQueue = self.optModelTrainingQueue[:-1]
+#             print('sent model with allocation:{}, queue size:[{}]'
+#                   .format(bitwidthKey, len(self.optModelTrainingQueue)))
+#
+#         # update loop flag, keep sending if current job sent successfully & there are more jobs to send
+#         trySendJobs = (retVal == 0) and (len(self.optModelTrainingQueue) > 0)
+
+# def sendOptModel(self, bitwidthKey, nEpoch, nBatch):
+#     args = self.args
+#
+#     # check if this is the 1st time this allocation is optimal
+#     if bitwidthKey not in self.optModelBitwidthCounter:
+#         self.optModelBitwidthCounter[bitwidthKey] = 0
+#
+#     # increase model allocation counter
+#     self.optModelBitwidthCounter[bitwidthKey] += 1
+#
+#     # if this allocation has been optimal enough batches, let's train it
+#     if self.optModelBitwidthCounter[bitwidthKey] == self.nBatchesOptModel:
+#         # save args to JSON
+#         saveArgsToJSON(args)
+#         # init args JSON destination path on server
+#         dstPath = '/home/yochaiz/F-BANNAS/cnn/optimal_models/{}/{}-[{}-{}].json'.format(args.model, args.folderName, nEpoch, nBatch)
+#         # init copy command & train command
+#         copyJSONcommand = 'scp {} yochaiz@132.68.39.32:{}'.format(args.jsonPath, dstPath)
+#         trainOptCommand = 'ssh yochaiz@132.68.39.32 sbatch /home/yochaiz/DropDarts/cnn/sbatch_opt.sh --data {}'.format(dstPath)
+#         # perform commands
+#         print('%%%%%%%%%%%%%%')
+#         print('sent model with allocation:{}, queue size:[{}]'
+#               .format(bitwidthKey, len(self.optModelTrainingQueue)))
+#         command = '{} && {}'.format(copyJSONcommand, trainOptCommand)
+#         retVal = system(command)
+#
+#         if retVal != 0:
+#             # server is full with jobs, add current job to queue
+#             self.optModelTrainingQueue.append((command, args.optModel_bitwidth))
+#             print('No available GPU, adding {} to queue, queue size:[{}]'
+#                   .format(bitwidthKey, len(self.optModelTrainingQueue)))
+#             # remove args JSON
+#             system('ssh yochaiz@132.68.39.32 rm {}'.format(dstPath))
+#
+#     # try to send queued jobs, regardless current optimal model
+#     self.trySendQueuedJobs()
+
+# def trainOptimalModel(self, nEpoch, nBatch):
+#     model = self.model
+#     # set optimal model bitwidth per layer
+#     optBopsRatio = model.evalMode()
+#     bitwidthKey = self.setOptModelBitwidth()
+#     # train optimal model
+#     self.sendOptModel(bitwidthKey, nEpoch, nBatch)
+#
+#     return optBopsRatio
 # # ======================================
 # # set model partition
 # model.choosePathByAlphas()
