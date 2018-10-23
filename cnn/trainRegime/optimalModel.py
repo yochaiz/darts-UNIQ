@@ -5,7 +5,10 @@ from .regime import TrainRegime, save_checkpoint
 
 class OptimalModel(TrainRegime):
     def __init__(self, args, logger):
+        # update arguments relevant to optimal model training
         args.init_weights_train = True
+        args.copyBaselineKeys = True
+
         super(OptimalModel, self).__init__(args, logger)
 
         # log bops ratio
