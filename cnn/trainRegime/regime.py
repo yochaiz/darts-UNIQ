@@ -1,10 +1,10 @@
-from time import time, sleep
+from time import time
 from abc import abstractmethod
-from os import makedirs, path, system
+from os import makedirs, path
 
 from torch.nn.utils.clip_grad import clip_grad_norm_
 from torch.optim.lr_scheduler import CosineAnnealingLR
-from torch import no_grad
+from torch import no_grad, tensor, int32
 from torch.optim import SGD
 from torch.autograd.variable import Variable
 from torch.nn import CrossEntropyLoss
@@ -63,6 +63,10 @@ class TrainRegime:
         # load partition if exists
         if args.partition is not None:
             assert (isinstance(args.partition, list))
+            # convert partition to tensors
+            for i, p in enumerate(args.partition):
+                args.partition[i] = tensor(p, dtype=int32).cuda()
+            # set filters by partition
             model.setFiltersByPartition(args.partition, loggerFuncs=[lambda msg: logger.addInfoTable('Partition', [[msg]])])
 
         # # ========================== DEBUG ===============================
