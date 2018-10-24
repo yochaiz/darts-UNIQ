@@ -237,7 +237,7 @@ class TrainRegime:
         # add optimal accuracy
         summaryRow = {self.epochNumKey: 'Optimal', self.validAccKey: best_prec1, self.validLossKey: best_valid_loss}
         self._applyFormats(summaryRow)
-        logger.addSummaryDataRow(sum())
+        logger.addSummaryDataRow(summaryRow)
 
         # # save pre-trained checkpoint
         # save_checkpoint(self.trainFolderPath, model, args, epoch, best_prec1, is_best=False, filename='pre_trained')
