@@ -1,4 +1,4 @@
-from os import system, remove
+from os import system, remove, makedirs
 from os.path import exists
 from multiprocessing import Pool
 from time import sleep
@@ -121,6 +121,11 @@ class AlphasWeightsLoop(TrainRegime):
         retVal = system(command)
         printSuccessOrFail(retVal, 'Created folder [{}] on remote server'.format(self.remoteDirPath) + ':[{}]')
 
+        # create folder for jobs JSONs
+        self.jobsPath = '{}/jobs'.format(args.save)
+        if not exists(self.jobsPath):
+            makedirs(self.jobsPath)
+
         # init list of training jobs we yet have to get their values
         self.jobsList = []
         # init data table row keys to replace
@@ -160,7 +165,7 @@ class AlphasWeightsLoop(TrainRegime):
         # create training job instance
         trainingJob = TrainingJob(dict(bopsRatio=model.calcBopsRatio(), bops=model.countBops(), remoteDirPath=self.remoteDirPath,
                                        bitwidthInfoTable=self.createBitwidthsTable(model, self.logger, self.bitwidthKey),
-                                       jsonFileName=jsonFileName, jsonPath='{}/{}'.format(args.save, jsonFileName)))
+                                       jsonFileName=jsonFileName, jsonPath='{}/{}'.format(self.jobsPath, jsonFileName)))
 
         # save model layers partition
         args.partition = model.getCurrentFiltersPartition()
