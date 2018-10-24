@@ -195,7 +195,7 @@ class AlphasWeightsLoop(TrainRegime):
         args = self.args
         logger = self.logger
         # init number of epochs
-        nEpochs = self.model.nLayers()
+        nEpochs = 6
 
         # # ========================== DEBUG ===============================
         # # create epoch jobs
