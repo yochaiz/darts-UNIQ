@@ -80,6 +80,10 @@ class HtmlLogger:
 
         return rows
 
+    def setMaxTableCellLength(self, length):
+        if length > 0:
+            self.maxTableCellLength = length
+
     def __writeToFile(self):
         # init elements write order to file
         writeOrder = [self.head, self.infoTables, self.dataTable, '</table>', self.script, self.end]
