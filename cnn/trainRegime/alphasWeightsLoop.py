@@ -9,6 +9,7 @@ from torch import load as loadCheckpoint
 
 from .regime import TrainRegime, save_checkpoint, HtmlLogger
 from cnn.architect import Architect
+from cnn.HtmlLogger import HtmlLogger
 import cnn.gradEstimators as gradEstimators
 
 
@@ -17,17 +18,22 @@ def escape(txt):
     return txt.translate(translation)
 
 
-def printSuccessOrFail(retVal, msg):
+def returnSuccessOrFail(retVal, msg):
     res = 'Success' if retVal == 0 else 'Fail'
-    print(msg.format(res))
+    return msg.format(res)
 
 
-def manageJobs(epochJobs, epoch):
+def manageJobs(epochJobs, epoch, folderPath):
+    # create logger for manager
+    logger = HtmlLogger(folderPath, '[{}]-manager'.format(epoch))
+    logger.addInfoTable('Details', [['Epoch', epoch], ['nJobs', len(epochJobs)]])
+    logger.createDataTable('Activity', ['Description'])
+
     # copy jobs JSON to server
     for job in epochJobs:
         # perform command
         retVal = system(job.cmdCopyToServer)
-        printSuccessOrFail(retVal, 'Copied +{}+ to server'.format(job.jsonFileName) + ':[{}]')
+        logger.addDataRow(dict(description=returnSuccessOrFail(retVal, 'Copied +{}+ to server'.format(job.jsonFileName) + ':[{}]')))
 
     # init server names
     servers = ['gaon6', 'gaon4', 'gaon2', 'gaon5']
@@ -40,7 +46,7 @@ def manageJobs(epochJobs, epoch):
     # try sending as much jobs as possible under single sbatch
     # try sending as much sbatch commands as possible
     while len(epochJobs) > 0:
-        print('Epoch:[{}] Jobs waiting:[{}]'.format(epoch, len(epochJobs)))
+        logger.addDataRow(dict(description='Jobs waiting:[{}]'.format(epoch, len(epochJobs))))
         # set number of jobs we want to run in a single SBATCH command
         nJobs = min(nMaxGPUs, len(epochJobs))
         # try to send sbatch command to server, stop when successful
@@ -56,7 +62,8 @@ def manageJobs(epochJobs, epoch):
             nCPUs = min(nMaxCPUs, 3 * nJobs)
             # try to perform command on one of the servers
             for serv in servers:
-                print('Epoch:[{}] - trying to send [{}] trainings to [{}], jobs still waiting:[{}]'.format(epoch, nJobs, serv, len(epochJobs)))
+                logger.addDataRow(dict(description='Trying to send [{}] trainings to [{}], jobs still waiting:[{}]'
+                                       .format(epoch, nJobs, serv, len(epochJobs))))
                 # create command
                 trainCommand = 'ssh yochaiz@132.68.39.32 sbatch -I --gres=gpu:{} -c {} -w {} /home/yochaiz/F-BANNAS/cnn/sbatch_opt.sh --data "{}"' \
                     .format(nJobs, nCPUs, serv, files)
@@ -65,7 +72,8 @@ def manageJobs(epochJobs, epoch):
                 # clear successfully sent jobs
                 if retVal == 0:
                     epochJobs = epochJobs[nJobs:]
-                    print('Epoch:[{}] - sent [{}] trainings successfully to [{}], jobs still waiting:[{}]'.format(epoch, nJobs, serv, len(epochJobs)))
+                    logger.addDataRow(dict(description='Sent [{}] trainings successfully to [{}], jobs still waiting:[{}]'
+                                           .format(epoch, nJobs, serv, len(epochJobs))))
                     break
 
             # check if jobs not sent, try sending less jobs, i.e. use less GPUs
@@ -77,11 +85,11 @@ def manageJobs(epochJobs, epoch):
 
         # if didn't manage to send any job, wait 10 mins
         if retVal != 0:
-            print('Epoch:[{}] - did not manage to send trainings,  waiting [{}] mins'.format(epoch, nMinsWaiting))
+            logger.addDataRow(dict(description='Did not manage to send trainings,  waiting [{}] mins'.format(epoch, nMinsWaiting)))
             sleep(nMinsWaiting * 60)
 
-    print('Epoch:[{}] - sent all jobs successfully'.format(epoch))
-    print('Epoch:[{}] - Done !'.format(epoch))
+    logger.addSummaryDataRow(dict(description='Sent all jobs successfully'.format(epoch)))
+    logger.addSummaryDataRow(dict(description='Done !'))
 
 
 class TrainingJob:
@@ -107,7 +115,7 @@ class AlphasWeightsLoop(TrainRegime):
         self.remoteDirPath = '/home/yochaiz/F-BANNAS/cnn/trained_models/{}/{}/{}'.format(args.model, args.dataset, args.folderName)
         command = 'ssh yochaiz@132.68.39.32 mkdir "{}"'.format(escape(self.remoteDirPath))
         retVal = system(command)
-        printSuccessOrFail(retVal, 'Created folder [{}] on remote server'.format(self.remoteDirPath) + ':[{}]')
+        returnSuccessOrFail(retVal, 'Created folder [{}] on remote server'.format(self.remoteDirPath) + ':[{}]')
 
         # create folder for jobs JSONs
         self.jobsPath = '{}/jobs'.format(args.save)
@@ -178,7 +186,7 @@ class AlphasWeightsLoop(TrainRegime):
 
         # create process to manage epoch jobs
         pool = Pool(processes=1)
-        pool.apply_async(manageJobs, args=(epochJobs, epoch,))
+        pool.apply_async(manageJobs, args=(epochJobs, epoch, self.jobsPath,))
 
         return epochJobs
 
@@ -276,7 +284,7 @@ class AlphasWeightsLoop(TrainRegime):
         for job in self.jobsList:
             # copy JSON from server back here
             retVal = system(job.cmdCopyFromServer)
-            printSuccessOrFail(retVal, 'Copied +{}+ back from server'.format(job.jsonFileName) + ':[{}]')
+            returnSuccessOrFail(retVal, 'Copied +{}+ back from server'.format(job.jsonFileName) + ':[{}]')
             # load checkpoint
             if exists(job.jsonPath):
                 checkpoint = loadCheckpoint(job.jsonPath, map_location=lambda storage, loc: storage.cuda())
