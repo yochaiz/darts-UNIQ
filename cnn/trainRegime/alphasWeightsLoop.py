@@ -23,17 +23,25 @@ def returnSuccessOrFail(retVal, msg):
     return msg.format(res)
 
 
+def __buildCommand(jobTitle, nGPUs, nCPUs, server, data):
+    return 'ssh yochaiz@132.68.39.32 srun -o a.out -I --gres=gpu:{} -c {} -w {} -t 01-00:00:00 -p gip,all ' \
+           '-J "{}" --mail-user=yochaiz@cs.technion.ac.il --mail-type=ALL ' \
+           '/home/yochaiz/F-BANNAS/cnn/sbatch_opt.sh --data "{}"'.format(nGPUs, nCPUs, server, jobTitle, data)
+
+
 def manageJobs(epochJobs, epoch, folderPath):
     # create logger for manager
     logger = HtmlLogger(folderPath, '[{}]-manager'.format(epoch))
     logger.addInfoTable('Details', [['Epoch', epoch], ['nJobs', len(epochJobs)]])
-    logger.createDataTable('Activity', ['Description'])
+    tableColumn = 'Description'
+    logger.setMaxTableCellLength(200)
+    logger.createDataTable('Activity', [tableColumn])
 
     # copy jobs JSON to server
     for job in epochJobs:
         # perform command
         retVal = system(job.cmdCopyToServer)
-        logger.addDataRow(dict(description=returnSuccessOrFail(retVal, 'Copied +{}+ to server'.format(job.jsonFileName) + ':[{}]')))
+        logger.addDataRow({tableColumn: returnSuccessOrFail(retVal, 'Copied +{}+ to server'.format(job.jsonFileName) + ':[{}]')})
 
     # init server names
     servers = ['gaon6', 'gaon4', 'gaon2', 'gaon5']
@@ -46,7 +54,7 @@ def manageJobs(epochJobs, epoch, folderPath):
     # try sending as much jobs as possible under single sbatch
     # try sending as much sbatch commands as possible
     while len(epochJobs) > 0:
-        logger.addDataRow(dict(description='Jobs waiting:[{}]'.format(epoch, len(epochJobs))))
+        logger.addDataRow({tableColumn: 'Jobs waiting:[{}]'.format(len(epochJobs))})
         # set number of jobs we want to run in a single SBATCH command
         nJobs = min(nMaxGPUs, len(epochJobs))
         # try to send sbatch command to server, stop when successful
@@ -62,18 +70,19 @@ def manageJobs(epochJobs, epoch, folderPath):
             nCPUs = min(nMaxCPUs, 3 * nJobs)
             # try to perform command on one of the servers
             for serv in servers:
-                logger.addDataRow(dict(description='Trying to send [{}] trainings to [{}], jobs still waiting:[{}]'
-                                       .format(epoch, nJobs, serv, len(epochJobs))))
+                logger.addDataRow({tableColumn: 'Trying to send [{}] trainings to [{}], jobs still waiting:[{}]'
+                                  .format(nJobs, serv, len(epochJobs))})
                 # create command
-                trainCommand = 'ssh yochaiz@132.68.39.32 sbatch -I --gres=gpu:{} -c {} -w {} /home/yochaiz/F-BANNAS/cnn/sbatch_opt.sh --data "{}"' \
-                    .format(nJobs, nCPUs, serv, files)
+                jobTitle = 'Epoch_[{}]_nJobs_[{}]_jobsLeft_[{}]'.format(epoch, nJobs, len(epochJobs) - nJobs)
+                trainCommand = __buildCommand(jobTitle, nJobs, nCPUs, serv, files)
                 # send command to server, we added the -I flag, so if it won't be able to run immediately, it fails, no more pending
                 retVal = system(trainCommand)
+                logger.addDataRow({tableColumn: 'retVal:[{}]'.format(retVal)})
                 # clear successfully sent jobs
                 if retVal == 0:
                     epochJobs = epochJobs[nJobs:]
-                    logger.addDataRow(dict(description='Sent [{}] trainings successfully to [{}], jobs still waiting:[{}]'
-                                           .format(epoch, nJobs, serv, len(epochJobs))))
+                    logger.addDataRow({tableColumn: 'Sent [{}] trainings successfully to [{}], jobs still waiting:[{}]'
+                                      .format(nJobs, serv, len(epochJobs))})
                     break
 
             # check if jobs not sent, try sending less jobs, i.e. use less GPUs
@@ -81,15 +90,15 @@ def manageJobs(epochJobs, epoch, folderPath):
             if retVal != 0:
                 nJobs -= 1
             # wait a bit ... mostly for debugging purposes
-            sleep(30)
+            sleep(10)
 
         # if didn't manage to send any job, wait 10 mins
         if retVal != 0:
-            logger.addDataRow(dict(description='Did not manage to send trainings,  waiting [{}] mins'.format(epoch, nMinsWaiting)))
+            logger.addDataRow({tableColumn: 'Did not manage to send trainings,  waiting [{}] mins'.format(nMinsWaiting)})
             sleep(nMinsWaiting * 60)
 
-    logger.addSummaryDataRow(dict(description='Sent all jobs successfully'.format(epoch)))
-    logger.addSummaryDataRow(dict(description='Done !'))
+    logger.addSummaryDataRow({tableColumn: 'Sent all jobs successfully'})
+    logger.addSummaryDataRow({tableColumn: 'Done !'})
 
 
 class TrainingJob:
