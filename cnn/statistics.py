@@ -174,7 +174,7 @@ class Statistics:
         # init flag to check whether we have plotted something or not
         isPlotEmpty = True
         # init colors
-        colors = [self.colormap(i) for i in linspace(0.7, 0.0, len(data))]
+        colors = [self.colormap(i) for i in linspace(0.6, 0.0, len(data))]
         # reset plot data in plotsData dictionary
         self.plotsData[title] = dict(x=xValues, data=[])
 
