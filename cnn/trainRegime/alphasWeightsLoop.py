@@ -190,12 +190,16 @@ class AlphasWeightsLoop(TrainRegime):
 
         return epochJobs
 
+    @staticmethod
+    def __getEpochRange(nEpochs):
+        return range(1, nEpochs + 1)
+
     def train(self):
         model = self.model
         args = self.args
         logger = self.logger
         # init number of epochs
-        nEpochs = 6
+        epochRange = self.__getEpochRange(6)
 
         # # ========================== DEBUG ===============================
         # # create epoch jobs
@@ -203,7 +207,7 @@ class AlphasWeightsLoop(TrainRegime):
         #     epochJobsList = self.__createEpochJobs(epoch)
         # # ================================================================
 
-        for epoch in range(1, nEpochs + 1):
+        for epoch in epochRange:
             print('========== Epoch:[{}] =============='.format(epoch))
             # init epoch train logger
             trainLogger = HtmlLogger(self.trainFolderPath, str(epoch))
@@ -262,7 +266,7 @@ class AlphasWeightsLoop(TrainRegime):
             self.__addEpochJSONsDataRows(epochJobsList, epoch)
 
             # update temp values in data table + update bops plot
-            self.__updateDataTableAndBopsPlot()
+            self.__updateDataTableAndBopsPlot(epochRange)
 
             # save checkpoint
             save_checkpoint(self.trainFolderPath, model, args, epoch, self.best_prec1)
@@ -274,9 +278,13 @@ class AlphasWeightsLoop(TrainRegime):
     def generateTempValue(jsonFileName, key):
         return '{}_{}'.format(jsonFileName, key)
 
-    def __updateDataTableAndBopsPlot(self):
+    def __updateDataTableAndBopsPlot(self, epochRange):
         # init plot data list
-        bopsPlotData = []
+        bopsPlotData = {}
+        # init epochs as keys in bopsPlotData, empty list per key
+        for epoch in epochRange:
+            bopsPlotData[epoch] = []
+
         best_prec1 = 0.0
         # init updated jobs list, a list of jobs we haven't got their values yet
         updatedJobsList = []
@@ -315,7 +323,7 @@ class AlphasWeightsLoop(TrainRegime):
         self.jobsList = updatedJobsList
 
         # send new bops plot value to plot
-        self.model.stats.addBopsData(dict(Alpha=bopsPlotData))
+        self.model.stats.addBopsData(bopsPlotData)
 
         return best_prec1
 
