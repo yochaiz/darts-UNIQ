@@ -80,6 +80,14 @@ class Statistics:
         # plot data
         self.plotData()
 
+    def __saveAndPlotBops(self):
+        # save data to plotData
+        self.plotsData[self.bopsKey] = self.bopsData
+        # save plots data
+        saveFile(self.plotsData, self.plotsDataFilePath)
+        # update plot
+        self.plotBops(self.plotsData, self.bopsKey, self.saveFolder)
+
     # bopsData_ is a map where keys are bitwidth and values are bops.
     # we need to find the appropriate checkpoint for accuracy values.
     def addBaselineBopsData(self, args, bopsData_):
@@ -97,8 +105,8 @@ class Statistics:
                 if accuracy is not None:
                     self.bopsData[label].append((bitwidth, bops, accuracy))
 
-        # update plot
-        self.__plotBops()
+        # save & plot bops
+        self.__saveAndPlotBops()
 
     # bopsData_ is a dictionary where keys are labels and values are list of tuples of (bitwidth, bops, accuracy)
     def addBopsData(self, bopsData_):
@@ -110,11 +118,12 @@ class Statistics:
             # append values to self.bopsData
             self.bopsData[label].extend(bopsData_[label])
 
-        # update plot
-        self.__plotBops()
+        # save & plot bops
+        self.__saveAndPlotBops()
 
-    def saveFigPDF(self, figs, fileName):
-        pdf = PdfPages('{}/{}.pdf'.format(self.saveFolder, fileName))
+    @staticmethod
+    def saveFigPDF(figs, fileName, saveFolder):
+        pdf = PdfPages('{}/{}.pdf'.format(saveFolder, fileName))
         for fig in figs:
             pdf.savefig(fig)
 
@@ -155,15 +164,17 @@ class Statistics:
         ax.set_title(title)
         ax.legend(loc='upper center', bbox_to_anchor=(0.5, 1.005), ncol=5, fancybox=True, shadow=True)
 
-    def __setFigProperties(self, fig, figSize=(15, 10)):
+    @staticmethod
+    def __setFigProperties(fig, figSize=(15, 10)):
         fig.set_size_inches(figSize)
         fig.tight_layout()
         # close plot
         plt.close(fig)
 
-    def __setPlotProperties(self, fig, ax, xLabel, yLabel, yMax, title):
-        self.__setAxesProperties(ax, xLabel, yLabel, yMax, title)
-        self.__setFigProperties(fig)
+    @staticmethod
+    def __setPlotProperties(fig, ax, xLabel, yLabel, yMax, title):
+        Statistics.__setAxesProperties(ax, xLabel, yLabel, yMax, title)
+        Statistics.__setFigProperties(fig)
 
     def __plotContainer(self, data, xValues, xLabel, yLabel, title, labelFunc, axOther=None, scale=True, annotate=None):
         # create plot
@@ -249,7 +260,8 @@ class Statistics:
             data = self.containers[fileName]
             fig = self.__plotContainer(data, xValues, xLabel='Batch #', yLabel=fileName, title='{} over epochs'.format(fileName),
                                        labelFunc=lambda x: x)
-            self.saveFigPDF([fig], fileName)
+
+            self.saveFigPDF([fig], fileName, self.saveFolder)
 
         for fileName in self.plotLayersSeparateKeys:
             data = self.containers[fileName]
@@ -273,16 +285,18 @@ class Statistics:
             # set fig properties
             self.__setFigProperties(fig, figSize=(40, 20))
             # save as HTML
-            self.saveFigPDF(figs, fileName)
+            self.saveFigPDF(figs, fileName, self.saveFolder)
 
         # save plots data
         saveFile(self.plotsData, self.plotsDataFilePath)
 
-    def __plotBops(self):
+    @staticmethod
+    def plotBops(plotsData, bopsKey, saveFolder):
+        bopsData = plotsData[bopsKey]
         # create plot
         fig, ax = plt.subplots(nrows=1, ncols=1)
 
-        for label, labelBopsData in self.bopsData.items():
+        for label, labelBopsData in bopsData.items():
             xValues = []
             yValues = []
             for bitwidth, bops, accuracy in labelBopsData:
@@ -299,14 +313,9 @@ class Statistics:
             ax.plot(xValues, yValues, 'o', label=label)
 
         # set plot properties
-        self.__setPlotProperties(fig, ax, xLabel='Bops', yLabel='Accuracy', yMax=100.0, title='Accuracy vs. Bops')
+        Statistics.__setPlotProperties(fig, ax, xLabel='Bops', yLabel='Accuracy', yMax=100.0, title='Accuracy vs. Bops')
         # save as HTML
-        self.saveFigPDF([fig], fileName=self.bopsKey)
-
-        # save data to plotData
-        self.plotsData[self.bopsKey] = self.bopsData
-        # save plots data
-        saveFile(self.plotsData, self.plotsDataFilePath)
+        Statistics.saveFigPDF([fig], bopsKey, saveFolder)
 
 # def plotBops(self, layersList):
 #     # create plot
