@@ -184,7 +184,7 @@ if __name__ == '__main__':
         # forward exception
         raise e
 
- ## ======================================
+## ======================================
 # # set optimal model bitwidth per layer
 # model.evalMode()
 # args.optModel_bitwidth = [layer.getBitwidth() for layer in model.layersList]
