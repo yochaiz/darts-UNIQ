@@ -521,8 +521,7 @@ def load_data(args):
     #                           sampler=SubsetRandomSampler(indices[split:num_train]),
     #                           pin_memory=True, num_workers=args.workers)
 
-    valid_queue = DataLoader(valid_data, batch_size=args.batch_size, shuffle=False,
-                             pin_memory=True, num_workers=args.workers)
+    valid_queue = DataLoader(valid_data, batch_size=args.batch_size, shuffle=False, pin_memory=True, num_workers=args.workers)
 
     # split search_queue to parts
     nParts = args.alphas_data_parts
