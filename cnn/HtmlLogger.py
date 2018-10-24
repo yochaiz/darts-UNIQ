@@ -214,7 +214,7 @@ class HtmlLogger:
                     res += self.__createTableFromRows(values[c])
                 else:
                     content = '{}'.format(values[c])
-                    if len(content) > self.maxTableCellLength:
+                    if (len(content) > self.maxTableCellLength) and (not '</button>' in content):
                         content = '<div style="width: 300px; overflow: auto"> {} </div>'.format(content)
                     res += content
             res += '</td>'
