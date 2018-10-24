@@ -12,7 +12,7 @@ from torch import save as saveModel
 from cnn.MixedLayer import MixedLayer
 from cnn.MixedFilter import MixedConvWithReLU
 from cnn.uniq_loss import UniqLoss
-from cnn.statistics import Statistics
+import cnn.statistics
 
 
 # from UNIQ.quantize import backup_weights, restore_weights, quantize
@@ -83,7 +83,7 @@ class BaseNet(Module):
         self._criterion = UniqLoss(args)
         self._criterion = self._criterion.cuda()
         # init statistics
-        self.stats = Statistics(self.layersList, saveFolder)
+        self.stats = cnn.statistics.Statistics(self.layersList, saveFolder)
         # collect learnable params (weights)
         self.learnable_params = [param for param in self.parameters() if param.requires_grad]
         # init learnable alphas
