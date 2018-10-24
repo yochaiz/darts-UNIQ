@@ -28,14 +28,13 @@ def manageJobs(epochJobs, epoch):
         # perform command
         retVal = system(job.cmdCopyToServer)
         printSuccessOrFail(retVal, 'Copied +{}+ to server'.format(job.jsonFileName) + ':[{}]')
+
     # init server names
     servers = ['gaon6', 'gaon4', 'gaon2', 'gaon5']
-    # init maximal SBATCH jobs we can run concurrently
-    nMaxSBATCH = 4
     # init number of maximal GPUs we can run in single sbatch
     nMaxGPUs = 2
     # init number of maximal CPUs
-    nMaxCPUs = 10
+    nMaxCPUs = 8
     # init number of minutes to wait
     nMinsWaiting = 10
     # try sending as much jobs as possible under single sbatch
@@ -55,36 +54,25 @@ def manageJobs(epochJobs, epoch):
             files = files[:-1]
             # set number of CPUs
             nCPUs = min(nMaxCPUs, 3 * nJobs)
-            # count how many running SBATCH jobs we have on server
-            nRunningJobs = system('ssh yochaiz@132.68.39.32 ./countRunning.sh') >> 8
-            nPendingJobs = system('ssh yochaiz@132.68.39.32 ./countPending.sh') >> 8
-            print('Epoch:[{}] - nRunningJobs:[{}] nPendingJobs:[{}]'.format(epoch, nRunningJobs, nPendingJobs))
-            # if there is room left for running a job, try to run it
-            if nRunningJobs < nMaxSBATCH:
-                # change servers order if there are pending jobs
-                if nPendingJobs > 0:
-                    s = servers[0]
-                    servers = servers[1:]
-                    servers.append(s)
-                # try to perform command on one of the servers
-                for serv in servers:
-                    print('Epoch:[{}] - trying to send [{}] trainings to [{}], jobs still waiting:[{}]'.format(epoch, nJobs, serv, len(epochJobs)))
-                    # create command
-                    trainCommand = 'ssh yochaiz@132.68.39.32 sbatch --gres=gpu:{} -c {} -w {} /home/yochaiz/F-BANNAS/cnn/sbatch_opt.sh --data "{}"' \
-                        .format(nJobs, nCPUs, serv, files)
-                    retVal = system(trainCommand)
-                    # clear successfully sent jobs
-                    if retVal == 0:
-                        epochJobs = epochJobs[nJobs:]
-                        print('Epoch:[{}] - sent [{}] trainings successfully to [{}], jobs still waiting:[{}]'
-                              .format(epoch, nJobs, serv, len(epochJobs)))
-                        break
+            # try to perform command on one of the servers
+            for serv in servers:
+                print('Epoch:[{}] - trying to send [{}] trainings to [{}], jobs still waiting:[{}]'.format(epoch, nJobs, serv, len(epochJobs)))
+                # create command
+                trainCommand = 'ssh yochaiz@132.68.39.32 sbatch -I --gres=gpu:{} -c {} -w {} /home/yochaiz/F-BANNAS/cnn/sbatch_opt.sh --data "{}"' \
+                    .format(nJobs, nCPUs, serv, files)
+                # send command to server, we added the -I flag, so if it won't be able to run immediately, it fails, no more pending
+                retVal = system(trainCommand)
+                # clear successfully sent jobs
+                if retVal == 0:
+                    epochJobs = epochJobs[nJobs:]
+                    print('Epoch:[{}] - sent [{}] trainings successfully to [{}], jobs still waiting:[{}]'.format(epoch, nJobs, serv, len(epochJobs)))
+                    break
 
             # check if jobs not sent, try sending less jobs, i.e. use less GPUs
             # we don't really need to check retVal here, but anyway ...
             if retVal != 0:
                 nJobs -= 1
-
+            # wait a bit ... mostly for debugging purposes
             sleep(30)
 
         # if didn't manage to send any job, wait 10 mins
@@ -354,6 +342,80 @@ class AlphasWeightsLoop(TrainRegime):
 #
 #         # update temp values in data table + update bops plot
 #         self.__updateDataTableAndBopsPlot()
+
+
+# def manageJobs(epochJobs, epoch):
+#     # copy jobs JSON to server
+#     for job in epochJobs:
+#         # perform command
+#         retVal = system(job.cmdCopyToServer)
+#         printSuccessOrFail(retVal, 'Copied +{}+ to server'.format(job.jsonFileName) + ':[{}]')
+#     # init server names
+#     servers = ['gaon6', 'gaon4', 'gaon2', 'gaon5']
+#     # init maximal SBATCH jobs we can run concurrently
+#     nMaxSBATCH = 4
+#     # init number of maximal GPUs we can run in single sbatch
+#     nMaxGPUs = 2
+#     # init number of maximal CPUs
+#     nMaxCPUs = 8
+#     # init number of minutes to wait
+#     nMinsWaiting = 10
+#     # try sending as much jobs as possible under single sbatch
+#     # try sending as much sbatch commands as possible
+#     while len(epochJobs) > 0:
+#         print('Epoch:[{}] Jobs waiting:[{}]'.format(epoch, len(epochJobs)))
+#         # set number of jobs we want to run in a single SBATCH command
+#         nJobs = min(nMaxGPUs, len(epochJobs))
+#         # try to send sbatch command to server, stop when successful
+#         retVal = -1
+#         while (nJobs > 0) and (retVal != 0):
+#             # concatenate JSON files for jobs
+#             files = ''
+#             for job in epochJobs[:nJobs]:
+#                 files += escape(job.dstPath) + '?'
+#             # remove last comma
+#             files = files[:-1]
+#             # set number of CPUs
+#             nCPUs = min(nMaxCPUs, 3 * nJobs)
+#             # count how many running SBATCH jobs we have on server
+#             nRunningJobs = system('ssh yochaiz@132.68.39.32 ./countRunning.sh') >> 8
+#             nPendingJobs = system('ssh yochaiz@132.68.39.32 ./countPending.sh') >> 8
+#             print('Epoch:[{}] - nRunningJobs:[{}] nPendingJobs:[{}]'.format(epoch, nRunningJobs, nPendingJobs))
+#             # if there is room left for running a job, try to run it
+#             if nRunningJobs < nMaxSBATCH:
+#                 # change servers order if there are pending jobs
+#                 if nPendingJobs > 0:
+#                     s = servers[0]
+#                     servers = servers[1:]
+#                     servers.append(s)
+#                 # try to perform command on one of the servers
+#                 for serv in servers:
+#                     print('Epoch:[{}] - trying to send [{}] trainings to [{}], jobs still waiting:[{}]'.format(epoch, nJobs, serv, len(epochJobs)))
+#                     # create command
+#              trainCommand = 'ssh yochaiz@132.68.39.32 sbatch -I --gres=gpu:{} -c {} -w {} /home/yochaiz/F-BANNAS/cnn/sbatch_opt.sh --data "{}"' \
+#                         .format(nJobs, nCPUs, serv, files)
+#                     retVal = system(trainCommand)
+#                     # clear successfully sent jobs
+#                     if retVal == 0:
+#                         epochJobs = epochJobs[nJobs:]
+#                         print('Epoch:[{}] - sent [{}] trainings successfully to [{}], jobs still waiting:[{}]'
+#                               .format(epoch, nJobs, serv, len(epochJobs)))
+#                         break
+#
+#             # check if jobs not sent, try sending less jobs, i.e. use less GPUs
+#             # we don't really need to check retVal here, but anyway ...
+#             if retVal != 0:
+#                 nJobs -= 1
+#
+#             sleep(30)
+#
+#         # if didn't manage to send any job, wait 10 mins
+#         if retVal != 0:
+#             print('Epoch:[{}] - did not manage to send trainings,  waiting [{}] mins'.format(epoch, nMinsWaiting))
+#             sleep(nMinsWaiting * 60)
+#
+#     print('Epoch:[{}] - sent all jobs successfully'.format(epoch))
+#     print('Epoch:[{}] - Done !'.format(epoch))
 
 # # create all training jobs for a single epoch
 # def __createEpochJobs(self, epoch):
