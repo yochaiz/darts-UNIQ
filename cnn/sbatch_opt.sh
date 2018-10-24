@@ -9,6 +9,7 @@
 # module load cuda
 source ~/venv/bin/activate # activate python3 virtual environment
 cd ~/F-BANNAS/cnn
+chmod a+x sbatch_opt.py
 echo $1
 echo $2
 PYTHONPATH=../ python3 sbatch_opt.py $1 "$2"
