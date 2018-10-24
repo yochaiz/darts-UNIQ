@@ -155,12 +155,12 @@ class Statistics:
             f.write(htmlCode)
 
     @staticmethod
-    def __setAxesProperties(ax, xLabel, yLabel, yMax, title):
+    def __setAxesProperties(ax, xLabel, yLabel, yMax, title, yMin=0.0):
         # ax.set_xticks(xValues)
         # ax.set_xticklabels(self.batchLabels)
         ax.set_xlabel(xLabel)
         ax.set_ylabel(yLabel)
-        ax.set_ylim(top=yMax, bottom=0.0)
+        ax.set_ylim(top=yMax, bottom=yMin)
         ax.set_title(title)
         ax.legend(loc='upper center', bbox_to_anchor=(0.5, 1.005), ncol=5, fancybox=True, shadow=True)
 
@@ -172,8 +172,8 @@ class Statistics:
         plt.close(fig)
 
     @staticmethod
-    def __setPlotProperties(fig, ax, xLabel, yLabel, yMax, title):
-        Statistics.__setAxesProperties(ax, xLabel, yLabel, yMax, title)
+    def __setPlotProperties(fig, ax, xLabel, yLabel, yMax, title, yMin=0.0):
+        Statistics.__setAxesProperties(ax, xLabel, yLabel, yMax, title, yMin)
         Statistics.__setFigProperties(fig)
 
     def __plotContainer(self, data, xValues, xLabel, yLabel, title, labelFunc, axOther=None, scale=True, annotate=None):
@@ -295,6 +295,11 @@ class Statistics:
         bopsData = plotsData[bopsKey]
         # create plot
         fig, ax = plt.subplots(nrows=1, ncols=1)
+        ax.grid()
+
+        # init yMax, yMin
+        yMax = 0.0
+        yMin = 100.0
 
         for label, labelBopsData in bopsData.items():
             xValues = []
@@ -302,6 +307,9 @@ class Statistics:
             for bitwidth, bops, accuracy in labelBopsData:
                 xValues.append(bops)
                 yValues.append(accuracy)
+                # update yMax, yMin
+                yMax = max(yMax, accuracy)
+                yMin = min(yMin, accuracy)
                 # bitwidth might be None
                 txt = '{:.3f}'.format(accuracy)
                 if bitwidth:
@@ -312,8 +320,11 @@ class Statistics:
             # plot label values
             ax.plot(xValues, yValues, 'o', label=label)
 
+        # set y axis padding
+        yMax *= 1.02
+        yMin *= 0.98
         # set plot properties
-        Statistics.__setPlotProperties(fig, ax, xLabel='Bops / 1E9', yLabel='Accuracy', yMax=100.0, title='Accuracy vs. Bops')
+        Statistics.__setPlotProperties(fig, ax, xLabel='Bops / 1E9', yLabel='Accuracy', title='Accuracy vs. Bops', yMin=yMin, yMax=yMax)
         # save as HTML
         Statistics.saveFigPDF([fig], bopsKey, saveFolder)
 
