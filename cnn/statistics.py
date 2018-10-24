@@ -321,8 +321,9 @@ class Statistics:
             ax.plot(xValues, yValues, 'o', label=label)
 
         # set y axis padding
-        yMax *= 1.02
-        yMin *= 0.98
+        paddingPercentage = 0.02
+        yMax *= (1.0 + paddingPercentage)
+        yMin *= (1.0 - paddingPercentage)
         # set plot properties
         Statistics.__setPlotProperties(fig, ax, xLabel='Bops / 1E9', yLabel='Accuracy', title='Accuracy vs. Bops', yMin=yMin, yMax=yMax)
         # save as HTML
