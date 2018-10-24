@@ -303,6 +303,11 @@ class Statistics:
         # save as HTML
         self.saveFigPDF([fig], fileName=self.bopsKey)
 
+        # save data to plotData
+        self.plotsData[self.bopsKey] = self.bopsData
+        # save plots data
+        saveFile(self.plotsData, self.plotsDataFilePath)
+
 # def plotBops(self, layersList):
 #     # create plot
 #     fig, ax = plt.subplots(nrows=1, ncols=1)
