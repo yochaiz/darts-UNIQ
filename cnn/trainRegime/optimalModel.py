@@ -13,7 +13,8 @@ class OptimalModel(TrainRegime):
 
         # log bops ratio
         bopsRatioStr = '{:.3f}'.format(self.model.calcBopsRatio())
-        logger.addInfoTable(title='Bops ratio', rows=[[bopsRatioStr]])
+        bopsStr = '{:.3f}'.format(self.model.countBops())
+        logger.addInfoTable(title='Bops', rows=[['Total', bopsStr], ['Ratio', bopsRatioStr]])
 
     def train(self):
         # make sure model is quantized
