@@ -329,7 +329,7 @@ class AlphasWeightsLoop(TrainRegime):
             for key in self.rowKeysToReplace:
                 dataRow[key] = self.generateTempValue(job.jsonFileName, key)
             # add data row
-            logger.addDataRow(dataRow)
+            logger.addDataRow(dataRow, trType='<tr bgcolor="#2CBDD6">')
 
 # def train(self):
 #     # init logger data table
