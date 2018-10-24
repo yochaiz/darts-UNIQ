@@ -313,7 +313,7 @@ class Statistics:
             ax.plot(xValues, yValues, 'o', label=label)
 
         # set plot properties
-        Statistics.__setPlotProperties(fig, ax, xLabel='Bops', yLabel='Accuracy', yMax=100.0, title='Accuracy vs. Bops')
+        Statistics.__setPlotProperties(fig, ax, xLabel='Bops / 1E9', yLabel='Accuracy', yMax=100.0, title='Accuracy vs. Bops')
         # save as HTML
         Statistics.saveFigPDF([fig], bopsKey, saveFolder)
 
