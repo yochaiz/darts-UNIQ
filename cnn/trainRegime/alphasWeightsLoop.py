@@ -24,9 +24,9 @@ def returnSuccessOrFail(retVal, msg):
 
 
 def __buildCommand(jobTitle, nGPUs, nCPUs, server, data):
-    return 'ssh yochaiz@132.68.39.32 srun -o a.out -I --gres=gpu:{} -c {} -w {} -t 01-00:00:00 -p gip,all ' \
+    return 'ssh yochaiz@132.68.39.32 srun -o {}.out -I --gres=gpu:{} -c {} -w {} -t 01-00:00:00 -p gip,all ' \
            '-J "{}" --mail-user=yochaiz@cs.technion.ac.il --mail-type=ALL ' \
-           '/home/yochaiz/F-BANNAS/cnn/sbatch_opt.sh --data "{}"'.format(nGPUs, nCPUs, server, jobTitle, data)
+           '/home/yochaiz/F-BANNAS/cnn/sbatch_opt.sh --data "{}"'.format(jobTitle, nGPUs, nCPUs, server, jobTitle, data)
 
 
 def manageJobs(epochJobs, epoch, folderPath):
@@ -131,8 +131,9 @@ class AlphasWeightsLoop(TrainRegime):
         if not exists(self.jobsPath):
             makedirs(self.jobsPath)
 
-        # init list of training jobs we yet have to get their values
-        self.jobsList = []
+        # init dictionary of list of training jobs we yet have to get their values
+        # each key is epoch number
+        self.jobsList = {}
         # init data table row keys to replace
         self.rowKeysToReplace = [self.validLossKey, self.validAccKey]
         # init validation best precision value from all training jobs
@@ -174,6 +175,9 @@ class AlphasWeightsLoop(TrainRegime):
 
         # save model layers partition
         args.partition = model.getCurrentFiltersPartition()
+        # reset accuracy & loss values, in case they are set in args
+        setattr(args, self.validAccKey, None)
+        setattr(args, self.validLossKey, None)
         # save args to checkpoint
         saveCheckpoint(args, trainingJob.jsonPath)
         # reset args.partition
@@ -209,6 +213,9 @@ class AlphasWeightsLoop(TrainRegime):
         logger = self.logger
         # init number of epochs
         epochRange = self.__getEpochRange(6)
+        # init keys in jobs list
+        for epoch in epochRange:
+            self.jobsList[epoch] = []
 
         # # ========================== DEBUG ===============================
         # # create epoch jobs
@@ -228,8 +235,8 @@ class AlphasWeightsLoop(TrainRegime):
 
             # create epoch jobs
             epochJobsList = self.__createEpochJobs(epoch)
-            # merge current epoch JSONs with the rest of JSONs
-            self.jobsList.extend(epochJobsList)
+            # add current epoch JSONs with the rest of JSONs
+            self.jobsList[epoch] = epochJobsList
 
             # validation on fixed partition by alphas values
             self.__inferWithData(model.setFiltersByAlphas, epoch, loggersDict, dataRow)
@@ -275,7 +282,7 @@ class AlphasWeightsLoop(TrainRegime):
             self.__addEpochJSONsDataRows(epochJobsList, epoch)
 
             # update temp values in data table + update bops plot
-            self.__updateDataTableAndBopsPlot(epochRange)
+            self.__updateDataTableAndBopsPlot()
 
             # save checkpoint
             save_checkpoint(self.trainFolderPath, model, args, epoch, self.best_prec1)
@@ -287,46 +294,47 @@ class AlphasWeightsLoop(TrainRegime):
     def generateTempValue(jsonFileName, key):
         return '{}_{}'.format(jsonFileName, key)
 
-    def __updateDataTableAndBopsPlot(self, epochRange):
+    def __updateDataTableAndBopsPlot(self):
         # init plot data list
         bopsPlotData = {}
         # init epochs as keys in bopsPlotData, empty list per key
-        for epoch in epochRange:
+        for epoch in self.jobsList.keys():
             bopsPlotData[epoch] = []
 
         best_prec1 = 0.0
         # init updated jobs list, a list of jobs we haven't got their values yet
         updatedJobsList = []
         # copy files back from server and check if best_prec1, best_valid_loss exists
-        for job in self.jobsList:
-            # copy JSON from server back here
-            retVal = system(job.cmdCopyFromServer)
-            returnSuccessOrFail(retVal, 'Copied +{}+ back from server'.format(job.jsonFileName) + ':[{}]')
-            # load checkpoint
-            if exists(job.jsonPath):
-                checkpoint = loadCheckpoint(job.jsonPath, map_location=lambda storage, loc: storage.cuda())
-                # init list of existing keys we found in checkpoint
-                existingKeys = []
-                # update keys if they exist
-                for key in self.rowKeysToReplace:
-                    v = getattr(checkpoint, key, None)
-                    # if v is not None, then update value in table
-                    if v is not None:
-                        # update key exists
-                        existingKeys.append(key)
-                        # replace value in table
-                        self.logger.replaceValueInDataTable(self.generateTempValue(job.jsonFileName, key), self.formats[key].format(v))
-                        # add tuple of (bitwidth, bops, accuracy) to plotData if we have accuracy value
-                        if key == self.validAccKey:
-                            bopsPlotData.append((None, job.bops, v))
-                            # update best_prec1 of all training jobs we have trained
-                            self.best_prec1 = max(self.best_prec1, v)
+        for epoch, epochJobsList in self.jobsList.items():
+            for job in epochJobsList:
+                # copy JSON from server back here
+                retVal = system(job.cmdCopyFromServer)
+                returnSuccessOrFail(retVal, 'Copied +{}+ back from server'.format(job.jsonFileName) + ':[{}]')
+                # load checkpoint
+                if exists(job.jsonPath):
+                    checkpoint = loadCheckpoint(job.jsonPath, map_location=lambda storage, loc: storage.cuda())
+                    # init list of existing keys we found in checkpoint
+                    existingKeys = []
+                    # update keys if they exist
+                    for key in self.rowKeysToReplace:
+                        v = getattr(checkpoint, key, None)
+                        # if v is not None, then update value in table
+                        if v is not None:
+                            # update key exists
+                            existingKeys.append(key)
+                            # replace value in table
+                            self.logger.replaceValueInDataTable(self.generateTempValue(job.jsonFileName, key), self.formats[key].format(v))
+                            # add tuple of (bitwidth, bops, accuracy) to plotData if we have accuracy value
+                            if key == self.validAccKey:
+                                bopsPlotData[epoch].append((None, job.bops, v))
+                                # update best_prec1 of all training jobs we have trained
+                                self.best_prec1 = max(self.best_prec1, v)
 
-                # add job to updatedJobsList if we haven't got all keys, otherwise we are done with this job
-                if len(existingKeys) < len(self.rowKeysToReplace):
-                    updatedJobsList.append(job)
-                # else:
-                #     remove(job.jsonPath)
+                    # add job to updatedJobsList if we haven't got all keys, otherwise we are done with this job
+                    if len(existingKeys) < len(self.rowKeysToReplace):
+                        updatedJobsList.append(job)
+                    # else:
+                    #     remove(job.jsonPath)
 
         # update self.jobsList to updatedJobsList
         self.jobsList = updatedJobsList
