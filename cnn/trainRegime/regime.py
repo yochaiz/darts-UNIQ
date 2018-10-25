@@ -9,7 +9,7 @@ from torch.optim import SGD
 from torch.autograd.variable import Variable
 from torch.nn import CrossEntropyLoss
 
-from cnn.utils import accuracy, AvgrageMeter, load_data, saveArgsToJSON, logDominantQuantizedOp, save_checkpoint
+from cnn.utils import accuracy, AvgrageMeter, load_data,  logDominantQuantizedOp, save_checkpoint
 from cnn.utils import sendDataEmail, logForwardCounters, models, logParameters
 from cnn.HtmlLogger import HtmlLogger
 
