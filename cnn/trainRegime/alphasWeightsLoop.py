@@ -226,7 +226,7 @@ class AlphasWeightsLoop(TrainRegime):
         return range(1, nEpochs + 1)
 
     def train(self):
-        model = self.model
+        model = self.model.module
         args = self.args
         logger = self.logger
         # init number of epochs
@@ -251,7 +251,7 @@ class AlphasWeightsLoop(TrainRegime):
             loggersDict = dict(train=trainLogger)
 
             # train alphas
-            dataRow = self.trainAlphas(self.search_queue[epoch % args.alphas_data_parts], model, self.architect, epoch, loggersDict)
+            dataRow = self.trainAlphas(self.search_queue[epoch % args.alphas_data_parts], self.architect, epoch, loggersDict)
 
             # create epoch jobs
             epochJobsList = self.__createEpochJobs(epoch)
