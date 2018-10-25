@@ -176,8 +176,8 @@ class AlphasWeightsLoop(TrainRegime):
         # save model layers partition
         args.partition = model.getCurrentFiltersPartition()
         # reset accuracy & loss values, in case they are set in args
-        setattr(args, self.validAccKey, None)
-        setattr(args, self.validLossKey, None)
+        for key in self.rowKeysToReplace:
+            setattr(args, key, None)
         # save args to checkpoint
         saveCheckpoint(args, trainingJob.jsonPath)
         # reset args.partition
