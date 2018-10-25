@@ -488,24 +488,14 @@ class TrainRegime:
         crit = self.cross_entropy
 
         model.eval()
-        # print eval layer index selection
+
         trainLogger = loggers.get('train')
         if trainLogger:
             trainLogger.createDataTable('Epoch:[{}] - Validation'.format(nEpoch), self.colsValidation)
-            # trainLogger.addInfoToDataTable('Layers optimal indices:{}'.format([layer.curr_alpha_idx for layer in model.layersList]))
 
         nBatches = len(valid_queue)
 
-        # quantize model layers that haven't switched stage yet
-        # no need to turn gradients off, since with no_grad() does it
-        if model.nLayersQuantCompleted < model.nLayers():
-            # turn off noise if 1st unstaged layer
-            layer = model.layersList[model.nLayersQuantCompleted]
-            layer.turnOffNoise(model.nLayersQuantCompleted)
-            # quantize all unstaged layers
-            for layerIdx, layer in enumerate(model.layersList[model.nLayersQuantCompleted:]):
-                # quantize
-                layer.quantize(model.nLayersQuantCompleted + layerIdx)
+        self.__quantizeUnstagedLayers()
 
         # log UNIQ status after quantizing all layers
         self.addModelUNIQstatusTable(model, trainLogger, 'UNIQ status - quantizated for validation')
@@ -535,8 +525,7 @@ class TrainRegime:
 
                 if trainLogger:
                     dataRow = {
-                        self.batchNumKey: '{}/{}'.format(step, nBatches), self.validLossKey: loss,
-                        self.validAccKey: prec1,
+                        self.batchNumKey: '{}/{}'.format(step, nBatches), self.validLossKey: loss, self.validAccKey: prec1,
                         self.timeKey: endTime - startTime
                     }
                     # if (step + 1) % 20 == 0:
@@ -546,14 +535,7 @@ class TrainRegime:
                     # add row to data table
                     trainLogger.addDataRow(dataRow)
 
-        # restore weights (remove quantization) of model layers that haven't switched stage yet
-        if model.nLayersQuantCompleted < model.nLayers():
-            for layerIdx, layer in enumerate(model.layersList[model.nLayersQuantCompleted:]):
-                # remove quantization
-                layer.unQuantize(model.nLayersQuantCompleted + layerIdx)
-            # add noise back to 1st unstaged layer
-            layer = model.layersList[model.nLayersQuantCompleted]
-            layer.turnOnNoise(model.nLayersQuantCompleted)
+        self.__unQuantizeUnstagedLayers()
 
         # log UNIQ status after restoring model state
         self.addModelUNIQstatusTable(model, trainLogger, 'UNIQ status - state restored')
@@ -591,6 +573,111 @@ class TrainRegime:
             summaryRow[self.bitwidthKey] = dataRow[self.bitwidthKey]
 
         return top1.avg, objs.avg, summaryRow
+
+    # run inference on alphas trainset, i.e. search_queue
+    # model partition should be set beforehand
+    def inferAlphas(self, loggers):
+        print('*** inferAlphas() ***')
+        lossContainer = AvgrageMeter()
+
+        model = self.model
+        search_queue = self.search_queue
+
+        model.eval()
+
+        trainLogger = loggers.get('train')
+        if trainLogger:
+            trainLogger.createDataTable('Alphas trainset Validation', self.colsValidation)
+
+        nBatches = len(search_queue)
+
+        # quantize unstaged layers
+        self.__quantizeUnstagedLayers()
+
+        # calculate its bops
+        bopsRatio = model.calcBopsRatio()
+
+        with no_grad():
+            for step, (input, target) in enumerate(search_queue):
+                startTime = time()
+
+                input = Variable(input).cuda()
+                target = Variable(target).cuda(async=True)
+
+                logits = model(input)
+                loss = model.loss(logits, target)
+
+                n = input.size(0)
+                lossContainer.update(loss.item(), n)
+
+                endTime = time()
+
+                if trainLogger:
+                    dataRow = {self.batchNumKey: '{}/{}'.format(step, nBatches), self.validLossKey: loss, self.timeKey: endTime - startTime}
+                    # apply formats
+                    self._applyFormats(dataRow)
+                    # add row to data table
+                    trainLogger.addDataRow(dataRow)
+
+        # remove quantization from unstaged layers
+        self.__unQuantizeUnstagedLayers()
+
+        # create summary row
+        summaryRow = {self.batchNumKey: 'Summary', self.validLossKey: lossContainer.avg, self.validBopsRatioKey: bopsRatio}
+        # apply formats
+        self._applyFormats(summaryRow)
+
+        for _, logger in loggers.items():
+            logger.addSummaryDataRow(summaryRow)
+
+        # log forward counters. if loggerFuncs==[] then it is just resets counters
+        func = []
+        forwardCountersData = [[]]
+        if trainLogger:
+            func = [lambda rows: forwardCountersData.append(trainLogger.createInfoTable('Show', rows))]
+
+        logForwardCounters(model, loggerFuncs=func)
+
+        if trainLogger:
+            # create new data table for validation statistics
+            trainLogger.createDataTable('Alpha trainset validation statistics', self.colsValidationStatistics)
+            # add bitwidth & forward counters statistics
+            dataRow = {
+                self.bitwidthKey: self.createBitwidthsTable(model, trainLogger, self.bitwidthKey),
+                self.forwardCountersKey: forwardCountersData[-1], self.validBopsRatioKey: bopsRatio
+            }
+            # apply formats
+            self._applyFormats(dataRow)
+            # add row to table
+            trainLogger.addDataRow(dataRow)
+
+        return lossContainer
+
+    def __quantizeUnstagedLayers(self):
+        model = self.model
+        # quantize model layers that haven't switched stage yet
+        # no need to turn gradients off, since with no_grad() does it
+        if model.nLayersQuantCompleted < model.nLayers():
+            # turn off noise if 1st unstaged layer
+            layer = model.layersList[model.nLayersQuantCompleted]
+            layer.turnOffNoise(model.nLayersQuantCompleted)
+            # quantize all unstaged layers
+            for layerIdx, layer in enumerate(model.layersList[model.nLayersQuantCompleted:]):
+                # quantize
+                layer.quantize(model.nLayersQuantCompleted + layerIdx)
+
+        assert (model.isQuantized() is True)
+
+    def __unQuantizeUnstagedLayers(self):
+        model = self.model
+        # restore weights (remove quantization) of model layers that haven't switched stage yet
+        if model.nLayersQuantCompleted < model.nLayers():
+            for layerIdx, layer in enumerate(model.layersList[model.nLayersQuantCompleted:]):
+                # remove quantization
+                layer.unQuantize(model.nLayersQuantCompleted + layerIdx)
+            # add noise back to 1st unstaged layer
+            layer = model.layersList[model.nLayersQuantCompleted]
+            layer.turnOnNoise(model.nLayersQuantCompleted)
 
     def logAllocations(self):
         logger = HtmlLogger(self.args.save, 'allocations', overwrite=True)
