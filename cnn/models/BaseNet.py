@@ -271,6 +271,9 @@ class BaseNet(Module):
 
         return loadOpsWithDifferentWeights
 
+    def loss(self, logits, target):
+        return self._criterion(logits, target, self.countBops())
+
     def turnOffAlphas(self):
         for layer in self.layersList:
             layer.alphas.grad = None

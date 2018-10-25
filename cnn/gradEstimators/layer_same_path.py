@@ -27,7 +27,7 @@ class LayerSamePath(RandomPath):
                 # forward input in model
                 logits = cModel(input)
                 # calc loss
-                loss, crossEntropyLoss, bopsLoss = cModel._criterion(logits, target, cModel.countBops())
+                loss, crossEntropyLoss, bopsLoss = cModel.loss(logits, target)
                 # get sample model partition
                 modelPartition = [layer.getCurrentFiltersPartition() for layer in cModel.layersList]
                 # add sample data to list
