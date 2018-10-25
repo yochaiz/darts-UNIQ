@@ -342,8 +342,6 @@ class AlphasWeightsLoop(TrainRegime):
         # send new bops plot value to plot
         self.model.stats.addBopsData(bopsPlotData)
 
-        return best_prec1
-
     def __addEpochJSONsDataRows(self, epochJobsList, epoch):
         logger = self.logger
 
