@@ -173,6 +173,7 @@ class TrainRegime:
         # init scheduler
         scheduler = CosineAnnealingLR(optimizer, float(nEpochs), eta_min=args.learning_rate_min)
 
+        model = self.model.module
         # init validation best precision value
         best_prec1 = 0.0
         best_valid_loss = 0.0
@@ -187,7 +188,11 @@ class TrainRegime:
         baselinesLoss = model.applyOnBaseline(lambda: self.inferAlphas(dict(train=alphaLogger)))
         # log baseline losses
         for bitwidth, (loss, bopsRatio) in baselinesLoss.items():
-            logger.addDataRow({self.epochNumKey: bitwidth, self.validLossKey: loss, self.validBopsRatioKey: bopsRatio})
+            dataRow = {self.epochNumKey: bitwidth, self.validLossKey: loss, self.validBopsRatioKey: bopsRatio}
+            self._applyFormats(dataRow)
+            logger.addDataRow(dataRow)
+
+        self.model.train()
 
         for epoch in range(1, nEpochs + 1):
             scheduler.step()
@@ -220,15 +225,16 @@ class TrainRegime:
                     trainData[k] = v
 
                 # switch stage
-                switchStageFlag = model.switch_stage(
-                    loggerFuncs=[lambda msg: trainLogger.addInfoTable(title='Switching stage', rows=[[msg]])])
+                switchStageFlag = model.switch_stage(loggerFuncs=[lambda msg: trainLogger.addInfoTable(title='Switching stage', rows=[[msg]])])
                 # update optimizer only if we changed model learnable params
                 if switchStageFlag:
+                    model = self.model
                     # update optimizer & scheduler due to update in learnable params
                     optimizer = SGD(model.parameters(), scheduler.get_lr()[0], momentum=args.momentum,
                                     weight_decay=args.weight_decay)
                     scheduler = CosineAnnealingLR(optimizer, float(nEpochs), eta_min=args.learning_rate_min)
                     scheduler.step()
+                    model = self.model.module
                 else:
                     # update best precision only after switching stage is complete
                     is_best = valid_acc > best_prec1
@@ -305,15 +311,14 @@ class TrainRegime:
         # create InfoTable
         return logger.createInfoTable(bitwidthKey, table)
 
-    def trainAlphas(self, search_queue, model, architect, nEpoch, loggers):
+    def trainAlphas(self, search_queue, architect, nEpoch, loggers):
         print('*** trainAlphas ***')
         loss_container = AvgrageMeter()
         crossEntropy_container = AvgrageMeter()
         bopsLoss_container = AvgrageMeter()
 
+        model = self.model.module
         modelReplicator = architect.modelReplicator
-
-        model.train()
 
         trainLogger = loggers.get('train')
         # init updateModelWeights() logger func
@@ -327,6 +332,8 @@ class TrainRegime:
         modelReplicator.updateModelWeights(model, loggerFuncs=loggerFunc)
 
         nBatches = len(search_queue)
+
+        model.train()
 
         # init logger functions
         def createInfoTable(dict, key, logger, rows):
@@ -409,7 +416,7 @@ class TrainRegime:
         loss_container = AvgrageMeter()
         top1 = AvgrageMeter()
 
-        model = self.model
+        model = self.model.module
         crit = self.cross_entropy
         train_queue = self.train_queue
         grad_clip = self.args.grad_clip
@@ -419,9 +426,10 @@ class TrainRegime:
             self.addModelUNIQstatusTable(model, trainLogger, 'UNIQ status - pre-training weights')
             trainLogger.createDataTable('Epoch:[{}] - Training weights'.format(epoch), self.colsTrainWeights)
 
-        model.train()
-
         nBatches = len(train_queue)
+
+        model = self.model
+        model.train()
 
         for step, (input, target) in enumerate(train_queue):
             startTime = time()
@@ -430,6 +438,7 @@ class TrainRegime:
             input = Variable(input, requires_grad=False).cuda()
             target = Variable(target, requires_grad=False).cuda(async=True)
 
+            model = self.model
             # choose model partition if we haven't set partition to model
             if self.args.partition is None:
                 model.module.choosePathByAlphas()
@@ -451,9 +460,10 @@ class TrainRegime:
             endTime = time()
 
             if trainLogger:
+                model = self.model.module
                 dataRow = {
                     self.batchNumKey: '{}/{}'.format(step, nBatches),
-                    self.pathBopsRatioKey: model.module.calcBopsRatio(),
+                    self.pathBopsRatioKey: model.calcBopsRatio(),
                     # self.bitwidthKey: self.createBitwidthsTable(model, trainLogger, self.bitwidthKey),
                     self.timeKey: (endTime - startTime), self.trainLossKey: loss, self.trainAccKey: prec1
                 }
@@ -464,6 +474,7 @@ class TrainRegime:
                 # add row to data table
                 trainLogger.addDataRow(dataRow)
 
+        model = self.model.module
         # log accuracy, loss, etc.
         summaryData = {self.trainLossKey: loss_container.avg, self.trainAccKey: top1.avg, self.batchNumKey: 'Summary'}
         # apply formats
@@ -475,9 +486,7 @@ class TrainRegime:
         # log dominant QuantizedOp in each layer
         if trainLogger:
             logDominantQuantizedOp(model, k=self.k,
-                                   loggerFuncs=[
-                                       lambda k, rows: trainLogger.addInfoTable(title=self.alphasTableTitle.format(k),
-                                                                                rows=rows)])
+                                   loggerFuncs=[lambda k, rows: trainLogger.addInfoTable(title=self.alphasTableTitle.format(k), rows=rows)])
 
         # log forward counters. if loggerFuncs==[] then it is just resets counters
         func = [lambda rows: trainLogger.addInfoTable(title=self.forwardCountersKey, rows=rows)] if trainLogger else []
@@ -490,11 +499,9 @@ class TrainRegime:
         objs = AvgrageMeter()
         top1 = AvgrageMeter()
 
-        model = self.model
+        model = self.model.module
         valid_queue = self.valid_queue
         crit = self.cross_entropy
-
-        model.eval()
 
         trainLogger = loggers.get('train')
         if trainLogger:
@@ -512,6 +519,9 @@ class TrainRegime:
             setModelPartitionFunc(loggerFuncs=[lambda msg: trainLogger.addInfoToDataTable(msg)])
         # calculate its bops
         bopsRatio = model.calcBopsRatio()
+
+        model = self.model
+        model.eval()
 
         with no_grad():
             for step, (input, target) in enumerate(valid_queue):
@@ -544,6 +554,7 @@ class TrainRegime:
 
         self.__unQuantizeUnstagedLayers()
 
+        model = self.model.module
         # log UNIQ status after restoring model state
         self.addModelUNIQstatusTable(model, trainLogger, 'UNIQ status - state restored')
 
@@ -587,48 +598,53 @@ class TrainRegime:
         print('*** inferAlphas() ***')
         lossContainer = AvgrageMeter()
 
-        model = self.model
         search_queue = self.search_queue
-
-        model.eval()
+        crit = self.cross_entropy
 
         trainLogger = loggers.get('train')
         if trainLogger:
             trainLogger.createDataTable('Alphas trainset Validation', self.colsValidation)
 
-        nBatches = len(search_queue)
-
         # quantize unstaged layers
         self.__quantizeUnstagedLayers()
 
+        model = self.model.module
         # calculate its bops
         bopsRatio = model.calcBopsRatio()
 
+        model = self.model
+        model.eval()
+
         with no_grad():
-            for step, (input, target) in enumerate(search_queue):
-                startTime = time()
+            for queue in search_queue:
+                nBatches = len(queue)
+                for step, (input, target) in enumerate(queue):
+                    startTime = time()
 
-                input = Variable(input).cuda()
-                target = Variable(target).cuda(async=True)
+                    input = Variable(input).cuda()
+                    target = Variable(target).cuda(async=True)
 
-                logits = model(input)
-                loss = model.loss(logits, target)
+                    logits = model(input)
+                    loss = crit(logits, target)
 
-                n = input.size(0)
-                lossContainer.update(loss.item(), n)
+                    n = input.size(0)
+                    lossContainer.update(loss.item(), n)
 
-                endTime = time()
+                    endTime = time()
 
-                if trainLogger:
-                    dataRow = {self.batchNumKey: '{}/{}'.format(step, nBatches), self.validLossKey: loss, self.timeKey: endTime - startTime}
-                    # apply formats
-                    self._applyFormats(dataRow)
-                    # add row to data table
-                    trainLogger.addDataRow(dataRow)
+                    if trainLogger:
+                        dataRow = {self.batchNumKey: '{}/{}'.format(step, nBatches), self.validLossKey: loss, self.timeKey: endTime - startTime}
+                        # apply formats
+                        self._applyFormats(dataRow)
+                        # add row to data table
+                        trainLogger.addDataRow(dataRow)
+
+                    break
 
         # remove quantization from unstaged layers
         self.__unQuantizeUnstagedLayers()
 
+        model = self.model.module
         # create summary row
         summaryRow = {self.batchNumKey: 'Summary', self.validLossKey: lossContainer.avg, self.validBopsRatioKey: bopsRatio}
         # apply formats
@@ -658,10 +674,10 @@ class TrainRegime:
             # add row to table
             trainLogger.addDataRow(dataRow)
 
-        return lossContainer, bopsRatio
+        return lossContainer.avg, bopsRatio
 
     def __quantizeUnstagedLayers(self):
-        model = self.model
+        model = self.model.module
         # quantize model layers that haven't switched stage yet
         # no need to turn gradients off, since with no_grad() does it
         if model.nLayersQuantCompleted < model.nLayers():
@@ -676,7 +692,7 @@ class TrainRegime:
         assert (model.isQuantized() is True)
 
     def __unQuantizeUnstagedLayers(self):
-        model = self.model
+        model = self.model.module
         # restore weights (remove quantization) of model layers that haven't switched stage yet
         if model.nLayersQuantCompleted < model.nLayers():
             for layerIdx, layer in enumerate(model.layersList[model.nLayersQuantCompleted:]):
