@@ -82,7 +82,7 @@ def manageJobs(epochJobs, epoch, folderPath):
                 if retVal == 0:
                     epochJobs = epochJobs[nJobs:]
                     logger.addSummaryDataRow({tableColumn: 'Sent [{}] trainings successfully to [{}], jobs still waiting:[{}]'
-                                      .format(nJobs, serv, len(epochJobs))})
+                                             .format(nJobs, serv, len(epochJobs))})
                     break
 
             # check if jobs not sent, try sending less jobs, i.e. use less GPUs
