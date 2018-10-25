@@ -157,6 +157,17 @@ class TrainRegime:
     def train(self):
         raise NotImplementedError('subclasses must override train()!')
 
+        # calc alpha trainset loss on baselines
+
+    def calcAlphaTrainsetLossOnBaselines(self, folderPath, trainLoggerName, logger):
+        alphaLogger = HtmlLogger(folderPath, trainLoggerName)
+        baselinesLoss = self.model.applyOnBaseline(lambda: self.inferAlphas(dict(train=alphaLogger)))
+        # log baseline losses
+        for bitwidth, (loss, bopsRatio) in baselinesLoss.items():
+            dataRow = {self.epochNumKey: bitwidth, self.validLossKey: loss, self.validBopsRatioKey: bopsRatio}
+            self._applyFormats(dataRow)
+            logger.addDataRow(dataRow)
+
     def initialWeightsTraining(self, trainFolderName, filename=None):
         model = self.model
         args = self.args
@@ -184,13 +195,7 @@ class TrainRegime:
         logger.createDataTable(self.initWeightsTrainTableTitle, self.colsMainInitWeightsTrain)
 
         # calc alpha trainset loss on baselines
-        alphaLogger = HtmlLogger(folderPath, self.archLossKey)
-        baselinesLoss = model.applyOnBaseline(lambda: self.inferAlphas(dict(train=alphaLogger)))
-        # log baseline losses
-        for bitwidth, (loss, bopsRatio) in baselinesLoss.items():
-            dataRow = {self.epochNumKey: bitwidth, self.validLossKey: loss, self.validBopsRatioKey: bopsRatio}
-            self._applyFormats(dataRow)
-            logger.addDataRow(dataRow)
+        self.calcAlphaTrainsetLossOnBaselines(folderPath, self.archLossKey, logger)
 
         self.model.train()
 

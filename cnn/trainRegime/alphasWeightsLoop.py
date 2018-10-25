@@ -245,6 +245,9 @@ class AlphasWeightsLoop(TrainRegime):
 
         for epoch in epochRange:
             print('========== Epoch:[{}] =============='.format(epoch))
+            # calc alpha trainset loss on baselines
+            self.calcAlphaTrainsetLossOnBaselines(self.trainFolderPath, '{}_{}'.format(epoch, self.archLossKey), logger)
+
             # init epoch train logger
             trainLogger = HtmlLogger(self.trainFolderPath, str(epoch))
             # set loggers dictionary
