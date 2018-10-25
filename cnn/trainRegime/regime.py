@@ -120,7 +120,7 @@ class TrainRegime:
             epochsSwitchStage.append(e + epochsSwitchStage[-1])
         # on epochs we learn only Linear layer, infer in every epoch
         # for _ in range(args.epochs[-1]):
-        for _ in range(30):
+        for _ in range(10):
             epochsSwitchStage.append(epochsSwitchStage[-1] + 1)
 
         # total number of epochs is the last value in epochsSwitchStage
@@ -128,8 +128,7 @@ class TrainRegime:
         # remove epoch 0 from list, we don't want to switch stage at the beginning
         epochsSwitchStage = epochsSwitchStage[1:]
 
-        logger.addInfoTable('Epochs',
-                            [['nEpochs', '{}'.format(nEpochs)], ['epochsSwitchStage', '{}'.format(epochsSwitchStage)]])
+        logger.addInfoTable('Epochs', [['nEpochs', '{}'.format(nEpochs)], ['epochsSwitchStage', '{}'.format(epochsSwitchStage)]])
 
         # init epoch
         self.epoch = 0
@@ -160,13 +159,14 @@ class TrainRegime:
         # calc alpha trainset loss on baselines
 
     def calcAlphaTrainsetLossOnBaselines(self, folderPath, trainLoggerName, logger):
+        model = self.model.module
         alphaLogger = HtmlLogger(folderPath, trainLoggerName)
-        baselinesLoss = self.model.applyOnBaseline(lambda: self.inferAlphas(dict(train=alphaLogger)))
+        baselinesLoss = model.applyOnBaseline(lambda: self.inferAlphas(dict(train=alphaLogger)))
         # log baseline losses
         for bitwidth, (loss, bopsRatio) in baselinesLoss.items():
             dataRow = {self.epochNumKey: bitwidth, self.validLossKey: loss, self.validBopsRatioKey: bopsRatio}
             self._applyFormats(dataRow)
-            logger.addDataRow(dataRow)
+            logger.addDataRow(dataRow, trType='<tr bgcolor="#BBAD06">')
 
     def initialWeightsTraining(self, trainFolderName, filename=None):
         model = self.model
@@ -292,7 +292,7 @@ class TrainRegime:
         # init UNIQ params in MixedLayer
         params = ['quantized', 'added_noise']
         # collect UNIQ params value from each layer
-        data = [[i, [[p, getattr(layer, p, None)] for p in params]] for i, layer in enumerate(model.module.layersList)]
+        data = [[i, [[p, getattr(layer, p, None)] for p in params]] for i, layer in enumerate(model.layersList)]
         # add header
         data = [['Layer#', 'Values']] + data
         # add to logger as InfoTable
@@ -643,8 +643,6 @@ class TrainRegime:
                         self._applyFormats(dataRow)
                         # add row to data table
                         trainLogger.addDataRow(dataRow)
-
-                    break
 
         # remove quantization from unstaged layers
         self.__unQuantizeUnstagedLayers()
