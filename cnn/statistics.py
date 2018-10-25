@@ -296,12 +296,15 @@ class Statistics:
         # create plot
         fig, ax = plt.subplots(nrows=1, ncols=1)
         ax.grid()
+        # init colors
+        colormap = plt.cm.hot
+        colors = [colormap(i) for i in linspace(0.7, 0.0, len(bopsData.keys()))]
 
         # init yMax, yMin
         yMax = 0.0
         yMin = 100.0
 
-        for label, labelBopsData in bopsData.items():
+        for i, (label, labelBopsData) in enumerate(bopsData.items()):
             xValues = []
             yValues = []
             for bitwidth, bops, accuracy in labelBopsData:
@@ -318,7 +321,7 @@ class Statistics:
                 ax.annotate(txt, (bops, accuracy))
 
             # plot label values
-            ax.plot(xValues, yValues, 'o', label=label)
+            ax.plot(xValues, yValues, 'o', label=label, c=colors[i])
 
         # set y axis padding
         paddingPercentage = 0.02
