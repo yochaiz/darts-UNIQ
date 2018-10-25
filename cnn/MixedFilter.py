@@ -87,6 +87,7 @@ class QuantizedOp(UNIQNet):
 #         return grads_x, grads_alpha
 
 def preForward(self, _):
+    #print('hi im here')
     assert (self.hookFlag is False)
     self.hookFlag = True
     # update previous layer index

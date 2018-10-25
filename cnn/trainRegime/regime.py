@@ -1,17 +1,18 @@
-from time import time
 from abc import abstractmethod
 from os import makedirs, path
+from time import time
 
-from torch.nn.utils.clip_grad import clip_grad_norm_
-from torch.optim.lr_scheduler import CosineAnnealingLR
+import torch
 from torch import no_grad, tensor, int32
-from torch.optim import SGD
 from torch.autograd.variable import Variable
 from torch.nn import CrossEntropyLoss
+from torch.nn.utils.clip_grad import clip_grad_norm_
+from torch.optim import SGD
+from torch.optim.lr_scheduler import CosineAnnealingLR
 
-from cnn.utils import accuracy, AvgrageMeter, load_data,  logDominantQuantizedOp, save_checkpoint
-from cnn.utils import sendDataEmail, logForwardCounters, models, logParameters
 from cnn.HtmlLogger import HtmlLogger
+from cnn.utils import accuracy, AvgrageMeter, load_data, logDominantQuantizedOp, save_checkpoint
+from cnn.utils import sendDataEmail, logForwardCounters, models, logParameters
 
 
 class TrainRegime:
@@ -34,8 +35,10 @@ class TrainRegime:
     forwardCountersKey = 'Forward counters'
 
     # init formats for keys
-    formats = {validLossKey: '{:.5f}', validAccKey: '{:.3f}', optBopsRatioKey: '{:.3f}', timeKey: '{:.3f}', archLossKey: '{:.5f}', lrKey: '{:.5f}',
-               trainLossKey: '{:.5f}', trainAccKey: '{:.3f}', pathBopsRatioKey: '{:.3f}', validBopsRatioKey: '{:.3f}', crossEntropyKey: '{:.5f}',
+    formats = {validLossKey: '{:.5f}', validAccKey: '{:.3f}', optBopsRatioKey: '{:.3f}', timeKey: '{:.3f}',
+               archLossKey: '{:.5f}', lrKey: '{:.5f}',
+               trainLossKey: '{:.5f}', trainAccKey: '{:.3f}', pathBopsRatioKey: '{:.3f}', validBopsRatioKey: '{:.3f}',
+               crossEntropyKey: '{:.5f}',
                bopsLossKey: '{:.5f}'}
 
     initWeightsTrainTableTitle = 'Initial weights training'
@@ -43,11 +46,14 @@ class TrainRegime:
     alphasTableTitle = 'Alphas (top [{}])'.format(k)
 
     colsTrainWeights = [batchNumKey, trainLossKey, trainAccKey, bitwidthKey, pathBopsRatioKey, statsKey, timeKey]
-    colsMainInitWeightsTrain = [epochNumKey, trainLossKey, trainAccKey, validLossKey, validAccKey, validBopsRatioKey, lrKey]
-    colsTrainAlphas = [batchNumKey, archLossKey, crossEntropyKey, bopsLossKey, alphasTableTitle, pathBopsRatioKey, forwardCountersKey, timeKey]
+    colsMainInitWeightsTrain = [epochNumKey, trainLossKey, trainAccKey, validLossKey, validAccKey, validBopsRatioKey,
+                                lrKey]
+    colsTrainAlphas = [batchNumKey, archLossKey, crossEntropyKey, bopsLossKey, alphasTableTitle, pathBopsRatioKey,
+                       forwardCountersKey, timeKey]
     colsValidation = [batchNumKey, validLossKey, validAccKey, statsKey, timeKey]
     colsValidationStatistics = [forwardCountersKey, bitwidthKey, validBopsRatioKey]
-    colsMainLogger = [epochNumKey, archLossKey, trainLossKey, trainAccKey, validLossKey, validAccKey, validBopsRatioKey, bitwidthKey, lrKey]
+    colsMainLogger = [epochNumKey, archLossKey, trainLossKey, trainAccKey, validLossKey, validAccKey, validBopsRatioKey,
+                      bitwidthKey, lrKey]
 
     def __init__(self, args, logger):
         # build model for uniform distribution of bits
@@ -67,7 +73,8 @@ class TrainRegime:
             for i, p in enumerate(args.partition):
                 args.partition[i] = tensor(p, dtype=int32).cuda()
             # set filters by partition
-            model.setFiltersByPartition(args.partition, loggerFuncs=[lambda msg: logger.addInfoTable('Partition', [[msg]])])
+            model.setFiltersByPartition(args.partition,
+                                        loggerFuncs=[lambda msg: logger.addInfoTable('Partition', [[msg]])])
 
         # # ========================== DEBUG ===============================
         # self.model = model
@@ -79,6 +86,7 @@ class TrainRegime:
         self.train_queue, self.search_queue, self.valid_queue, self.statistics_queue = load_data(args)
         # load pre-trained full-precision model
         args.loadedOpsWithDiffWeights = model.loadPreTrained(args.pre_trained, logger, args.gpu[0])
+        # args.loadedOpsWithDiffWeights = False
 
         # log parameters
         logParameters(logger, args, model)
@@ -118,7 +126,7 @@ class TrainRegime:
             epochsSwitchStage.append(e + epochsSwitchStage[-1])
         # on epochs we learn only Linear layer, infer in every epoch
         # for _ in range(args.epochs[-1]):
-        for _ in range(10):
+        for _ in range(30):
             epochsSwitchStage.append(epochsSwitchStage[-1] + 1)
 
         # total number of epochs is the last value in epochsSwitchStage
@@ -126,13 +134,15 @@ class TrainRegime:
         # remove epoch 0 from list, we don't want to switch stage at the beginning
         epochsSwitchStage = epochsSwitchStage[1:]
 
-        logger.addInfoTable('Epochs', [['nEpochs', '{}'.format(nEpochs)], ['epochsSwitchStage', '{}'.format(epochsSwitchStage)]])
+        logger.addInfoTable('Epochs',
+                            [['nEpochs', '{}'.format(nEpochs)], ['epochsSwitchStage', '{}'.format(epochsSwitchStage)]])
 
         # init epoch
         self.epoch = 0
         self.nEpochs = nEpochs
         self.epochsSwitchStage = epochsSwitchStage
 
+        self.model = torch.nn.DataParallel(self.model, args.gpu)
         # if we loaded ops in the same layer with the same weights, then we loaded the optimal full precision model,
         # therefore we have to train the weights for each QuantizedOp
         if (args.loadedOpsWithDiffWeights is False) and args.init_weights_train:
@@ -142,7 +152,7 @@ class TrainRegime:
             # we loaded ops in the same layer with different weights, therefore we just have to switch_stage
             switchStageFlag = True
             while switchStageFlag:
-                switchStageFlag = model.switch_stage([lambda msg: rows.append([msg])])
+                switchStageFlag = model.module.switch_stage([lambda msg: rows.append([msg])])
             # create info table
             logger.addInfoTable(self.initWeightsTrainTableTitle, rows)
 
@@ -209,11 +219,13 @@ class TrainRegime:
                     trainData[k] = v
 
                 # switch stage
-                switchStageFlag = model.switch_stage(loggerFuncs=[lambda msg: trainLogger.addInfoTable(title='Switching stage', rows=[[msg]])])
+                switchStageFlag = model.switch_stage(
+                    loggerFuncs=[lambda msg: trainLogger.addInfoTable(title='Switching stage', rows=[[msg]])])
                 # update optimizer only if we changed model learnable params
                 if switchStageFlag:
                     # update optimizer & scheduler due to update in learnable params
-                    optimizer = SGD(model.parameters(), scheduler.get_lr()[0], momentum=args.momentum, weight_decay=args.weight_decay)
+                    optimizer = SGD(model.parameters(), scheduler.get_lr()[0], momentum=args.momentum,
+                                    weight_decay=args.weight_decay)
                     scheduler = CosineAnnealingLR(optimizer, float(nEpochs), eta_min=args.learning_rate_min)
                     scheduler.step()
                 else:
@@ -223,7 +235,8 @@ class TrainRegime:
                         best_prec1 = valid_acc
                         best_valid_loss = valid_loss
                 # save model checkpoint
-                checkpoint, (_, optimalPath) = save_checkpoint(self.trainFolderPath, model, args, epoch, best_prec1, is_best, filename)
+                checkpoint, (_, optimalPath) = save_checkpoint(self.trainFolderPath, model, args, epoch, best_prec1,
+                                                               is_best, filename)
                 if is_best:
                     assert (optimalPath is not None)
                     self.optimalModelCheckpoint = checkpoint, optimalPath
@@ -267,7 +280,7 @@ class TrainRegime:
         # init UNIQ params in MixedLayer
         params = ['quantized', 'added_noise']
         # collect UNIQ params value from each layer
-        data = [[i, [[p, getattr(layer, p, None)] for p in params]] for i, layer in enumerate(model.layersList)]
+        data = [[i, [[p, getattr(layer, p, None)] for p in params]] for i, layer in enumerate(model.module.layersList)]
         # add header
         data = [['Layer#', 'Values']] + data
         # add to logger as InfoTable
@@ -285,7 +298,8 @@ class TrainRegime:
     @staticmethod
     def createBitwidthsTable(model, logger, bitwidthKey):
         # collect model layers bitwidths groups
-        table = [[i, [[bitwidthKey, '#Filters']] + layer.getCurrentBitwidth()] for i, layer in enumerate(model.layersList)]
+        table = [[i, [[bitwidthKey, '#Filters']] + layer.getCurrentBitwidth()] for i, layer in
+                 enumerate(model.layersList)]
         table.insert(0, ['Layer #', bitwidthKey])
         # create InfoTable
         return logger.createInfoTable(bitwidthKey, table)
@@ -305,7 +319,8 @@ class TrainRegime:
         loggerFunc = []
         if trainLogger:
             trainLogger.createDataTable('Epoch:[{}] - Alphas'.format(nEpoch), self.colsTrainAlphas)
-            loggerFunc = [lambda msg: trainLogger.addInfoToDataTable(msg), lambda msg: modelReplicator.logWeightsUpdateMsg(msg, nEpoch)]
+            loggerFunc = [lambda msg: trainLogger.addInfoToDataTable(msg),
+                          lambda msg: modelReplicator.logWeightsUpdateMsg(msg, nEpoch)]
 
         # update model replications weights
         modelReplicator.updateModelWeights(model, loggerFuncs=loggerFunc)
@@ -368,7 +383,8 @@ class TrainRegime:
                 bopsRatio = model.calcBopsRatio()
                 # add missing keys
                 dataRow.update({
-                    self.batchNumKey: '{}/{}'.format(step, nBatches), self.timeKey: endTime - startTime, self.archLossKey: loss,
+                    self.batchNumKey: '{}/{}'.format(step, nBatches), self.timeKey: endTime - startTime,
+                    self.archLossKey: loss,
                     self.crossEntropyKey: crossEntropyLoss, self.bopsLossKey: bopsLoss, self.pathBopsRatioKey: bopsRatio
                 })
                 # apply formats
@@ -377,7 +393,8 @@ class TrainRegime:
                 trainLogger.addDataRow(dataRow)
 
         # log accuracy, loss, etc.
-        summaryData = {self.epochNumKey: nEpoch, self.lrKey: architect.lr, self.batchNumKey: 'Summary', self.archLossKey: loss_container.avg,
+        summaryData = {self.epochNumKey: nEpoch, self.lrKey: architect.lr, self.batchNumKey: 'Summary',
+                       self.archLossKey: loss_container.avg,
                        self.crossEntropyKey: crossEntropy_container.avg, self.bopsLossKey: bopsLoss_container.avg}
         self._applyFormats(summaryData)
 
@@ -414,7 +431,7 @@ class TrainRegime:
 
             # choose model partition if we haven't set partition to model
             if self.args.partition is None:
-                model.choosePathByAlphas()
+                model.module.choosePathByAlphas()
             # optimize model weights
             optimizer.zero_grad()
             logits = model(input)
@@ -434,8 +451,9 @@ class TrainRegime:
 
             if trainLogger:
                 dataRow = {
-                    self.batchNumKey: '{}/{}'.format(step, nBatches), self.pathBopsRatioKey: model.calcBopsRatio(),
-                    self.bitwidthKey: self.createBitwidthsTable(model, trainLogger, self.bitwidthKey),
+                    self.batchNumKey: '{}/{}'.format(step, nBatches),
+                    self.pathBopsRatioKey: model.module.calcBopsRatio(),
+                    # self.bitwidthKey: self.createBitwidthsTable(model, trainLogger, self.bitwidthKey),
                     self.timeKey: (endTime - startTime), self.trainLossKey: loss, self.trainAccKey: prec1
                 }
                 # if (step + 1) % 20 == 0:
@@ -456,7 +474,9 @@ class TrainRegime:
         # log dominant QuantizedOp in each layer
         if trainLogger:
             logDominantQuantizedOp(model, k=self.k,
-                                   loggerFuncs=[lambda k, rows: trainLogger.addInfoTable(title=self.alphasTableTitle.format(k), rows=rows)])
+                                   loggerFuncs=[
+                                       lambda k, rows: trainLogger.addInfoTable(title=self.alphasTableTitle.format(k),
+                                                                                rows=rows)])
 
         # log forward counters. if loggerFuncs==[] then it is just resets counters
         func = [lambda rows: trainLogger.addInfoTable(title=self.forwardCountersKey, rows=rows)] if trainLogger else []
@@ -521,7 +541,8 @@ class TrainRegime:
 
                 if trainLogger:
                     dataRow = {
-                        self.batchNumKey: '{}/{}'.format(step, nBatches), self.validLossKey: loss, self.validAccKey: prec1,
+                        self.batchNumKey: '{}/{}'.format(step, nBatches), self.validLossKey: loss,
+                        self.validAccKey: prec1,
                         self.timeKey: endTime - startTime
                     }
                     # if (step + 1) % 20 == 0:
@@ -544,7 +565,8 @@ class TrainRegime:
         self.addModelUNIQstatusTable(model, trainLogger, 'UNIQ status - state restored')
 
         # create summary row
-        summaryRow = {self.batchNumKey: 'Summary', self.validLossKey: objs.avg, self.validAccKey: top1.avg, self.validBopsRatioKey: bopsRatio}
+        summaryRow = {self.batchNumKey: 'Summary', self.validLossKey: objs.avg, self.validAccKey: top1.avg,
+                      self.validBopsRatioKey: bopsRatio}
         # apply formats
         self._applyFormats(summaryRow)
 

@@ -1,5 +1,6 @@
 from collections import OrderedDict
 
+from torch import nn
 from torch.nn import AvgPool2d, Linear, ModuleList
 
 from cnn.MixedFilter import MixedConv, MixedConvWithReLU, Block
@@ -73,8 +74,8 @@ class BasicBlock(Block):
     def getCurrentOutputBitwidth(self):
         return self.block2.getCurrentOutputBitwidth()
 
-    def getOutputBitwidthList(self):
-        return self.block2.getOutputBitwidthList()
+    # def getOutputBitwidthList(self):
+    #     return self.block2.getOutputBitwidthList()
 
     # # select random alpha
     # def chooseRandomPath(self):
@@ -105,8 +106,8 @@ class BasicBlock(Block):
 
 class ResNet(BaseNet):
     def __init__(self, args):
+        self.dataset = args.dataset
         super(ResNet, self).__init__(args, initLayersParams=(args.bitwidth, args.kernel, args.nClasses))
-
         # turn on noise in 1st layer
         if len(self.layersList) > 0:
             layerIdx = 0
@@ -120,15 +121,21 @@ class ResNet(BaseNet):
         f = createMixedConvWithReLU(bitwidths, in_planes, kernel_sizes, stride, input_size, prevLayer)
         layer = MixedLayer(out_planes, f)
 
-        if layer.numOfOps() > 1:
-            layer.setAlphas([0., 0., 0., 0.25, 0.75])
-            layer.setFiltersPartition()
+        # if layer.numOfOps() > 1:
+        #     layer.setAlphas([0., 0., 0., 0.25, 0.75])
+        #     layer.setFiltersPartition()
 
         return layer
 
     # init layers (type, in_planes, out_planes)
     def initLayersPlanes(self):
-        return [(self.createMixedLayer, 3, 64, 32),
+        if self.dataset=='imagenet':
+            return [(self.createMixedLayer, 3, 64, 224),
+                (BasicBlock, 64, 64, [56]), (BasicBlock, 64, 64, [56]), (BasicBlock, 64, 128, [56, 28]),
+                (BasicBlock, 128, 128, [28]), (BasicBlock, 128, 256, [28, 14]), (BasicBlock, 256, 256, [14]),
+                (BasicBlock, 256, 512, [14, 7]), (BasicBlock, 512, 512, [7])]
+        else:
+            return [(self.createMixedLayer, 3, 64, 32),
                 (BasicBlock, 64, 64, [32]), (BasicBlock, 64, 64, [32]), (BasicBlock, 64, 128, [32, 16]),
                 (BasicBlock, 128, 128, [16]), (BasicBlock, 128, 256, [16, 8]), (BasicBlock, 256, 256, [8]),
                 (BasicBlock, 256, 512, [8, 4]), (BasicBlock, 512, 512, [4])]
@@ -142,13 +149,19 @@ class ResNet(BaseNet):
         # init previous layer
         prevLayer = None
 
+        self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1) if self.dataset == 'imagenet' else lambda x: x
         # create list of layers from layersPlanes
         # supports bitwidth as list of ints, i.e. same bitwidths to all layers
         # supports bitwidth as list of lists, i.e. specific bitwidths to each layer
         layers = ModuleList()
         for i, (layerType, in_planes, out_planes, input_size) in enumerate(layersPlanes):
             # build layer
-            l = layerType(bitwidths, in_planes, out_planes, kernel_sizes, 1, input_size, prevLayer)
+            kernel_sizes_tmp = kernel_sizes
+            if layerType == self.createMixedLayer and self.dataset == 'imagenet':
+                kernel_sizes_tmp = [7]
+                l = layerType(bitwidths, in_planes, out_planes, kernel_sizes_tmp, 2, input_size, prevLayer)
+            else:
+                l = layerType(bitwidths, in_planes, out_planes, kernel_sizes_tmp, 1, input_size, prevLayer)
             # add layer to layers list
             layers.append(l)
             # remove layer specific bitwidths, in case of different bitwidths to layers
@@ -159,16 +172,20 @@ class ResNet(BaseNet):
             # # update previous layer
             # prevLayer = l.outputLayer()
 
-        self.avgpool = AvgPool2d(4)
+        self.avgpool = AvgPool2d(7 if self.dataset == 'imagenet' else 4)
         # self.fc = MixedLinear(bitwidths, 64, 10)
         self.fc = Linear(512, nClasses).cuda()
 
         return layers
 
     def forward(self, x):
-        out = x
-        for layer in self.layers:
+        out = self.layers[0](x)
+        #print(out.shape)
+        out = self.maxpool(out)
+        #print(out.shape)
+        for layer in self.layers[1:]:
             out = layer(out)
+            #print(out.shape)
 
         out = self.avgpool(out)
         out = out.view(out.size(0), -1)
@@ -180,13 +197,14 @@ class ResNet(BaseNet):
         return self.learnable_params
 
     def turnOnWeights(self):
+        print('*** turnOnWeights() ***')
         for layerIdx, layer in enumerate(self.layersList):
             assert (layer.added_noise is False)
             assert (layer.quantized is True)
-            # remove quantization
+            # remove quantization + activations quantization
             layer.unQuantize(layerIdx)
-            # turn on gradients
-            layer.turnOnGradients(layerIdx)
+            # # turn on gradients
+            # layer.turnOnGradients(layerIdx)
 
         # turn on noise in 1st layer
         if len(self.layersList) > 0:
@@ -205,14 +223,13 @@ class ResNet(BaseNet):
         conditionFlag = self.nLayersQuantCompleted < len(self.layersList)
         if conditionFlag:
             layer = self.layersList[self.nLayersQuantCompleted]
-            # assert (layer.alphas.requires_grad is False)
 
             # turn off noise in layers ops
             layer.turnOffNoise(self.nLayersQuantCompleted)
-            # quantize layer
+            # quantize layer + activations
             layer.quantize(self.nLayersQuantCompleted)
-            # turn off gradients
-            layer.quantActOnTraining(self.nLayersQuantCompleted)
+            # # turn off gradients
+            # layer.quantActOnTraining(self.nLayersQuantCompleted)
 
             # update learnable parameters
             self.learnable_params = [param for param in self.parameters() if param.requires_grad]
@@ -224,9 +241,6 @@ class ResNet(BaseNet):
                 layer = self.layersList[self.nLayersQuantCompleted]
                 # turn on noise in the new layer we want to quantize
                 layer.turnOnNoise(self.nLayersQuantCompleted)
-                # for op in layer.getOps():
-                #     assert (op.noise is False)
-                #     op.noise = True
 
             logMsg = 'nLayersQuantCompleted:[{}/{}], learnable_params:[{}], learnable_alphas:[{}]' \
                 .format(self.nLayersQuantCompleted, self.nLayers(), len(self.learnable_params),
@@ -308,7 +322,7 @@ class ResNet(BaseNet):
                     filterKey = '{}.filters.{}'.format(newKeyOp, filterIdx) + newKey[idx:]
                     # take the specific filter values from the filters block
                     filterValues = chckpntDict[key].narrow(0, filterIdx, 1) if len(chckpntDict[key].size()) > 1 else \
-                    chckpntDict[key]
+                        chckpntDict[key]
                     # get the specific filter from layer
                     filter = layer.filters[filterIdx]
                     # update filter ops
@@ -323,17 +337,6 @@ class ResNet(BaseNet):
 
         # load model weights
         self.load_state_dict(newStateDict)
-
-        # layer_basis is a function of filter quantization,
-        # therefore we have to update its value bases on weight_max_int, which is a function of weights bitwidth
-        for layer in self.layersList:
-            for filter in layer.filters:
-                for j in range(filter.nOpsCopies()):
-                    for i in range(filter.numOfOps()):
-                        op = filter.ops[j][i]
-                        conv = op.op[0]
-                        # update layer_basis value based on weights bitwidth
-                        conv.layer_basis = conv.initial_clamp_value / op.quantize.weight_max_int
 
     # load weights from the same model but with single operation per layer, like a uniform bitwidth trained model
     def loadSingleOpPreTrained(self, chckpntDict):

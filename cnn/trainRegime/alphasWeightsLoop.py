@@ -7,7 +7,7 @@ from torch.optim import SGD
 from torch import save as saveCheckpoint
 from torch import load as loadCheckpoint
 
-from .regime import TrainRegime, save_checkpoint, HtmlLogger
+from .regime import TrainRegime, save_checkpoint
 from cnn.architect import Architect
 from cnn.HtmlLogger import HtmlLogger
 import cnn.gradEstimators as gradEstimators
