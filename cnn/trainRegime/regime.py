@@ -182,6 +182,13 @@ class TrainRegime:
         # init table in main logger
         logger.createDataTable(self.initWeightsTrainTableTitle, self.colsMainInitWeightsTrain)
 
+        # calc alpha trainset loss on baselines
+        alphaLogger = HtmlLogger(folderPath, self.archLossKey)
+        baselinesLoss = model.applyOnBaseline(lambda: self.inferAlphas(dict(train=alphaLogger)))
+        # log baseline losses
+        for bitwidth, (loss, bopsRatio) in baselinesLoss.items():
+            logger.addDataRow({self.epochNumKey: bitwidth, self.validLossKey: loss, self.validBopsRatioKey: bopsRatio})
+
         for epoch in range(1, nEpochs + 1):
             scheduler.step()
             lr = scheduler.get_lr()[0]
@@ -651,7 +658,7 @@ class TrainRegime:
             # add row to table
             trainLogger.addDataRow(dataRow)
 
-        return lossContainer
+        return lossContainer, bopsRatio
 
     def __quantizeUnstagedLayers(self):
         model = self.model
