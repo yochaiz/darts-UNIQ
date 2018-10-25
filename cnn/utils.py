@@ -335,8 +335,8 @@ def save_state(state, is_best, path, filename):
 
 def save_checkpoint(path, model, args, epoch, best_prec1, is_best=False, filename=None):
     # set state dictionary
-    state = dict(nextEpoch=epoch + 1, state_dict=model.state_dict(), epochs=args.epochs, alphas=model.module.save_alphas_state(), updated_statistics=False,
-                 nLayersQuantCompleted=model.module.nLayersQuantCompleted, best_prec1=best_prec1, learning_rate=args.learning_rate)
+    state = dict(nextEpoch=epoch + 1, state_dict=model.state_dict(), epochs=args.epochs, alphas=model.save_alphas_state(), updated_statistics=False,
+                 nLayersQuantCompleted=model.nLayersQuantCompleted, best_prec1=best_prec1, learning_rate=args.learning_rate)
     # set state filename
     filename = filename or stateFilenameDefault
     # save state to file
@@ -391,7 +391,7 @@ def logForwardCounters(model, loggerFuncs):
     rows = [['Layer #', 'Counters']]
     counterCols = ['Prev idx', 'bitwidth', 'Counter']
 
-    for layerIdx, layer in enumerate(model.module.layersList):
+    for layerIdx, layer in enumerate(model.layersList):
         filter = layer.filters[0]
         # sum counters of all filters by indices
         countersByIndices = [[0] * len(filter.opsForwardCounters[0]) for _ in range(len(filter.opsForwardCounters))]
@@ -447,7 +447,7 @@ def logDominantQuantizedOp(model, k, loggerFuncs):
     rows = [['Layer #', 'Alphas']]
     alphaCols = ['Index', 'Ratio', 'Value', 'Bitwidth']
 
-    top = model.module.topOps(k=k)
+    top = model.topOps(k=k)
     for i, layerTop in enumerate(top):
         layerRow = [alphaCols]
         for idx, w, alpha, bitwidth in layerTop:
