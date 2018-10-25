@@ -307,12 +307,28 @@ class AlphasWeightsLoop(TrainRegime):
             # save checkpoint
             save_checkpoint(self.trainFolderPath, model, args, epoch, self.best_prec1)
 
+        logger.logger.addInfoToDataTable('Finished training, waiting for jobs to finish')
+        # wait until all jobs have finished
+        while self.isDictEmpty(self.jobsList) is False:
+            self.__updateDataTableAndBopsPlot()
+            # wait 10 mins
+            sleep(10 * 60)
+        # save checkpoint
+        save_checkpoint(self.trainFolderPath, model, args, epoch, self.best_prec1)
         # send final email
         self.sendEmail('Final', 0, 0)
 
     @staticmethod
     def generateTempValue(jsonFileName, key):
         return '{}_{}'.format(jsonFileName, key)
+
+    @staticmethod
+    def isDictEmpty(dict):
+        for k, v in dict.items():
+            if len(v) > 0:
+                return False
+
+        return True
 
     def __updateDataTableAndBopsPlot(self):
         # init plot data list
