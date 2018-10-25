@@ -77,11 +77,6 @@ class BaseNet(Module):
         self.layersList = [m for m in self.modules() if isinstance(m, MixedLayer)]
         # set bops counter function
         self.countBopsFunc = self.countBopsFuncs[args.bopsCounter]
-        # init criterion
-        if 'baselineBops' not in args:
-            args.baselineBops = self.countBops()
-        self._criterion = UniqLoss(args)
-        self._criterion = self._criterion.cuda()
         # init statistics
         self.stats = cnn.statistics.Statistics(self.layersList, saveFolder)
         # collect learnable params (weights)
@@ -90,6 +85,14 @@ class BaseNet(Module):
         self.learnable_alphas = self.getLearnableAlphas()
         # init number of layers we have completed its quantization
         self.nLayersQuantCompleted = 0
+        # calc init baseline bops
+        baselineBops = self.calcBaselineBops()
+        args.baselineBops = baselineBops[args.baselineBits[0]]
+        # plot baselines bops
+        self.stats.addBaselineBopsData(args, baselineBops)
+        # init criterion
+        self._criterion = UniqLoss(args)
+        self._criterion = self._criterion.cuda()
         # init layers permutation list
         self.layersPerm = []
         # init number of permutations counter

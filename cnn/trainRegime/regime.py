@@ -61,11 +61,7 @@ class TrainRegime:
         # init model
         model = modelClass(args)
         model = model.cuda()
-        # init baseline bops
-        baselineBops = model.calcBaselineBops()
-        args.baselineBops = baselineBops[args.baselineBits[0]]
-        # plot baselines bops
-        model.stats.addBaselineBopsData(args, baselineBops)
+
         # load partition if exists
         if args.partition is not None:
             assert (isinstance(args.partition, list))
