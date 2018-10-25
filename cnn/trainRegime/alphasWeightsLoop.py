@@ -221,6 +221,8 @@ class AlphasWeightsLoop(TrainRegime):
         # # create epoch jobs
         # for epoch in range(1, 4):
         #     epochJobsList = self.__createEpochJobs(epoch)
+        #     self.jobsList[epoch] = epochJobsList
+        #     self.__updateDataTableAndBopsPlot()
         # # ================================================================
 
         for epoch in epochRange:
@@ -301,7 +303,6 @@ class AlphasWeightsLoop(TrainRegime):
         for epoch in self.jobsList.keys():
             bopsPlotData[epoch] = []
 
-        best_prec1 = 0.0
         # init updated jobs list, a list of jobs we haven't got their values yet
         updatedJobsList = []
         # copy files back from server and check if best_prec1, best_valid_loss exists
