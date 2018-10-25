@@ -328,7 +328,7 @@ class BaseNet(Module):
     # apply some function on baseline models
     # baseline models are per each filter bitwidth
     # this function create a map from baseline bitwidth to func() result on baseline model
-    def __applyOnBaseline(self, func):
+    def applyOnBaseline(self, func):
         baselineBops = {}
         # save current model filters curr_alpha_idx
         modelFiltersIdx = [[filter.curr_alpha_idx for filter in layer.filters] for layer in self.layersList]
@@ -368,7 +368,7 @@ class BaseNet(Module):
 
     # calc bops of uniform models, based on filters ops bitwidth
     def calcBaselineBops(self):
-        return self.__applyOnBaseline(self.countBops)
+        return self.applyOnBaseline(self.countBops)
 
     # return top k operations per layer
     def topOps(self, k):
