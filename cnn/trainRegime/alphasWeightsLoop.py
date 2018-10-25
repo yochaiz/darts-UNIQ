@@ -181,7 +181,7 @@ class AlphasWeightsLoop(TrainRegime):
     # creates job of training model partition
     def __createTrainingJob(self, setModelPartitionFunc, nEpoch, id):
         args = self.args
-        model = self.model
+        model = self.model.module
         # set model partition
         setModelPartitionFunc()
         # set JSON file name
@@ -205,7 +205,7 @@ class AlphasWeightsLoop(TrainRegime):
 
     # create all training jobs for a single epoch
     def __createEpochJobs(self, epoch):
-        model = self.model
+        model = self.model.module
         # train from scratch (from 32-bit pre-trained) model partitions based on alphas distribution
         epochJobs = []
 
@@ -392,7 +392,7 @@ class AlphasWeightsLoop(TrainRegime):
         self.jobsList = updatedJobsList
 
         # send new bops plot value to plot
-        self.model.stats.addBopsData(bopsPlotData)
+        self.model.module.stats.addBopsData(bopsPlotData)
 
     def __addEpochJSONsDataRows(self, epochJobsList, epoch):
         logger = self.logger
