@@ -135,7 +135,7 @@ class TrainRegime:
         self.nEpochs = nEpochs
         self.epochsSwitchStage = epochsSwitchStage
 
-        self.model = torch.nn.DataParallel(self.model, args.gpu)
+        # self.model = torch.nn.DataParallel(self.model, args.gpu)
         # if we loaded ops in the same layer with the same weights, then we loaded the optimal full precision model,
         # therefore we have to train the weights for each QuantizedOp
         if (args.loadedOpsWithDiffWeights is False) and args.init_weights_train:
@@ -145,7 +145,8 @@ class TrainRegime:
             # we loaded ops in the same layer with different weights, therefore we just have to switch_stage
             switchStageFlag = True
             while switchStageFlag:
-                switchStageFlag = model.module.switch_stage([lambda msg: rows.append([msg])])
+                # switchStageFlag = model.module.switch_stage([lambda msg: rows.append([msg])])
+                switchStageFlag = model.switch_stage([lambda msg: rows.append([msg])])
             # create info table
             logger.addInfoTable(self.initWeightsTrainTableTitle, rows)
 
@@ -159,7 +160,10 @@ class TrainRegime:
         # calc alpha trainset loss on baselines
 
     def calcAlphaTrainsetLossOnBaselines(self, folderPath, trainLoggerName, logger):
-        model = self.model.module
+        # model = self.model.module
+        model = self.model
+
+
         alphaLogger = HtmlLogger(folderPath, trainLoggerName)
         baselinesLoss = model.applyOnBaseline(lambda: self.inferAlphas(dict(train=alphaLogger)))
         # log baseline losses
@@ -184,7 +188,8 @@ class TrainRegime:
         # init scheduler
         scheduler = CosineAnnealingLR(optimizer, float(nEpochs), eta_min=args.learning_rate_min)
 
-        model = self.model.module
+        # model = self.model.module
+        model = self.model
         # init validation best precision value
         best_prec1 = 0.0
         best_valid_loss = 0.0
@@ -239,7 +244,8 @@ class TrainRegime:
                                     weight_decay=args.weight_decay)
                     scheduler = CosineAnnealingLR(optimizer, float(nEpochs), eta_min=args.learning_rate_min)
                     scheduler.step()
-                    model = self.model.module
+                    # model = self.model.module
+                    model = self.model
                 else:
                     # update best precision only after switching stage is complete
                     is_best = valid_acc > best_prec1
@@ -322,7 +328,8 @@ class TrainRegime:
         crossEntropy_container = AvgrageMeter()
         bopsLoss_container = AvgrageMeter()
 
-        model = self.model.module
+        # model = self.model.module
+        model = self.model
         modelReplicator = architect.modelReplicator
 
         trainLogger = loggers.get('train')
@@ -421,7 +428,8 @@ class TrainRegime:
         loss_container = AvgrageMeter()
         top1 = AvgrageMeter()
 
-        model = self.model.module
+        # model = self.model.module
+        model = self.model
         crit = self.cross_entropy
         train_queue = self.train_queue
         grad_clip = self.args.grad_clip
@@ -446,7 +454,8 @@ class TrainRegime:
             model = self.model
             # choose model partition if we haven't set partition to model
             if self.args.partition is None:
-                model.module.choosePathByAlphas()
+                # model.module.choosePathByAlphas()
+                model.choosePathByAlphas()
             # optimize model weights
             optimizer.zero_grad()
             logits = model(input)
@@ -465,7 +474,8 @@ class TrainRegime:
             endTime = time()
 
             if trainLogger:
-                model = self.model.module
+                # model = self.model.module
+                model = self.model
                 dataRow = {
                     self.batchNumKey: '{}/{}'.format(step, nBatches),
                     self.pathBopsRatioKey: model.calcBopsRatio(),
@@ -479,7 +489,8 @@ class TrainRegime:
                 # add row to data table
                 trainLogger.addDataRow(dataRow)
 
-        model = self.model.module
+        # model = self.model.module
+        model = self.model
         # log accuracy, loss, etc.
         summaryData = {self.trainLossKey: loss_container.avg, self.trainAccKey: top1.avg, self.batchNumKey: 'Summary'}
         # apply formats
@@ -504,7 +515,8 @@ class TrainRegime:
         objs = AvgrageMeter()
         top1 = AvgrageMeter()
 
-        model = self.model.module
+        # model = self.model.module
+        model = self.model
         valid_queue = self.valid_queue
         crit = self.cross_entropy
 
@@ -559,7 +571,8 @@ class TrainRegime:
 
         self.__unQuantizeUnstagedLayers()
 
-        model = self.model.module
+        # model = self.model.module
+        model = self.model
         # log UNIQ status after restoring model state
         self.addModelUNIQstatusTable(model, trainLogger, 'UNIQ status - state restored')
 
@@ -613,7 +626,8 @@ class TrainRegime:
         # quantize unstaged layers
         self.__quantizeUnstagedLayers()
 
-        model = self.model.module
+        # model = self.model.module
+        model = self.model
         # calculate its bops
         bopsRatio = model.calcBopsRatio()
 
@@ -647,7 +661,8 @@ class TrainRegime:
         # remove quantization from unstaged layers
         self.__unQuantizeUnstagedLayers()
 
-        model = self.model.module
+        # model = self.model.module
+        model = self.model
         # create summary row
         summaryRow = {self.batchNumKey: 'Summary', self.validLossKey: lossContainer.avg, self.validBopsRatioKey: bopsRatio}
         # apply formats
@@ -680,7 +695,8 @@ class TrainRegime:
         return lossContainer.avg, bopsRatio
 
     def __quantizeUnstagedLayers(self):
-        model = self.model.module
+        # model = self.model.module
+        model = self.model
         # quantize model layers that haven't switched stage yet
         # no need to turn gradients off, since with no_grad() does it
         if model.nLayersQuantCompleted < model.nLayers():
@@ -695,7 +711,8 @@ class TrainRegime:
         assert (model.isQuantized() is True)
 
     def __unQuantizeUnstagedLayers(self):
-        model = self.model.module
+        # model = self.model.module
+        model = self.model
         # restore weights (remove quantization) of model layers that haven't switched stage yet
         if model.nLayersQuantCompleted < model.nLayers():
             for layerIdx, layer in enumerate(model.layersList[model.nLayersQuantCompleted:]):

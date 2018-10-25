@@ -17,12 +17,14 @@ class OptimalModel(TrainRegime):
         logger.addInfoTable(title='Bops', rows=[['Total', bopsStr], ['Ratio', bopsRatioStr]])
 
     def train(self):
+        # model = self.model.module
+        model = self.model
         # make sure model is quantized
-        assert (self.model.isQuantized() is True)
+        assert (model.isQuantized() is True)
         # update statistics in current model, i.e. last checkpoint
-        self.model.calcStatistics(self.statistics_queue)
+        model.calcStatistics(self.statistics_queue)
         # save model checkpoint
-        checkpoint, (lastPath, _) = save_checkpoint(self.trainFolderPath, self.model.module, self.args, self.epoch,
+        checkpoint, (lastPath, _) = save_checkpoint(self.trainFolderPath, model, self.args, self.epoch,
                                                     getattr(self.args, self.validAccKey, 0.0), is_best=False)
         checkpoint['updated_statistics'] = True
         saveModel(checkpoint, lastPath)
@@ -30,5 +32,5 @@ class OptimalModel(TrainRegime):
 
         # update statistics in optimal model
         optCheckpoint, optPath = self.optimalModelCheckpoint
-        statisticsWereUpdated = self.model.updateCheckpointStatistics(optCheckpoint, optPath, self.statistics_queue)
+        statisticsWereUpdated = model.updateCheckpointStatistics(optCheckpoint, optPath, self.statistics_queue)
         self.logger.addInfoToDataTable('Updated statistics in optimal checkpoint: [{}]'.format(statisticsWereUpdated))
