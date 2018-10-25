@@ -69,11 +69,9 @@ class TrainRegime:
             for i, p in enumerate(args.partition):
                 args.partition[i] = tensor(p, dtype=int32).cuda()
             # set filters by partition
-            model.setFiltersByPartition(args.partition,
-                                        loggerFuncs=[lambda msg: logger.addInfoTable('Partition', [[msg]])])
+            model.setFiltersByPartition(args.partition, loggerFuncs=[lambda msg: logger.addInfoTable('Partition', [[msg]])])
 
-        # # ========================== DEBUG ===============================
-        # self.model = model
+        # # ========================== DEBUG ============================        self.model = model
         # self.args = args
         # self.logger = logger
         # return
