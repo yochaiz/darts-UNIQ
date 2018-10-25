@@ -81,7 +81,7 @@ def manageJobs(epochJobs, epoch, folderPath):
                 # clear successfully sent jobs
                 if retVal == 0:
                     epochJobs = epochJobs[nJobs:]
-                    logger.addDataRow({tableColumn: 'Sent [{}] trainings successfully to [{}], jobs still waiting:[{}]'
+                    logger.addSummaryDataRow({tableColumn: 'Sent [{}] trainings successfully to [{}], jobs still waiting:[{}]'
                                       .format(nJobs, serv, len(epochJobs))})
                     break
 
