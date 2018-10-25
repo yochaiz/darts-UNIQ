@@ -20,11 +20,11 @@ class SimpleLogger(HtmlLogger):
         self.tableColumn = 'Description'
         self.createDataTable('Activity', [self.tableColumn])
 
-    def addDataRow(self, values):
-        super.addDataRow({self.tableColumn: values})
+    def addRow(self, values):
+        super(SimpleLogger, self).addDataRow({self.tableColumn: values})
 
-    def addSummaryDataRow(self, values):
-        super.addSummaryDataRow({self.tableColumn: values})
+    def addSummaryRow(self, values):
+        super(SimpleLogger, self).addSummaryDataRow({self.tableColumn: values})
 
 
 def escape(txt):
@@ -57,7 +57,7 @@ def manageJobs(epochJobs, epoch, folderPath):
     for job in epochJobs:
         # perform command
         retVal = system(job.cmdCopyToServer)
-        logger.addDataRow([['Action', 'Copy to server'], ['File', job.jsonFileName], ['Status', returnSuccessOrFail(retVal)]])
+        logger.addRow([['Action', 'Copy to server'], ['File', job.jsonFileName], ['Status', returnSuccessOrFail(retVal)]])
 
     # init server names
     servers = ['gaon6', 'gaon4', 'gaon2', 'gaon5']
@@ -70,7 +70,7 @@ def manageJobs(epochJobs, epoch, folderPath):
     # try sending as much jobs as possible under single sbatch
     # try sending as much sbatch commands as possible
     while len(epochJobs) > 0:
-        logger.addDataRow([['Jobs Waiting', len(epochJobs)]])
+        logger.addRow([['Jobs Waiting', len(epochJobs)]])
         # set number of jobs we want to run in a single SBATCH command
         nJobs = min(nMaxGPUs, len(epochJobs))
         # try to send sbatch command to server, stop when successful
@@ -93,11 +93,11 @@ def manageJobs(epochJobs, epoch, folderPath):
                 retVal = system(trainCommand)
                 # add data row with information
                 dataRow = [['#Trainings', nJobs], ['Server', serv], ['#Waiting', len(epochJobs)], ['retVal', retVal], ['Command', trainCommand]]
-                logger.addDataRow(dataRow)
+                logger.addRow(dataRow)
                 # clear successfully sent jobs
                 if retVal == 0:
                     epochJobs = epochJobs[nJobs:]
-                    logger.addSummaryDataRow([['#Trainings', nJobs], ['Server', serv], ['#Waiting', len(epochJobs)], ['Status', 'Success']])
+                    logger.addSummaryRow([['#Trainings', nJobs], ['Server', serv], ['#Waiting', len(epochJobs)], ['Status', 'Success']])
                     break
 
             # check if jobs not sent, try sending less jobs, i.e. use less GPUs
@@ -109,11 +109,11 @@ def manageJobs(epochJobs, epoch, folderPath):
 
         # if didn't manage to send any job, wait 10 mins
         if retVal != 0:
-            logger.addDataRow([['Send status', 'Failed'], ['Waiting time (mins)', nMinsWaiting]])
+            logger.addRow([['Send status', 'Failed'], ['Waiting time (mins)', nMinsWaiting]])
             sleep(nMinsWaiting * 60)
 
-    logger.addSummaryDataRow('Sent all jobs successfully')
-    logger.addSummaryDataRow('Done !')
+    logger.addSummaryRow('Sent all jobs successfully')
+    logger.addSummaryRow('Done !')
 
 
 class TrainingJob:
@@ -329,7 +329,8 @@ class AlphasWeightsLoop(TrainRegime):
             for job in epochJobsList:
                 # copy JSON from server back here
                 retVal = system(job.cmdCopyFromServer)
-                self.jobsLogger.addDataRow([['Action', 'Copy from server'], ['File', job.jsonFileName], ['Status', returnSuccessOrFail(retVal)]])
+                self.jobsLogger.addRow([['Action', 'Copy from server'], ['Epoch', epoch], ['File', job.jsonFileName],
+                                        ['Status', returnSuccessOrFail(retVal)]])
                 # load checkpoint
                 if exists(job.jsonPath):
                     checkpoint = loadCheckpoint(job.jsonPath, map_location=lambda storage, loc: storage.cuda())
@@ -339,26 +340,34 @@ class AlphasWeightsLoop(TrainRegime):
                     for key in self.rowKeysToReplace:
                         v = getattr(checkpoint, key, None)
                         # log key & value
-                        self.jobsLogger.addDataRow([['Key', key], ['Value', v]])
+                        dataRow = [['Key', key], ['Value', v]]
+                        addRowFunc = self.jobsLogger.addRow
                         # if v is not None, then update value in table
                         if v is not None:
                             # update key exists
                             existingKeys.append(key)
                             # replace value in table
                             self.logger.replaceValueInDataTable(self.generateTempValue(job.jsonFileName, key), self.formats[key].format(v))
-                            # log
-                            self.jobsLogger.addSummaryDataRow([['Key', key], ['Status', 'Updated']])
+                            # add status to dataRow
+                            dataRow.append(['Status', 'Updated'])
+                            addRowFunc = self.jobsLogger.addSummaryRow
                             # add tuple of (bitwidth, bops, accuracy) to plotData if we have accuracy value
                             if key == self.validAccKey:
                                 bopsPlotData[epoch].append((None, job.bops, v))
                                 # update best_prec1 of all training jobs we have trained
                                 self.best_prec1 = max(self.best_prec1, v)
 
+                        # add data row
+                        addRowFunc(dataRow)
+
                     # add job to updatedJobsList if we haven't got all keys, otherwise we are done with this job
                     if len(existingKeys) < len(self.rowKeysToReplace):
                         updatedJobsList[epoch].append(job)
                     # else:
                     #     remove(job.jsonPath)
+
+        # add separation row to logger
+        self.jobsLogger.addSummaryRow('***')
 
         # update self.jobsList to updatedJobsList
         self.jobsList = updatedJobsList
