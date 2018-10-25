@@ -322,8 +322,10 @@ class BaseNet(Module):
                 # reset filter counters
                 filter.resetOpsForwardCounters()
 
-    # calc bops of uniform models, based on filters ops bitwidth
-    def calcBaselineBops(self):
+    # apply some function on baseline models
+    # baseline models are per each filter bitwidth
+    # this function create a map from baseline bitwidth to func() result on baseline model
+    def __applyOnBaseline(self, func):
         baselineBops = {}
         # save current model filters curr_alpha_idx
         modelFiltersIdx = [[filter.curr_alpha_idx for filter in layer.filters] for layer in self.layersList]
@@ -352,7 +354,7 @@ class BaseNet(Module):
                             for filter in layer2.filters:
                                 filter.curr_alpha_idx = idx
                         # update bops value in dictionary
-                        baselineBops[bitwidth] = self.countBops()
+                        baselineBops[bitwidth] = func()
 
         # restore filters curr_alpha_idx
         for layer, layerFiltersIdx in zip(self.layersList, modelFiltersIdx):
@@ -360,6 +362,10 @@ class BaseNet(Module):
                 filter.curr_alpha_idx = filterIdx
 
         return baselineBops
+
+    # calc bops of uniform models, based on filters ops bitwidth
+    def calcBaselineBops(self):
+        return self.__applyOnBaseline(self.countBops)
 
     # return top k operations per layer
     def topOps(self, k):
