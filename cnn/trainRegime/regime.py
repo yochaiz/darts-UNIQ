@@ -163,7 +163,6 @@ class TrainRegime:
         # model = self.model.module
         model = self.model
 
-
         alphaLogger = HtmlLogger(folderPath, trainLoggerName)
         baselinesLoss = model.applyOnBaseline(lambda: self.inferAlphas(dict(train=alphaLogger)))
         # log baseline losses
@@ -444,6 +443,11 @@ class TrainRegime:
         model = self.model
         model.train()
 
+        # remove quantization from staged layers
+        model.removeQuantizationFromStagedLayers()
+        # set pre & post forward hooks
+        model.setWeightsTrainingHooks()
+
         for step, (input, target) in enumerate(train_queue):
             startTime = time()
             n = input.size(0)
@@ -491,6 +495,12 @@ class TrainRegime:
 
         # model = self.model.module
         model = self.model
+
+        # quantize staged layers
+        model.restoreQuantizationForStagedLayers()
+        # remove pre & post forward hooks
+        model.removeWeightsTrainingHooks()
+
         # log accuracy, loss, etc.
         summaryData = {self.trainLossKey: loss_container.avg, self.trainAccKey: top1.avg, self.batchNumKey: 'Summary'}
         # apply formats
@@ -526,7 +536,7 @@ class TrainRegime:
 
         nBatches = len(valid_queue)
 
-        self.__quantizeUnstagedLayers()
+        model.quantizeUnstagedLayers()
 
         # log UNIQ status after quantizing all layers
         self.addModelUNIQstatusTable(model, trainLogger, 'UNIQ status - quantizated for validation')
@@ -569,10 +579,10 @@ class TrainRegime:
                     # add row to data table
                     trainLogger.addDataRow(dataRow)
 
-        self.__unQuantizeUnstagedLayers()
-
         # model = self.model.module
         model = self.model
+
+        model.unQuantizeUnstagedLayers()
         # log UNIQ status after restoring model state
         self.addModelUNIQstatusTable(model, trainLogger, 'UNIQ status - state restored')
 
@@ -623,11 +633,10 @@ class TrainRegime:
         if trainLogger:
             trainLogger.createDataTable('Alphas trainset Validation', self.colsValidation)
 
-        # quantize unstaged layers
-        self.__quantizeUnstagedLayers()
-
         # model = self.model.module
         model = self.model
+        # quantize unstaged layers
+        model.quantizeUnstagedLayers()
         # calculate its bops
         bopsRatio = model.calcBopsRatio()
 
@@ -658,8 +667,10 @@ class TrainRegime:
                         # add row to data table
                         trainLogger.addDataRow(dataRow)
 
+        # model = self.model.module
+        model = self.model
         # remove quantization from unstaged layers
-        self.__unQuantizeUnstagedLayers()
+        model.unQuantizeUnstagedLayers()
 
         # model = self.model.module
         model = self.model
@@ -693,34 +704,6 @@ class TrainRegime:
             trainLogger.addDataRow(dataRow)
 
         return lossContainer.avg, bopsRatio
-
-    def __quantizeUnstagedLayers(self):
-        # model = self.model.module
-        model = self.model
-        # quantize model layers that haven't switched stage yet
-        # no need to turn gradients off, since with no_grad() does it
-        if model.nLayersQuantCompleted < model.nLayers():
-            # turn off noise if 1st unstaged layer
-            layer = model.layersList[model.nLayersQuantCompleted]
-            layer.turnOffNoise(model.nLayersQuantCompleted)
-            # quantize all unstaged layers
-            for layerIdx, layer in enumerate(model.layersList[model.nLayersQuantCompleted:]):
-                # quantize
-                layer.quantize(model.nLayersQuantCompleted + layerIdx)
-
-        assert (model.isQuantized() is True)
-
-    def __unQuantizeUnstagedLayers(self):
-        # model = self.model.module
-        model = self.model
-        # restore weights (remove quantization) of model layers that haven't switched stage yet
-        if model.nLayersQuantCompleted < model.nLayers():
-            for layerIdx, layer in enumerate(model.layersList[model.nLayersQuantCompleted:]):
-                # remove quantization
-                layer.unQuantize(model.nLayersQuantCompleted + layerIdx)
-            # add noise back to 1st unstaged layer
-            layer = model.layersList[model.nLayersQuantCompleted]
-            layer.turnOnNoise(model.nLayersQuantCompleted)
 
     def logAllocations(self):
         logger = HtmlLogger(self.args.save, 'allocations', overwrite=True)
