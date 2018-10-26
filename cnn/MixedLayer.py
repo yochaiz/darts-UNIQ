@@ -93,6 +93,9 @@ class MixedLayer(Block):
         assert (self.added_noise is False)
         for op in self.opsList:
             assert (op.noise is False)
+            assert (op.quant is False)
+            op.quant = True
+
             op.quantizeFunc()
             assert (check_quantization(op.op[0].weight) <= (2 ** op.bitwidth[0]))
             # quantize activations during training
@@ -108,6 +111,8 @@ class MixedLayer(Block):
         assert (self.added_noise is False)
 
         for op in self.opsList:
+            assert (op.quant is True)
+            op.quant = False
             op.restore_state()
             # remove activations quantization during training
             for m in op.modules():
