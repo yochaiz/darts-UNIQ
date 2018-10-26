@@ -43,7 +43,7 @@ class UNIQNet(Module):
         super(UNIQNet, self).__init__()
         # self.quant_epoch_step = quant_epoch_step
         # self.quant_start_stage = quant_start_stage
-        self.quant = True
+        self.quant = False
         self.noise = False
         # self.wrpn = False
 
@@ -105,7 +105,9 @@ class UNIQNet(Module):
 
     def quantizeFunc(self):
         assert (len(self.bitwidth) == 1)
+        assert (self.full_parameters == {})
         assert (self.quant is True)
+        assert (self.noise is False)
         # check if we are in inference mode or we are training with switching stage and this op has already changed stage
         assert ((self.training is False) or ((self.training is True) and (self.noise is False)))
 
@@ -115,8 +117,10 @@ class UNIQNet(Module):
 
     def add_noise(self):
         assert (len(self.bitwidth) == 1)
+        assert (self.full_parameters == {})
         assert (self.noise is True)
         assert (self.training is True)
+        assert (self.quant is False)
 
         layers_list = self.layers_list
         self.full_parameters = backup_weights(layers_list, {})
@@ -125,6 +129,7 @@ class UNIQNet(Module):
     def restore_state(self):
         assert (self.full_parameters != {})
         restore_weights(self.layers_list, self.full_parameters)
+        self.full_parameters = {}
 
     # def layers_steps(self):
     #     split_layers = self.split_one_layer_with_parameter_in_step()
