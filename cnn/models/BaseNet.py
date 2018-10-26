@@ -14,31 +14,44 @@ from cnn.MixedFilter import MixedConvWithReLU
 from cnn.uniq_loss import UniqLoss
 import cnn.statistics
 
+from UNIQ.quantize import check_quantization
 
-# from UNIQ.quantize import backup_weights, restore_weights, quantize
 
-# def save_quant_state(self, _):
-#     assert (False)
-#     assert (self.noise is False)
-#     if self.quant and not self.noise and self.training:
-#         self.full_parameters = {}
-#         layers_list = self.get_layers_list()
-#         layers_steps = self.get_layers_steps(layers_list)
-#         assert (len(layers_steps) == 1)
-#
-#         self.full_parameters = backup_weights(layers_steps[0], self.full_parameters)
-#         quantize(layers_steps[0], bitwidth=self.bitwidth[0])
-#
-#
-# def restore_quant_state(self, _, __):
-#     assert (False)
-#     assert (self.noise is False)
-#     if self.quant and not self.noise and self.training:
-#         layers_list = self.get_layers_list()
-#         layers_steps = self.get_layers_steps(layers_list)
-#         assert (len(layers_steps) == 1)
-#
-#         restore_weights(layers_steps[0], self.full_parameters)  # Restore the quantized layers
+# preForward hook for training weights phase.
+# when we train weights, we need to quantize staged layers before forward, and remove quantization after forward in order to update by gradient
+# same for noise, we need to add noise before forward, and remove noise after forward, in order to update by gradient
+def preForward(self, _):
+    assert (self.hookFlag is False)
+    self.hookFlag = True
+
+    assert (self.training is True)
+    # quantize staged layers
+    self.restoreQuantizationForStagedLayers()
+
+    # add noise to next to be staged layer
+    if self.nLayersQuantCompleted < self.nLayers():
+        layer = self.layersList[self.nLayersQuantCompleted]
+        assert (layer.added_noise is True)
+        for op in layer.opsList:
+            assert (op.noise is True)
+            op.add_noise()
+
+
+def postForward(self, _, __):
+    assert (self.hookFlag is True)
+    self.hookFlag = False
+
+    assert (self.training is True)
+    # remove quantization from staged layers
+    self.removeQuantizationFromStagedLayers()
+
+    # remove noise from next to be staged layer
+    if self.nLayersQuantCompleted < self.nLayers():
+        layer = self.layersList[self.nLayersQuantCompleted]
+        assert (layer.added_noise is True)
+        for op in layer.opsList:
+            assert (op.noise is True)
+            op.restore_state()
 
 
 class BaseNet(Module):
@@ -93,6 +106,13 @@ class BaseNet(Module):
         # init criterion
         self._criterion = UniqLoss(args)
         self._criterion = self._criterion.cuda()
+
+        # init hooks handlers list
+        self.hooksList = []
+        # set hook flag, to make sure hook happens
+        # turn it on on pre-forward hook, turn it off on post-forward hook
+        self.hookFlag = False
+
         # init layers permutation list
         self.layersPerm = []
         # init number of permutations counter
@@ -143,6 +163,8 @@ class BaseNet(Module):
         return self.learnable_alphas
 
     def calcStatistics(self, statistics_queue):
+        # quantize model
+        self.quantizeUnstagedLayers()
         # prepare for collecting statistics, reset register_buffers values
         for layer in self.layersList:
             for op in layer.opsList:
@@ -198,6 +220,11 @@ class BaseNet(Module):
     def updateCheckpointStatistics(self, checkpoint, path, statistics_queue):
         needToUpdate = ('updated_statistics' not in checkpoint) or (checkpoint['updated_statistics'] is not True)
         if needToUpdate:
+            # quantize model
+            self.quantizeUnstagedLayers()
+            # change self.nLayersQuantCompleted so calcStatistics() won't quantize again
+            nLayersQuantCompletedOrg = self.nLayersQuantCompleted
+            self.nLayersQuantCompleted = self.nLayers()
             # load checkpoint weights
             self.load_state_dict(checkpoint['state_dict'])
             # calc weights statistics
@@ -207,6 +234,8 @@ class BaseNet(Module):
             checkpoint['updated_statistics'] = True
             # save updated checkpoint
             saveModel(checkpoint, path)
+            # restore nLayersQuantCompleted
+            self.nLayersQuantCompleted = nLayersQuantCompletedOrg
 
         return needToUpdate
 
@@ -313,11 +342,72 @@ class BaseNet(Module):
             f(logMsg)
 
     def isQuantized(self):
-        for layer in self.layersList:
+        from UNIQ.quantize import check_quantization
+        for layerIdx, layer in enumerate(self.layersList):
             assert (layer.quantized is True)
             assert (layer.added_noise is False)
+            for opIdx, op in enumerate(layer.opsList):
+                assert (check_quantization(op.op[0].weight) <= (2 ** op.bitwidth[0]))
 
         return True
+
+    def setWeightsTrainingHooks(self):
+        assert (len(self.hooksList) == 0)
+        # assign pre & post forward hooks
+        self.hooksList = [self.register_forward_pre_hook(preForward), self.register_forward_hook(postForward)]
+
+    def removeWeightsTrainingHooks(self):
+        for handler in self.hooksList:
+            handler.remove()
+        # clear hooks handlers list
+        self.hooksList.clear()
+
+    # remove quantization from staged layers before training weights
+    # quantization will be set through pre-forward hook
+    # we keep ActQaunt.qunatize_during_training == True
+    def removeQuantizationFromStagedLayers(self):
+        for layerIdx in range(self.nLayersQuantCompleted):
+            layer = self.layersList[layerIdx]
+            assert (layer.quantized is True)
+            # quantize layer ops
+            for op in layer.opsList:
+                op.restore_state()
+
+    # restore quantization for staged layers after training weights
+    # quantization will be set through pre-forward hook
+    # we keep ActQaunt.qunatize_during_training == True
+    def restoreQuantizationForStagedLayers(self):
+        for layerIdx in range(self.nLayersQuantCompleted):
+            layer = self.layersList[layerIdx]
+            assert (layer.quantized is True)
+            # quantize layer ops
+            for op in layer.opsList:
+                op.quantizeFunc()
+                assert (check_quantization(op.op[0].weight) <= (2 ** op.bitwidth[0]))
+
+    def quantizeUnstagedLayers(self):
+        # quantize model layers that haven't switched stage yet
+        # no need to turn gradients off, since with no_grad() does it
+        if self.nLayersQuantCompleted < self.nLayers():
+            # turn off noise if 1st unstaged layer
+            layer = self.layersList[self.nLayersQuantCompleted]
+            layer.turnOffNoise(self.nLayersQuantCompleted)
+            # quantize all unstaged layers
+            for layerIdx, layer in enumerate(self.layersList[self.nLayersQuantCompleted:]):
+                # quantize
+                layer.quantize(self.nLayersQuantCompleted + layerIdx)
+
+        assert (self.isQuantized() is True)
+
+    def unQuantizeUnstagedLayers(self):
+        # restore weights (remove quantization) of model layers that haven't switched stage yet
+        if self.nLayersQuantCompleted < self.nLayers():
+            for layerIdx, layer in enumerate(self.layersList[self.nLayersQuantCompleted:]):
+                # remove quantization
+                layer.unQuantize(self.nLayersQuantCompleted + layerIdx)
+            # add noise back to 1st unstaged layer
+            layer = self.layersList[self.nLayersQuantCompleted]
+            layer.turnOnNoise(self.nLayersQuantCompleted)
 
     def resetForwardCounters(self):
         for layer in self.layersList:
