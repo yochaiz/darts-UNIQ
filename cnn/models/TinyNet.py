@@ -12,10 +12,10 @@ class TinyNet(BaseNet):
     def __init__(self, args):
         super(TinyNet, self).__init__(args, initLayersParams=(args.bitwidth, args.kernel))
 
-        for layer in self.layersList:
-            # turn on noise
-            for op in layer.getOps():
-                op.noise = op.quant
+        # for layer in self.layersList:
+        #     # turn on noise
+        #     for op in layer.getOps():
+        #         op.noise = op.quant
 
     def initLayers(self, params):
         bitwidths, kernel_sizes = params
