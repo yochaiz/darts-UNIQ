@@ -3,7 +3,7 @@ from NICE.uniq import UNIQNet
 from NICE.actquant import ActQuantBuffers
 
 from torch import ones
-from torch.nn import ModuleList, Conv2d, Sequential, Linear
+from torch.nn import ModuleList, Conv2d, Sequential
 
 from cnn.block import Block
 
@@ -87,8 +87,8 @@ class QuantizedOp(UNIQNet):
 #         return grads_x, grads_alpha
 
 def preForward(self, _):
-    # assert (self.hookFlag is False)
-    # self.hookFlag = True
+    assert (self.hookFlag is False)
+    self.hookFlag = True
     # update previous layer index
     prevLayer = self.prevLayer[0]
     self.prev_alpha_idx = prevLayer.curr_alpha_idx if prevLayer else 0
@@ -101,9 +101,11 @@ def preForward(self, _):
     #     op.add_noise()
 
 
-# def postForward(self, _, __):
-#     assert (self.hookFlag is True)
-#     self.hookFlag = False
+def postForward(self, _, __):
+    assert (self.hookFlag is True)
+    self.hookFlag = False
+
+
 #
 #     # get current op
 #     op = self.ops[self.prev_alpha_idx][self.curr_alpha_idx]
@@ -155,10 +157,10 @@ class MixedFilter(Block):
         self.forward = self.setForwardFunc()
         # assign pre & post forward hooks
         self.register_forward_pre_hook(preForward)
-        # self.register_forward_hook(postForward)
+        self.register_forward_hook(postForward)
         # # set hook flag, to make sure hook happens
-        # # turn it on on pre-forward hook, turn it off on post-forward hook
-        # self.hookFlag = False
+        # turn it on on pre-forward hook, turn it off on post-forward hook
+        self.hookFlag = False
 
         # list of (mults, adds, calc_mac_value, batch_size) per op
         self.bops = self.countOpsBops(countBopsParams)
