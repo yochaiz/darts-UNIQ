@@ -313,7 +313,7 @@ class AlphasWeightsLoop(TrainRegime):
             # save checkpoint
             save_checkpoint(self.trainFolderPath, model, args, epoch, self.best_prec1)
 
-        logger.logger.addInfoToDataTable('Finished training, waiting for jobs to finish')
+        logger.addInfoToDataTable('Finished training, waiting for jobs to finish')
         # wait until all jobs have finished
         while self.isDictEmpty(self.jobsList) is False:
             self.__updateDataTableAndBopsPlot()
