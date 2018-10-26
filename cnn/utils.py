@@ -334,6 +334,9 @@ def save_state(state, is_best, path, filename):
 
 
 def save_checkpoint(path, model, args, epoch, best_prec1, is_best=False, filename=None):
+    print('*** save_checkpoint ***')
+    # quantize model before save, quantize unstaged layers
+    model.quantizeUnstagedLayers()
     # set state dictionary
     state = dict(nextEpoch=epoch + 1, state_dict=model.state_dict(), epochs=args.epochs, alphas=model.save_alphas_state(), updated_statistics=False,
                  nLayersQuantCompleted=model.nLayersQuantCompleted, best_prec1=best_prec1, learning_rate=args.learning_rate)
@@ -341,6 +344,10 @@ def save_checkpoint(path, model, args, epoch, best_prec1, is_best=False, filenam
     filename = filename or stateFilenameDefault
     # save state to file
     filePaths = save_state(state, is_best, path=path, filename=filename)
+
+    # removed quantization from unstaged layers
+    model.unQuantizeUnstagedLayers()
+    print('*** END save_checkpoint ***')
 
     return state, filePaths
 
