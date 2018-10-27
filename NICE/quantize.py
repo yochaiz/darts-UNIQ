@@ -144,29 +144,34 @@ class quantize(object):
         return self.weight_max_int * self.quant_step(m)
 
     def get_act_max_value_from_pre_calc_stats(self, modules):
-        max_act_val = 0
-        self_max_val = 0
+        # max_act_val = 0
+        # self_max_val = 0
 
         for layer in modules:
             if isinstance(layer, ActQuantBuffers):
                 clamp_value = (layer.running_mean + self.std_act_clamp * layer.running_std)
-                self_max_val = max(self_max_val, clamp_value)
+                layer.clamp_val.data = clamp_value
 
-                if (float(layer.clamp_val.data) == 0):  ##when we load model, we don't want to init this parameter
-                    if self.hardware_clamp:
-                        max_act_val = max(max_act_val, clamp_value)
-                        self.act_max_value = max_act_val.__float__()
-                        scaled_max_val_for_hw, p = self.calc_max_act_scale()
-                        layer.clamp_val.data = self.calc_layer_act_clamp(clamp_value, p)  # scaled_max_val_for_hw
-                    else:
-                        max_act_val = max(max_act_val, clamp_value)
-                        self.act_max_value = max_act_val.__float__()
-                        layer.clamp_val.data = clamp_value
-                else:
-                    self.act_max_value = self_max_val.item()
+                # self_max_val = max(self_max_val, clamp_value)
+                #
+                # max_act_val = max(max_act_val, clamp_value)
+                # self.act_max_value = max_act_val.__float__()
+                # layer.clamp_val.data = clamp_value
+                #
+                # if (float(layer.clamp_val.data) == 0):  ##when we load model, we don't want to init this parameter
+                #     if self.hardware_clamp:
+                #         max_act_val = max(max_act_val, clamp_value)
+                #         self.act_max_value = max_act_val.__float__()
+                #         scaled_max_val_for_hw, p = self.calc_max_act_scale()
+                #         layer.clamp_val.data = self.calc_layer_act_clamp(clamp_value, p)  # scaled_max_val_for_hw
+                #     else:
+                #         max_act_val = max(max_act_val, clamp_value)
+                #         self.act_max_value = max_act_val.__float__()
+                #         layer.clamp_val.data = clamp_value
+                # else:
+                #     self.act_max_value = self_max_val.item()
 
-                print("activation clamp: wanted clamp: ", clamp_value.__float__(), "acutal clamp: ",
-                      layer.clamp_val.data)
+                print("activation clamp: wanted clamp: ", clamp_value.__float__(), "acutal clamp: ", layer.clamp_val.data)
 
         return
 
@@ -244,8 +249,7 @@ class quantize(object):
                 else:
 
                     if print_clamp_val:
-                        print("weight clamp: wanted clamp: ", clamp_value.item(), "actual clamp: ",
-                              clamp_value)
+                        print("weight clamp: wanted clamp: ", clamp_value.item(), "actual clamp: ", clamp_value)
 
                 layer_num += 1
 
