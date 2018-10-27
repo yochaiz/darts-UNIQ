@@ -299,7 +299,7 @@ class ResNet(BaseNet):
                     # create filter state dict key
                     filterKey = '{}.filters.{}'.format(newKeyOp, filterIdx) + newKey[idx:]
                     # take the specific filter values from the filters block
-                    filterValues = chckpntDict[key].narrow(0, filterIdx, 1) if len(chckpntDict[key].size()) > 1 else chckpntDict[key]
+                    filterValues = chckpntDict[key].narrow(0, filterIdx, 1) if len(chckpntDict[key].size()) > 1 else chckpntDict[key].view(1)
                     # get the specific filter from layer
                     filter = layer.filters[filterIdx]
                     # update filter ops
