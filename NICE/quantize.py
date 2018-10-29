@@ -154,10 +154,6 @@ class quantize(object):
 
                 # self_max_val = max(self_max_val, clamp_value)
                 #
-                # max_act_val = max(max_act_val, clamp_value)
-                # self.act_max_value = max_act_val.__float__()
-                # layer.clamp_val.data = clamp_value
-                #
                 # if (float(layer.clamp_val.data) == 0):  ##when we load model, we don't want to init this parameter
                 #     if self.hardware_clamp:
                 #         max_act_val = max(max_act_val, clamp_value)
@@ -171,7 +167,8 @@ class quantize(object):
                 # else:
                 #     self.act_max_value = self_max_val.item()
 
-                print("activation clamp: wanted clamp: ", clamp_value.__float__(), "acutal clamp: ", layer.clamp_val.data)
+                print("activation clamp: wanted clamp: ", clamp_value.__float__(), "acutal clamp: ",
+                      layer.clamp_val.data)
 
         return
 
@@ -249,7 +246,8 @@ class quantize(object):
                 else:
 
                     if print_clamp_val:
-                        print("weight clamp: wanted clamp: ", clamp_value.item(), "actual clamp: ", clamp_value)
+                        print("weight clamp: wanted clamp: ", clamp_value.item(), "actual clamp: ",
+                              clamp_value)
 
                 layer_num += 1
 
