@@ -70,7 +70,7 @@ class UNIQNet(Module):
         self.quantize = None
         # if not (len(self.act_bitwidth) > 0 and isinstance(self.act_bitwidth[0], list)):
         if len(act_bitwidth) > 0:
-            self.quantize = quantize(bitwidth[0], act_bitwidth, None, std_act_clamp=std_act_clamp,
+            self.quantize = quantize(bitwidth[0], act_bitwidth[0], None, std_act_clamp=std_act_clamp,
                                      std_weight_clamp=std_weight_clamp, noise_mask=self.noise_mask_init)
 
         self.derivedClassSpecific(params)
