@@ -37,7 +37,7 @@ def parseArgs(lossFuncsLambda):
     parser.add_argument('--learning_rate', type=float, default=0.01, help='init learning rate')
     parser.add_argument('--learning_rate_min', type=float, default=1E-5, help='min learning rate')
     parser.add_argument('--momentum', type=float, default=0.9, help='momentum')
-    parser.add_argument('--weight_decay', type=float, default=1e-4, help='weight decay')
+    parser.add_argument('--weight_decay', type=float, default=4e-5, help='weight decay')
     parser.add_argument('--report_freq', type=float, default=1, help='report frequency')
     parser.add_argument('--gpu', type=str, default='0', help='gpu device id, e.g. 0,1,3')
     parser.add_argument('--nCopies', type=int, default=1, help='number of model copies per GPU')
