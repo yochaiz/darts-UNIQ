@@ -104,8 +104,6 @@ def preForward(self, _):
 def postForward(self, _, __):
     assert (self.hookFlag is True)
     self.hookFlag = False
-
-
 #
 #     # get current op
 #     op = self.ops[self.prev_alpha_idx][self.curr_alpha_idx]
