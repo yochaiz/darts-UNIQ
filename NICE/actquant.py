@@ -44,8 +44,13 @@ class ActQuant(nn.Module):
     #     plt.savefig(file_name)
     #     plt.close()
 
+    # def act_clamp(self, x, clamp_val):
+    #     x = F.relu(x) - F.relu(x - torch.abs(clamp_val))
+    #     return x
+
     def act_clamp(self, x, clamp_val):
-        x = F.relu(x) - F.relu(x - torch.abs(clamp_val))
+        assert (clamp_val >= 0)
+        x = F.relu(x) - F.relu(x - clamp_val)
         return x
 
     def forward(self, input):
@@ -111,9 +116,9 @@ class ActQuantBuffers(ActQuant):  # This class exist to allow multi-gpu run
 
         self.register_buffer('running_mean', torch.zeros(1))
         self.register_buffer('running_std', torch.zeros(1))
-        self.clamp_val = Parameter(torch.zeros(1), requires_grad=True)
+        # self.clamp_val = Parameter(torch.zeros(1), requires_grad=True)
         # if we don't want to learn clamp_val then define it as register_buffer
-        # self.register_buffer('clamp_val', torch.zeros(1))
+        self.register_buffer('clamp_val', torch.zeros(1))
 
         # set forward function
         self.forward = self.standardForward
