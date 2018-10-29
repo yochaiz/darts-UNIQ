@@ -211,7 +211,10 @@ class ResNet(BaseNet):
             # layer.quantActOnTraining(self.nLayersQuantCompleted)
 
             # update learnable parameters
+            nPrev = len(self.learnable_params)
             self.learnable_params = [param for param in self.parameters() if param.requires_grad]
+            nPost = len(self.learnable_params)
+            assert (nPrev == nPost)
 
             # we have completed quantization of one more layer
             self.nLayersQuantCompleted += 1
