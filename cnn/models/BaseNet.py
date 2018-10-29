@@ -241,12 +241,15 @@ class BaseNet(Module):
 
     # layer_basis is a function of filter quantization,
     # therefore we have to update its value bases on weight_max_int, which is a function of weights bitwidth
-    def __updateStatistics(self):
+    def __updateStatistics(self, loggerFuncs=[]):
         for layer in self.layersList:
             for op in layer.opsList:
                 conv = op.op[0]
                 # update layer_basis value based on weights bitwidth
                 conv.layer_basis = conv.initial_clamp_value / op.quantize.weight_max_int
+
+        for f in loggerFuncs:
+            f('Updated layer_basis according to bitwidth (weight_max_int)')
 
     def loadPreTrained(self, path, logger, gpu):
         # init bool flag whether we loaded ops in the same layer with equal or different weights
@@ -281,9 +284,9 @@ class BaseNet(Module):
                     # add info rows about checkpoint
                     loggerRows.append(['Path', '{}'.format(path)])
                     loggerRows.append(['Validation accuracy', '{:.5f}'.format(checkpoint['best_prec1'])])
-                    loggerRows.append(['updated_statistics', checkpoint['updated_statistics']])
+                    loggerRows.append(['checkpoint[updated_statistics]', checkpoint['updated_statistics']])
                     # update statistics
-                    self.__updateStatistics()
+                    self.__updateStatistics(loggerFuncs=[lambda msg: loggerRows.append(['Statistics update', msg])])
                     # check if model includes stats
                     modelIncludesStats = False
                     for key in chckpntStateDict.keys():
