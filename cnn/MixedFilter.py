@@ -16,11 +16,18 @@ class QuantizedOp(UNIQNet):
         super(QuantizedOp, self).__init__(bitwidth=bitwidth, act_bitwidth=act_bitwidth, params=op)
 
     def derivedClassSpecific(self, op):
+        self.op = op.cuda()
+        self._conv = [self.op[0]]
+        self._relu = [self.op[1]] if len(self.op) > 1 else [None]
         # self.useResidual = useResidual
         # self.forward = self.residualForward if useResidual else self.standardForward
         # self.hookHandlers = []
 
-        self.op = op.cuda()
+    def getConv(self):
+        return self._conv[0]
+
+    def getReLU(self):
+        return self._relu[0]
 
     def reset_flops_count(self):
         pass
@@ -104,6 +111,8 @@ def preForward(self, _):
 def postForward(self, _, __):
     assert (self.hookFlag is True)
     self.hookFlag = False
+
+
 #
 #     # get current op
 #     op = self.ops[self.prev_alpha_idx][self.curr_alpha_idx]
@@ -253,12 +262,6 @@ class MixedFilter(Block):
 
     def getOps(self):
         return self.opsList
-
-    # from UNIQ.quantize import check_quantization
-    # op = self.ops[0][self.curr_alpha_idx]
-    # v1 = check_quantization(op.op[0].weight)
-    # v2 = 2 ** (op.bitwidth[0])
-    # assert (v1 <= v2)
 
     # # select random alpha
     # def chooseRandomPath(self):
