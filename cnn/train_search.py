@@ -1,5 +1,5 @@
 from torch.multiprocessing import set_start_method
-from sys import exit
+from sys import exit, argv
 from time import strftime
 import numpy as np
 import argparse
@@ -160,6 +160,8 @@ if __name__ == '__main__':
         raise ValueError('spawn failed')
 
     try:
+        # log command line
+        logger.addInfoTable(title='Command line', rows=[[' '.join(argv)]])
         # build regime for alphas optimization
         alphasRegimeClass = trainRegimes.__dict__[args.alphas_regime]
         alphasRegime = alphasRegimeClass(args, logger)
