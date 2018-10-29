@@ -97,7 +97,7 @@ class MixedLayer(Block):
             op.quant = True
 
             op.quantizeFunc()
-            assert (check_quantization(op.op[0].weight) <= (2 ** op.bitwidth[0]))
+            assert (check_quantization(op.getConv().weight) <= (2 ** op.bitwidth[0]))
             # quantize activations during training
             for m in op.modules():
                 if isinstance(m, ActQuant):
