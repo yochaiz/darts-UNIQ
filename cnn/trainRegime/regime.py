@@ -2,7 +2,6 @@ from abc import abstractmethod
 from os import makedirs, path
 from time import time
 
-import torch
 from torch import no_grad, tensor, int32
 from torch.autograd.variable import Variable
 from torch.nn import CrossEntropyLoss
@@ -184,8 +183,8 @@ class TrainRegime:
 
         # init optimizer
         optimizer = SGD(model.parameters(), args.learning_rate, momentum=args.momentum, weight_decay=args.weight_decay)
-        # init scheduler
-        scheduler = CosineAnnealingLR(optimizer, float(nEpochs), eta_min=args.learning_rate_min)
+        # # init scheduler
+        # scheduler = CosineAnnealingLR(optimizer, float(nEpochs), eta_min=args.learning_rate_min)
 
         # model = self.model.module
         model = self.model
@@ -204,13 +203,13 @@ class TrainRegime:
         self.model.train()
 
         for epoch in range(1, nEpochs + 1):
-            scheduler.step()
-            lr = scheduler.get_lr()[0]
+            # scheduler.step()
+            # lr = scheduler.get_lr()[0]
 
             trainLogger = HtmlLogger(folderPath, str(epoch))
             trainLogger.addInfoTable('Learning rates', [
-                ['optimizer_lr', self.formats[self.lrKey].format(optimizer.param_groups[0]['lr'])],
-                ['scheduler_lr', self.formats[self.lrKey].format(lr)]
+                ['optimizer_lr', self.formats[self.lrKey].format(optimizer.param_groups[0]['lr'])]
+                # , ['scheduler_lr', self.formats[self.lrKey].format(lr)]
             ])
 
             # set loggers dictionary
@@ -236,16 +235,17 @@ class TrainRegime:
                 # switch stage
                 switchStageFlag = model.switch_stage(loggerFuncs=[lambda msg: trainLogger.addInfoTable(title='Switching stage', rows=[[msg]])])
                 # update optimizer only if we changed model learnable params
-                if switchStageFlag:
-                    model = self.model
-                    # update optimizer & scheduler due to update in learnable params
-                    optimizer = SGD(model.parameters(), scheduler.get_lr()[0], momentum=args.momentum,
-                                    weight_decay=args.weight_decay)
-                    scheduler = CosineAnnealingLR(optimizer, float(nEpochs), eta_min=args.learning_rate_min)
-                    scheduler.step()
-                    # model = self.model.module
-                    model = self.model
-                else:
+                # if switchStageFlag:
+                #     model = self.model
+                #     # update optimizer & scheduler due to update in learnable params
+                #     optimizer = SGD(model.parameters(), scheduler.get_lr()[0], momentum=args.momentum,
+                #                     weight_decay=args.weight_decay)
+                #     scheduler = CosineAnnealingLR(optimizer, float(nEpochs), eta_min=args.learning_rate_min)
+                #     scheduler.step()
+                #     # model = self.model.module
+                #     model = self.model
+                # else:
+                if switchStageFlag is False:
                     # update best precision only after switching stage is complete
                     is_best = valid_acc > best_prec1
                     if is_best:
@@ -269,8 +269,8 @@ class TrainRegime:
         self._applyFormats(summaryRow)
         logger.addSummaryDataRow(summaryRow)
 
-        # # save pre-trained checkpoint
-        # save_checkpoint(self.trainFolderPath, model, args, epoch, best_prec1, is_best=False, filename='pre_trained')
+        # save pre-trained checkpoint
+        save_checkpoint(self.trainFolderPath, model, args, epoch, best_prec1, is_best=False, filename='pre_trained')
 
         # save optimal validation values
         setattr(args, self.validAccKey, best_prec1)
@@ -455,7 +455,6 @@ class TrainRegime:
             input = Variable(input, requires_grad=False).cuda()
             target = Variable(target, requires_grad=False).cuda(async=True)
 
-            model = self.model
             # choose model partition if we haven't set partition to model
             if self.args.partition is None:
                 # model.module.choosePathByAlphas()
