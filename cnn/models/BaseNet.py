@@ -163,8 +163,8 @@ class BaseNet(Module):
         return self.learnable_alphas
 
     def calcStatistics(self, statistics_queue):
-        # quantize model
-        self.quantizeUnstagedLayers()
+        # # quantize model
+        # self.quantizeUnstagedLayers()
         # prepare for collecting statistics, reset register_buffers values
         for layer in self.layersList:
             for op in layer.opsList:
@@ -267,6 +267,7 @@ class BaseNet(Module):
                 # decide how to load checkpoint state dict
                 if loadOpsWithDifferentWeights:
                     # load directly, keys are the same
+                    assert (False)
                     self.load_state_dict(chckpntStateDict)
                 else:
                     # use some function to map keys
@@ -342,7 +343,6 @@ class BaseNet(Module):
             f(logMsg)
 
     def isQuantized(self):
-        from UNIQ.quantize import check_quantization
         for layerIdx, layer in enumerate(self.layersList):
             assert (layer.quantized is True)
             assert (layer.added_noise is False)
