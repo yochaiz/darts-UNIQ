@@ -39,7 +39,7 @@ from NICE.actquant import ActQuant
 
 
 class UNIQNet(Module):
-    def __init__(self, bitwidth, act_bitwidth, params, std_act_clamp=5, std_weight_clamp=3.45, noise_mask=0.05):
+    def __init__(self, bitwidth, act_bitwidth, params, std_act_clamp=3, std_weight_clamp=3.45, noise_mask=0.05):
         super(UNIQNet, self).__init__()
         # self.quant_epoch_step = quant_epoch_step
         # self.quant_start_stage = quant_start_stage
@@ -68,9 +68,9 @@ class UNIQNet(Module):
         self.noise_mask_init = noise_mask
 
         self.quantize = None
-        if not (len(self.act_bitwidth) > 0 and isinstance(self.act_bitwidth[0], list)):
-            quantize_act_bitwidth = self.act_bitwidth[0] if len(act_bitwidth) > 0 else 16
-            self.quantize = quantize(bitwidth[0], quantize_act_bitwidth, None, std_act_clamp=std_act_clamp,
+        # if not (len(self.act_bitwidth) > 0 and isinstance(self.act_bitwidth[0], list)):
+        if len(act_bitwidth) > 0:
+            self.quantize = quantize(bitwidth[0], act_bitwidth, None, std_act_clamp=std_act_clamp,
                                      std_weight_clamp=std_weight_clamp, noise_mask=self.noise_mask_init)
 
         self.derivedClassSpecific(params)
