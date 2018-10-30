@@ -262,6 +262,7 @@ class BaseNet(Module):
         # init bool flag whether we loaded ops in the same layer with equal or different weights
         loadOpsWithDifferentWeights = False
         loggerRows = []
+        loadSuccess = None
         if path is not None:
             if exists(path):
                 # load checkpoint
@@ -277,7 +278,6 @@ class BaseNet(Module):
                 # decide how to load checkpoint state dict
                 if loadOpsWithDifferentWeights:
                     # load directly, keys are the same
-                    assert (False)
                     self.load_state_dict(chckpntStateDict)
                 else:
                     # use some function to map keys
@@ -285,6 +285,8 @@ class BaseNet(Module):
                     for func in loadFuncs:
                         loadSuccess = func(chckpntStateDict)
                         if loadSuccess is not False:
+                            # update statistics if we don't load ops with different statistics
+                            self.__updateStatistics(loggerFuncs=[lambda msg: loggerRows.append(['Statistics update', msg])])
                             break
 
                 if loadSuccess is not False:
@@ -292,8 +294,6 @@ class BaseNet(Module):
                     loggerRows.append(['Path', '{}'.format(path)])
                     loggerRows.append(['Validation accuracy', '{:.5f}'.format(checkpoint['best_prec1'])])
                     loggerRows.append(['checkpoint[updated_statistics]', checkpoint['updated_statistics']])
-                    # update statistics
-                    self.__updateStatistics(loggerFuncs=[lambda msg: loggerRows.append(['Statistics update', msg])])
                     # check if model includes stats
                     modelIncludesStats = False
                     for key in chckpntStateDict.keys():
