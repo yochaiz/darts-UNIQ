@@ -318,7 +318,7 @@ class Statistics:
                 if bitwidth:
                     txt = '{},{}'.format(bitwidth, txt)
                 # annotate
-                ax.annotate(txt, (bops, accuracy))
+                ax.annotate(txt, (bops, accuracy), size=6)
 
             # plot label values
             ax.plot(xValues, yValues, 'o', label=label, c=colors[i])
