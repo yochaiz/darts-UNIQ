@@ -63,6 +63,7 @@ class Statistics:
         self.plotsData = {}
         # init bopsData, which is a map where keys are labels (pts type) and values are list of tuples (bitwidth, bops, accuracy)
         self.bopsData = {}
+        self.baselineLabel = 'Baseline'
 
     def addBatchData(self, model, nEpoch, nBatch):
         # add batch label
@@ -86,12 +87,12 @@ class Statistics:
         # save plots data
         saveFile(self.plotsData, self.plotsDataFilePath)
         # update plot
-        self.plotBops(self.plotsData, self.bopsKey, self.saveFolder)
+        self.plotBops(self.plotsData, self.bopsKey, self.baselineLabel, self.saveFolder)
 
     # bopsData_ is a map where keys are bitwidth and values are bops.
     # we need to find the appropriate checkpoint for accuracy values.
     def addBaselineBopsData(self, args, bopsData_):
-        label = 'Baseline'
+        label = self.baselineLabel
         # init label list if label doesn't exist
         if label not in self.bopsData.keys():
             self.bopsData[label] = []
@@ -291,11 +292,19 @@ class Statistics:
         saveFile(self.plotsData, self.plotsDataFilePath)
 
     @staticmethod
-    def plotBops(plotsData, bopsKey, saveFolder):
+    def plotBops(plotsData, bopsKey, baselineLabel, saveFolder):
         bopsData = plotsData[bopsKey]
-        # create plot
+        bopsData['1'] = [(None, 0.86, 59.8), (None, 1.21, 61.3)]
+        bopsData['0'] = [(None, 0.88, 59.6), (None, 1.1, 61.6)]
+        # create standard bops plot
         fig, ax = plt.subplots(nrows=1, ncols=1)
         ax.grid()
+        # create max accuracy per epoch bops plot
+        figMaxAcc, axMaxAcc = plt.subplots(nrows=1, ncols=1)
+        axMaxAcc.grid()
+        # create min bops per epoch bops plot
+        figMinBops, axMinBops = plt.subplots(nrows=1, ncols=1)
+        axMinBops.grid()
         # init colors
         colormap = plt.cm.hot
         colors = [colormap(i) for i in linspace(0.7, 0.0, len(bopsData.keys()))]
@@ -307,12 +316,23 @@ class Statistics:
         for i, (label, labelBopsData) in enumerate(bopsData.items()):
             xValues = []
             yValues = []
-            for bitwidth, bops, accuracy in labelBopsData:
+            maxAccIdx = -1
+            minBopsIdx = -1
+            maxAcc = None
+            minBops = None
+            for j, (bitwidth, bops, accuracy) in enumerate(labelBopsData):
                 xValues.append(bops)
                 yValues.append(accuracy)
                 # update yMax, yMin
                 yMax = max(yMax, accuracy)
                 yMin = min(yMin, accuracy)
+                # update min bops & max accuracy
+                if maxAccIdx < 0 or accuracy > maxAcc:
+                    maxAccIdx = j
+                    maxAcc = accuracy
+                if minBopsIdx < 0 or bops < minBops:
+                    minBopsIdx = j
+                    minBops = bops
                 # bitwidth might be None
                 txt = '{:.3f}'.format(accuracy)
                 if bitwidth:
@@ -322,6 +342,21 @@ class Statistics:
 
             # plot label values
             ax.plot(xValues, yValues, 'o', label=label, c=colors[i])
+            # add data to min bops & max accuracy plots
+            if label == baselineLabel:
+                axMinBops.plot(xValues, yValues, 'o', label=label, c=colors[i])
+                axMaxAcc.plot(xValues, yValues, 'o', label=label, c=colors[i])
+            else:
+                # plot min bops
+                _, bops, accuracy = labelBopsData[minBopsIdx]
+                axMinBops.plot([bops], [accuracy], 'o', label=label, c=colors[i])
+                txt = '{:.3f}'.format(accuracy)
+                axMinBops.annotate(txt, (bops, accuracy), size=6)
+                # plot max accuracy
+                _, bops, accuracy = labelBopsData[maxAccIdx]
+                axMaxAcc.plot([bops], [accuracy], 'o', label=label, c=colors[i])
+                txt = '{:.3f}'.format(accuracy)
+                axMaxAcc.annotate(txt, (bops, accuracy), size=6)
 
         # set y axis padding
         paddingPercentage = 0.02
@@ -329,8 +364,12 @@ class Statistics:
         yMin *= (1.0 - paddingPercentage)
         # set plot properties
         Statistics.__setPlotProperties(fig, ax, xLabel='Bops / 1E9', yLabel='Accuracy', title='Accuracy vs. Bops', yMin=yMin, yMax=yMax)
+        Statistics.__setPlotProperties(figMaxAcc, axMaxAcc, xLabel='Bops / 1E9', yLabel='Accuracy', title='Max accuracy vs. Bops', yMin=yMin,
+                                       yMax=yMax)
+        Statistics.__setPlotProperties(figMinBops, axMinBops, xLabel='Bops / 1E9', yLabel='Accuracy', title='Accuracy vs. Min bops', yMin=yMin,
+                                       yMax=yMax)
         # save as HTML
-        Statistics.saveFigPDF([fig], bopsKey, saveFolder)
+        Statistics.saveFigPDF([fig, figMaxAcc, figMinBops], bopsKey, saveFolder)
 
 # def plotBops(self, layersList):
 #     # create plot
