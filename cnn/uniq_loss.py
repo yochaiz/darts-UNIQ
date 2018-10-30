@@ -8,19 +8,13 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 
 
-# from numpy import arctanh, linspace
-# from torch.nn import CrossEntropyLoss, Module, Tanh, LeakyReLU
+class BopsLoss:
+    def __init__(self, minBops):
+        self.minBops = minBops
 
-# class BopsLoss:
-#     def __init__(self, bopsFunc, v, factor, yDelta, scale):
-#         self.bopsFunc = bopsFunc
-#         self.v = tensor(v, dtype=float32).cuda()
-#         self.factor = tensor(factor, dtype=float32).cuda()
-#         self.yDelta = tensor(yDelta, dtype=float32).cuda()
-#         self.scale = tensor(scale, dtype=float32).cuda()
-#
-#     def calcLoss(self, x):
-#         return (self.bopsFunc((x - self.v) * self.factor) + self.yDelta) * self.scale
+    def calcLoss(self, modelBops):
+        v = (modelBops / self.minBops)
+        return tensor(v, dtype=float32).cuda()
 
 
 class UniqLoss(Module):
@@ -34,8 +28,9 @@ class UniqLoss(Module):
         # # init bops loss function and plot it
         # self.bopsLoss = BopsLoss(LeakyReLU(inplace=True), 1, 1, 0, 1).calcLoss
         # self.bopsLoss = self._tanh_bops_loss(xDst=1, yDst=0.02, yMin=0, yMax=0.5)
+        self.bopsLoss = BopsLoss(self.baselineBops).calcLoss
         self.bopsLossImgPath = '{}/bops_loss_func.pdf'.format(args.save)
-        self.plotFunction(lambda x: x)
+        self.plotFunction(self.bopsLoss)
 
         # # init values
         # self.bopsRatio = -1
@@ -46,7 +41,7 @@ class UniqLoss(Module):
 
     def forward(self, input, target, modelBops):
         crossEntropyLoss = self.crossEntropyLoss(input, target)
-        bopsLoss = self.lmbda * tensor(modelBops, dtype=float32).cuda()
+        bopsLoss = self.lmbda * self.bopsLoss(modelBops)
         totalLoss = crossEntropyLoss + bopsLoss
         return totalLoss, crossEntropyLoss, bopsLoss
 
@@ -54,10 +49,10 @@ class UniqLoss(Module):
         # build data for function
         xMax = 5
         nPts = (xMax * 100) + 1
-        ptsGap = int((nPts - 1) / 40)
+        ptsGap = int((nPts - 1) / 50)
 
         pts = linspace(0, xMax, nPts).tolist()
-        y = [round(func(x), 5) for x in pts]
+        y = [round(func(x).item(), 5) for x in pts]
         data = [[pts, y, 'bo']]
         pts = [pts[x] for x in range(0, nPts, ptsGap)]
         y = [y[k] for k in range(0, nPts, ptsGap)]
@@ -112,3 +107,17 @@ class UniqLoss(Module):
 #     strech_factor = 10
 #     reward = tensor(-1.1, dtype=float32).cuda()
 #     return (self.bops_base_func((strech_factor * scale_diff) + reward) + 1) * 2.5
+
+# from numpy import arctanh, linspace
+# from torch.nn import CrossEntropyLoss, Module, Tanh, LeakyReLU
+
+# class BopsLoss:
+#     def __init__(self, bopsFunc, v, factor, yDelta, scale):
+#         self.bopsFunc = bopsFunc
+#         self.v = tensor(v, dtype=float32).cuda()
+#         self.factor = tensor(factor, dtype=float32).cuda()
+#         self.yDelta = tensor(yDelta, dtype=float32).cuda()
+#         self.scale = tensor(scale, dtype=float32).cuda()
+#
+#     def calcLoss(self, x):
+#         return (self.bopsFunc((x - self.v) * self.factor) + self.yDelta) * self.scale
