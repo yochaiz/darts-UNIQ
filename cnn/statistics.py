@@ -5,6 +5,7 @@ from io import BytesIO
 from base64 import b64encode
 from urllib.parse import quote
 from numpy import linspace
+from abc import abstractmethod
 
 import torch.nn.functional as F
 from torch import save as saveFile
@@ -173,7 +174,7 @@ class Statistics:
         plt.close(fig)
 
     @staticmethod
-    def __setPlotProperties(fig, ax, xLabel, yLabel, yMax, title, yMin=0.0):
+    def setPlotProperties(fig, ax, xLabel, yLabel, yMax, title, yMin=0.0):
         Statistics.__setAxesProperties(ax, xLabel, yLabel, yMax, title, yMin)
         Statistics.__setFigProperties(fig)
 
@@ -226,7 +227,7 @@ class Statistics:
             if scale:
                 yMax = min(yMax, (sum(dataSum) / len(dataSum)) * 1.5)
 
-            self.__setPlotProperties(fig, ax, xLabel, yLabel, yMax, title)
+            self.setPlotProperties(fig, ax, xLabel, yLabel, yMax, title)
 
         return fig
 
@@ -294,82 +295,152 @@ class Statistics:
     @staticmethod
     def plotBops(plotsData, bopsKey, baselineLabel, saveFolder):
         bopsData = plotsData[bopsKey]
-        bopsData['1'] = [(None, 0.86, 59.8), (None, 1.21, 61.3)]
-        bopsData['0'] = [(None, 0.88, 59.6), (None, 1.1, 61.6)]
+        # bopsData['1'] = [(None, 0.86, 59.8), (None, 1.21, 61.3)]
+        # bopsData['0'] = [(None, 0.88, 62.6), (None, 1.1, 61.6)]
+        # create plots
+        plots = [BopsStandardPlot('Accuracy vs. Bops', bopsData.keys()), BopsMaxAccuracyPlot('Max accuracy vs. Bops', bopsData.keys(), baselineLabel),
+                 BopsMinBopsPlot('Accuracy vs. Min bops', bopsData.keys(), baselineLabel)]
+
+        for i, (label, labelBopsData) in enumerate(bopsData.items()):
+            for j, dataPoint in enumerate(labelBopsData):
+                for plot in plots:
+                    plot.addDataPoint(dataPoint, label)
+
+            for plot in plots:
+                plot.plot(label)
+
+        # set plot properties
+        for plot in plots:
+            plot.setPlotProperties()
+
+        # save as HTML
+        Statistics.saveFigPDF([plot.fig for plot in plots], bopsKey, saveFolder)
+
+
+class BopsPlot:
+    def __init__(self, title, nKeys):
+        self.title = title
         # create standard bops plot
         fig, ax = plt.subplots(nrows=1, ncols=1)
         ax.grid()
-        # create max accuracy per epoch bops plot
-        figMaxAcc, axMaxAcc = plt.subplots(nrows=1, ncols=1)
-        axMaxAcc.grid()
-        # create min bops per epoch bops plot
-        figMinBops, axMinBops = plt.subplots(nrows=1, ncols=1)
-        axMinBops.grid()
+
+        self.fig = fig
+        self.ax = ax
+
         # init colors
         colormap = plt.cm.hot
-        colors = [colormap(i) for i in linspace(0.7, 0.0, len(bopsData.keys()))]
+        self.colors = [colormap(i) for i in linspace(0.7, 0.0, len(nKeys))]
+        self.nextColorIdx = 0
 
         # init yMax, yMin
-        yMax = 0.0
-        yMin = 100.0
+        self.yMax = 0.0
+        self.yMin = 100.0
 
-        for i, (label, labelBopsData) in enumerate(bopsData.items()):
-            xValues = []
-            yValues = []
-            maxAccIdx = -1
-            minBopsIdx = -1
-            maxAcc = None
-            minBops = None
-            for j, (bitwidth, bops, accuracy) in enumerate(labelBopsData):
-                xValues.append(bops)
-                yValues.append(accuracy)
-                # update yMax, yMin
-                yMax = max(yMax, accuracy)
-                yMin = min(yMin, accuracy)
-                # update min bops & max accuracy
-                if maxAccIdx < 0 or accuracy > maxAcc:
-                    maxAccIdx = j
-                    maxAcc = accuracy
-                if minBopsIdx < 0 or bops < minBops:
-                    minBopsIdx = j
-                    minBops = bops
-                # bitwidth might be None
-                txt = '{:.3f}'.format(accuracy)
-                if bitwidth:
-                    txt = '{},{}'.format(bitwidth, txt)
-                # annotate
-                ax.annotate(txt, (bops, accuracy), size=6)
+        # init values
+        self.xValues = []
+        self.yValues = []
 
-            # plot label values
-            ax.plot(xValues, yValues, 'o', label=label, c=colors[i])
-            # add data to min bops & max accuracy plots
-            if label == baselineLabel:
-                axMinBops.plot(xValues, yValues, 'o', label=label, c=colors[i])
-                axMaxAcc.plot(xValues, yValues, 'o', label=label, c=colors[i])
-            else:
-                # plot min bops
-                _, bops, accuracy = labelBopsData[minBopsIdx]
-                axMinBops.plot([bops], [accuracy], 'o', label=label, c=colors[i])
-                txt = '{:.3f}'.format(accuracy)
-                axMinBops.annotate(txt, (bops, accuracy), size=6)
-                # plot max accuracy
-                _, bops, accuracy = labelBopsData[maxAccIdx]
-                axMaxAcc.plot([bops], [accuracy], 'o', label=label, c=colors[i])
-                txt = '{:.3f}'.format(accuracy)
-                axMaxAcc.annotate(txt, (bops, accuracy), size=6)
-
-        # set y axis padding
+    def setPlotProperties(self):
         paddingPercentage = 0.02
-        yMax *= (1.0 + paddingPercentage)
-        yMin *= (1.0 - paddingPercentage)
-        # set plot properties
-        Statistics.__setPlotProperties(fig, ax, xLabel='Bops / 1E9', yLabel='Accuracy', title='Accuracy vs. Bops', yMin=yMin, yMax=yMax)
-        Statistics.__setPlotProperties(figMaxAcc, axMaxAcc, xLabel='Bops / 1E9', yLabel='Accuracy', title='Max accuracy vs. Bops', yMin=yMin,
-                                       yMax=yMax)
-        Statistics.__setPlotProperties(figMinBops, axMinBops, xLabel='Bops / 1E9', yLabel='Accuracy', title='Accuracy vs. Min bops', yMin=yMin,
-                                       yMax=yMax)
-        # save as HTML
-        Statistics.saveFigPDF([fig, figMaxAcc, figMinBops], bopsKey, saveFolder)
+        yMax = self.yMax * (1.0 + paddingPercentage)
+        yMin = self.yMin * (1.0 - paddingPercentage)
+
+        Statistics.setPlotProperties(self.fig, self.ax, xLabel='Bops / 1E9', yLabel='Accuracy', title=self.title, yMin=yMin, yMax=yMax)
+
+    @abstractmethod
+    def addDataPoint(self, dataPoint, label):
+        raise NotImplementedError('subclasses must override addDataPoint()!')
+
+    def addStandardDataPoint(self, dataPoint):
+        bitwidth, bops, accuracy = dataPoint
+
+        self.xValues.append(bops)
+        self.yValues.append(accuracy)
+        # update yMax, yMin
+        self.yMax = max(self.yMax, accuracy)
+        self.yMin = min(self.yMin, accuracy)
+        # bitwidth might be None
+        txt = '{:.3f}'.format(accuracy)
+        if bitwidth:
+            txt = '{},{}'.format(bitwidth, txt)
+        # annotate
+        self.ax.annotate(txt, (bops, accuracy), size=6)
+
+    def __resetPlot(self):
+        self.xValues.clear()
+        self.yValues.clear()
+
+    # plot label values
+    def plot(self, label):
+        self.ax.plot(self.xValues, self.yValues, 'o', label=label, c=self.colors[self.nextColorIdx])
+        self.plotSpecific(label)
+        self.nextColorIdx += 1
+        self.__resetPlot()
+
+    @abstractmethod
+    def plotSpecific(self, label):
+        raise NotImplementedError('subclasses must override plotSpecific()!')
+
+
+class BopsStandardPlot(BopsPlot):
+    def __init__(self, title, nKeys):
+        super(BopsStandardPlot, self).__init__(title, nKeys)
+
+    def addDataPoint(self, dataPoint, label):
+        self.addStandardDataPoint(dataPoint)
+
+    def plotSpecific(self, label):
+        pass
+
+
+class BopsPlotWithCondition(BopsPlot):
+    def __init__(self, title, nKeys, baselineLabel):
+        super(BopsPlotWithCondition, self).__init__(title, nKeys)
+
+        self.baselineLabel = baselineLabel
+
+    @abstractmethod
+    def condition(self, dataPoint):
+        raise NotImplementedError('subclasses must override condition()!')
+
+    def addDataPoint(self, dataPoint, label):
+        bitwidth, bops, accuracy = dataPoint
+
+        if label == self.baselineLabel:
+            self.addStandardDataPoint(dataPoint)
+
+        elif self.condition(dataPoint):
+            self.xValues = [bops]
+            self.yValues = [accuracy]
+            # update yMax, yMin
+            self.yMax = max(self.yMax, accuracy)
+            self.yMin = min(self.yMin, accuracy)
+
+    def plotSpecific(self, label):
+        if label != self.baselineLabel:
+            accuracy = self.yValues[0]
+            bops = self.xValues[0]
+
+            txt = '{:.3f}'.format(accuracy)
+            self.ax.annotate(txt, (bops, accuracy), size=6)
+
+
+class BopsMaxAccuracyPlot(BopsPlotWithCondition):
+    def __init__(self, title, nKeys, baselineLabel):
+        super(BopsMaxAccuracyPlot, self).__init__(title, nKeys, baselineLabel)
+
+    def condition(self, dataPoint):
+        _, _, accuracy = dataPoint
+        return len(self.yValues) == 0 or accuracy > self.yValues[0]
+
+
+class BopsMinBopsPlot(BopsPlotWithCondition):
+    def __init__(self, title, nKeys, baselineLabel):
+        super(BopsMinBopsPlot, self).__init__(title, nKeys, baselineLabel)
+
+    def condition(self, dataPoint):
+        _, bops, _ = dataPoint
+        return len(self.xValues) == 0 or bops < self.xValues[0]
 
 # def plotBops(self, layersList):
 #     # create plot
