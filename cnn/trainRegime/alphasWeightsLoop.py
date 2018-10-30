@@ -233,7 +233,7 @@ class AlphasWeightsLoop(TrainRegime):
         args = self.args
         logger = self.logger
         # init number of epochs
-        epochRange = self.__getEpochRange(6)
+        epochRange = self.__getEpochRange(10)
         # init keys in jobs list
         for epoch in epochRange:
             self.jobsList[epoch] = []
