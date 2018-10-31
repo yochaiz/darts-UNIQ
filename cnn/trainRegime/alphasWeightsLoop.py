@@ -48,9 +48,10 @@ def __buildCommand(jobTitle, nGPUs, nCPUs, server, data):
 
 
 def manageJobs(epochJobs, epoch, folderPath):
+    pid = getpid()
     # create logger for manager
     logger = SimpleLogger(folderPath, '[{}]-manager'.format(epoch))
-    logger.addInfoTable('Details', [['Epoch', epoch], ['nJobs', len(epochJobs)], ['Folder', folderPath], ['PID', getpid()]])
+    logger.addInfoTable('Details', [['Epoch', epoch], ['nJobs', len(epochJobs)], ['Folder', folderPath], ['PID', pid]])
     logger.setMaxTableCellLength(250)
 
     # copy jobs JSON to server
@@ -87,7 +88,7 @@ def manageJobs(epochJobs, epoch, folderPath):
             # try to perform command on one of the servers
             for serv in servers:
                 # create command
-                jobTitle = 'Epoch_[{}]_nJobs_[{}]_jobsLeft_[{}]'.format(epoch, nJobs, len(epochJobs) - nJobs)
+                jobTitle = 'PID_[{}]_Epoch_[{}]_nJobs_[{}]_jobsLeft_[{}]'.format(pid, epoch, nJobs, len(epochJobs) - nJobs)
                 trainCommand = __buildCommand(jobTitle, nJobs, nCPUs, serv, files)
                 # send command to server, we added the -I flag, so if it won't be able to run immediately, it fails, no more pending
                 retVal = system(trainCommand)
