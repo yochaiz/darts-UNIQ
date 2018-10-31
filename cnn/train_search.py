@@ -4,6 +4,7 @@ from time import strftime
 import numpy as np
 import argparse
 from traceback import format_exc
+from os import getpid
 from os.path import dirname, abspath
 from inspect import getfile, currentframe, isclass
 
@@ -161,7 +162,7 @@ if __name__ == '__main__':
 
     try:
         # log command line
-        logger.addInfoTable(title='Command line', rows=[[' '.join(argv)]])
+        logger.addInfoTable(title='Command line', rows=[[' '.join(argv)], ['PID:[{}]'.format(getpid())]])
         # build regime for alphas optimization
         alphasRegimeClass = trainRegimes.__dict__[args.alphas_regime]
         alphasRegime = alphasRegimeClass(args, logger)

@@ -1,4 +1,4 @@
-from os import system, remove, makedirs
+from os import system, remove, makedirs, getpid
 from os.path import exists
 from multiprocessing import Pool
 from time import sleep
@@ -50,7 +50,7 @@ def __buildCommand(jobTitle, nGPUs, nCPUs, server, data):
 def manageJobs(epochJobs, epoch, folderPath):
     # create logger for manager
     logger = SimpleLogger(folderPath, '[{}]-manager'.format(epoch))
-    logger.addInfoTable('Details', [['Epoch', epoch], ['nJobs', len(epochJobs)], ['Folder', folderPath]])
+    logger.addInfoTable('Details', [['Epoch', epoch], ['nJobs', len(epochJobs)], ['Folder', folderPath], ['PID', getpid()]])
     logger.setMaxTableCellLength(250)
 
     # copy jobs JSON to server
