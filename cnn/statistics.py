@@ -418,11 +418,12 @@ class BopsPlotWithCondition(BopsPlot):
 
     def plotSpecific(self, label):
         if label != self.baselineLabel:
-            accuracy = self.yValues[0]
-            bops = self.xValues[0]
+            accuracy = self.yValues[0] if len(self.yValues) > 0 else None
+            bops = self.xValues[0] if len(self.xValues) > 0 else None
 
-            txt = '{:.3f}'.format(accuracy)
-            self.ax.annotate(txt, (bops, accuracy), size=6)
+            if (accuracy is not None) and (bops is not None):
+                txt = '{:.3f}'.format(accuracy)
+                self.ax.annotate(txt, (bops, accuracy), size=6)
 
 
 class BopsMaxAccuracyPlot(BopsPlotWithCondition):
