@@ -52,13 +52,13 @@ modelsRefsUNIQ = {
 }
 
 
-def loadCheckpoint(dataset, model, bitwidth):
+def loadCheckpoint(dataset, model, bitwidth, filename='model_opt.pth.tar'):
     # init project base folder
     baseFolder = path.dirname(path.abspath(getfile(currentframe())))  # script directory
     # init checkpoint key
     checkpointKey = '{}_{}'.format(model, bitwidth)
     # init checkpoint path
-    checkpointPath = '{}/../pre_trained/{}/train_portion_1.0/{}/train/model_opt.pth.tar'.format(baseFolder, dataset, checkpointKey)
+    checkpointPath = '{}/../pre_trained/{}/train_portion_1.0/{}/train/{}'.format(baseFolder, dataset, checkpointKey, filename)
     # load checkpoint
     checkpoint = None
     if path.exists(checkpointPath):
