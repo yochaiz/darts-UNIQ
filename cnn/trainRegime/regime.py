@@ -35,10 +35,9 @@ class TrainRegime:
 
     # init formats for keys
     formats = {validLossKey: '{:.5f}', validAccKey: '{:.3f}', optBopsRatioKey: '{:.3f}', timeKey: '{:.3f}',
-               archLossKey: '{:.5f}', lrKey: '{:.5f}',
-               trainLossKey: '{:.5f}', trainAccKey: '{:.3f}', pathBopsRatioKey: '{:.3f}', validBopsRatioKey: '{:.3f}',
-               crossEntropyKey: '{:.5f}',
-               bopsLossKey: '{:.5f}'}
+               archLossKey: '{:.5f}', lrKey: '{:.5f}', bopsLossKey: '{:.5f}', crossEntropyKey: '{:.5f}',
+               trainLossKey: '{:.5f}', trainAccKey: '{:.3f}', pathBopsRatioKey: '{:.3f}', validBopsRatioKey: '{:.3f}'
+               }
 
     initWeightsTrainTableTitle = 'Initial weights training'
     k = 2
@@ -49,6 +48,7 @@ class TrainRegime:
                                 lrKey]
     colsTrainAlphas = [batchNumKey, archLossKey, crossEntropyKey, bopsLossKey, alphasTableTitle, pathBopsRatioKey,
                        forwardCountersKey, timeKey]
+    colsAlphasValidation = [batchNumKey, archLossKey, crossEntropyKey, bopsLossKey, timeKey]
     colsValidation = [batchNumKey, validLossKey, validAccKey, statsKey, timeKey]
     colsValidationStatistics = [forwardCountersKey, bitwidthKey, validBopsRatioKey]
     colsMainLogger = [epochNumKey, archLossKey, trainLossKey, trainAccKey, validLossKey, validAccKey, validBopsRatioKey,
@@ -60,6 +60,11 @@ class TrainRegime:
         # init model
         model = modelClass(args)
         model = model.cuda()
+
+        # model.setFiltersByAlphas()
+        # args.partition = model.getCurrentFiltersPartition()
+        # from torch import save as saveCheckpoint
+        # saveCheckpoint(args, '[{}]-{}.json'.format(args.dataset, model.layers[0].getAllBitwidths()))
 
         # load partition if exists
         if args.partition is not None:
@@ -165,9 +170,12 @@ class TrainRegime:
         alphaLogger = HtmlLogger(folderPath, trainLoggerName)
         baselinesLoss = model.applyOnBaseline(lambda: self.inferAlphas(dict(train=alphaLogger)))
         # log baseline losses
-        for bitwidth, (loss, bopsRatio) in baselinesLoss.items():
-            dataRow = {self.epochNumKey: bitwidth, self.validLossKey: loss, self.validBopsRatioKey: bopsRatio}
+        for bitwidth, (loss, crossEntropyLoss, bopsLoss, bopsRatio) in baselinesLoss.items():
+            dataRow = {self.epochNumKey: bitwidth, self.archLossKey: loss, self.crossEntropyKey: crossEntropyLoss, self.bopsLossKey: bopsLoss,
+                       self.validBopsRatioKey: bopsRatio}
             self._applyFormats(dataRow)
+            # update validation loss column to include cross entropy & bops losses
+            dataRow[self.validLossKey] = [[self.crossEntropyKey, dataRow[self.crossEntropyKey]], [self.bopsLossKey, dataRow[self.bopsLossKey]]]
             logger.addDataRow(dataRow, trType='<tr bgcolor="#BBAD06">')
 
     def initialWeightsTraining(self, trainFolderName, filename=None):
@@ -624,13 +632,14 @@ class TrainRegime:
     def inferAlphas(self, loggers):
         print('*** inferAlphas() ***')
         lossContainer = AvgrageMeter()
+        crossEntropyLossContainer = AvgrageMeter()
+        bopsLossContainer = AvgrageMeter()
 
         search_queue = self.search_queue
-        crit = self.cross_entropy
 
         trainLogger = loggers.get('train')
         if trainLogger:
-            trainLogger.createDataTable('Alphas trainset Validation', self.colsValidation)
+            trainLogger.createDataTable('Alphas trainset Validation', self.colsAlphasValidation)
 
         # model = self.model.module
         model = self.model
@@ -652,15 +661,18 @@ class TrainRegime:
                     target = Variable(target).cuda(async=True)
 
                     logits = model(input)
-                    loss = crit(logits, target)
+                    loss, crossEntropyLoss, bopsLoss = model.loss(logits, target)
 
                     n = input.size(0)
                     lossContainer.update(loss.item(), n)
+                    crossEntropyLossContainer.update(crossEntropyLoss.item(), n)
+                    bopsLossContainer.update(bopsLoss.item(), n)
 
                     endTime = time()
 
                     if trainLogger:
-                        dataRow = {self.batchNumKey: '{}/{}'.format(step, nBatches), self.validLossKey: loss, self.timeKey: endTime - startTime}
+                        dataRow = {self.batchNumKey: '{}/{}'.format(step, nBatches), self.archLossKey: loss, self.crossEntropyKey: crossEntropyLoss,
+                                   self.bopsLossKey: bopsLoss, self.timeKey: endTime - startTime}
                         # apply formats
                         self._applyFormats(dataRow)
                         # add row to data table
@@ -674,7 +686,8 @@ class TrainRegime:
         # model = self.model.module
         model = self.model
         # create summary row
-        summaryRow = {self.batchNumKey: 'Summary', self.validLossKey: lossContainer.avg, self.validBopsRatioKey: bopsRatio}
+        summaryRow = {self.batchNumKey: 'Summary', self.archLossKey: lossContainer.avg, self.crossEntropyKey: crossEntropyLossContainer.avg,
+                      self.bopsLossKey: bopsLossContainer.avg, self.validBopsRatioKey: bopsRatio}
         # apply formats
         self._applyFormats(summaryRow)
 
@@ -702,7 +715,7 @@ class TrainRegime:
             # add row to table
             trainLogger.addDataRow(dataRow)
 
-        return lossContainer.avg, bopsRatio
+        return lossContainer.avg, crossEntropyLossContainer.avg, bopsLossContainer.avg, bopsRatio
 
     def logAllocations(self):
         logger = HtmlLogger(self.args.save, 'allocations', overwrite=True)
