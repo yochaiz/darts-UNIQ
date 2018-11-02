@@ -44,15 +44,12 @@ class TrainRegime:
     alphasTableTitle = 'Alphas (top [{}])'.format(k)
 
     colsTrainWeights = [batchNumKey, trainLossKey, trainAccKey, bitwidthKey, pathBopsRatioKey, statsKey, timeKey]
-    colsMainInitWeightsTrain = [epochNumKey, trainLossKey, trainAccKey, validLossKey, validAccKey, validBopsRatioKey,
-                                lrKey]
-    colsTrainAlphas = [batchNumKey, archLossKey, crossEntropyKey, bopsLossKey, alphasTableTitle, pathBopsRatioKey,
-                       forwardCountersKey, timeKey]
+    colsMainInitWeightsTrain = [epochNumKey, trainLossKey, trainAccKey, validLossKey, validAccKey, validBopsRatioKey, lrKey]
+    colsTrainAlphas = [batchNumKey, archLossKey, crossEntropyKey, bopsLossKey, alphasTableTitle, pathBopsRatioKey, forwardCountersKey, timeKey]
     colsAlphasValidation = [batchNumKey, archLossKey, crossEntropyKey, bopsLossKey, timeKey]
     colsValidation = [batchNumKey, validLossKey, validAccKey, statsKey, timeKey]
     colsValidationStatistics = [forwardCountersKey, bitwidthKey, validBopsRatioKey]
-    colsMainLogger = [epochNumKey, archLossKey, trainLossKey, trainAccKey, validLossKey, validAccKey, validBopsRatioKey,
-                      bitwidthKey, lrKey]
+    colsMainLogger = [epochNumKey, archLossKey, trainLossKey, trainAccKey, validLossKey, validAccKey, validBopsRatioKey, bitwidthKey, lrKey]
 
     def __init__(self, args, logger):
         # build model for uniform distribution of bits
