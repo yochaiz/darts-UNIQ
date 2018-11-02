@@ -150,6 +150,7 @@ class TrainRegime:
 
         model.load_state_dict(stateDict)
         args.loadedOpsWithDiffWeights = True
+        logger.addInfoTable('Pre-trained model', [['Loaded each filter with filter from the corresponding bitwidth uniform model']])
 
         # ========= save current partition by alphas to checkpoint ==========
         # model.setFiltersByAlphas()
