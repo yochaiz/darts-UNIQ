@@ -23,6 +23,11 @@ class QuantizedOp(UNIQNet):
         # self.forward = self.residualForward if useResidual else self.standardForward
         # self.hookHandlers = []
 
+    def getBitwidth(self):
+        bitwidth = self.bitwidth[0] if len(self.bitwidth) > 0 else None
+        act_bitwidth = self.act_bitwidth[0] if len(self.act_bitwidth) > 0 else None
+        return bitwidth, act_bitwidth
+
     def getConv(self):
         return self._conv[0]
 
@@ -181,10 +186,6 @@ class MixedFilter(Block):
         raise NotImplementedError('subclasses must override setForwardFunc()!')
 
     @abstractmethod
-    def getOpBitwidth(self, op):
-        raise NotImplementedError('subclasses must override getOpBitwidth()!')
-
-    @abstractmethod
     def getCurrentOutputBitwidth(self):
         raise NotImplementedError('subclasses must override getCurrentOutputBitwidth()!')
 
@@ -246,12 +247,12 @@ class MixedFilter(Block):
 
     # return list of tuples of all filter bitwidths
     def getAllBitwidths(self):
-        return [self.getOpBitwidth(op) for op in self.ops[0]]
+        return [op.getBitwidth() for op in self.ops[0]]
 
     # returns current op bitwidth
     def getCurrentBitwidth(self):
         # it doesn't matter which copy of ops we take, the attributes are the same in all copies
-        return self.getOpBitwidth(self.ops[0][self.curr_alpha_idx])
+        return self.ops[0][self.curr_alpha_idx].getBitwidth()
 
     def numOfOps(self):
         # it doesn't matter which copy of ops we take, length is the same in all copies
@@ -351,9 +352,6 @@ class MixedConv(MixedFilter):
         op = self.ops[self.prev_alpha_idx][self.curr_alpha_idx].op[0]
         return op(x)
 
-    def getOpBitwidth(self, op):
-        return op.bitwidth[0], None
-
 
 class MixedConvWithReLU(MixedFilter):
     def __init__(self, bitwidths, in_planes, out_planes, kernel_size, stride, input_size, prevLayer):
@@ -413,9 +411,6 @@ class MixedConvWithReLU(MixedFilter):
     def forwardReLU(self, x):
         op = self.ops[self.prev_alpha_idx][self.curr_alpha_idx].op[1]
         return op(x)
-
-    def getOpBitwidth(self, op):
-        return op.bitwidth[0], op.act_bitwidth[0]
 
     def getCurrentOutputBitwidth(self):
         return self.outputBitwidth[self.curr_alpha_idx]
