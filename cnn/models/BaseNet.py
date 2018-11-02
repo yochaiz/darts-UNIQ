@@ -1,13 +1,10 @@
 from abc import abstractmethod
-
 from pandas import DataFrame
 from os.path import exists
 
-from torch import ones, zeros, no_grad, cat, tensor
-from torch.nn import Module, CrossEntropyLoss
+from torch.nn import Module
 from torch.nn import functional as F
 from torch import load as loadModel
-from torch import save as saveModel
 
 from cnn.MixedLayer import MixedLayer
 from cnn.MixedFilter import MixedConvWithReLU
@@ -15,6 +12,11 @@ from cnn.uniq_loss import UniqLoss
 import cnn.statistics
 
 from UNIQ.quantize import check_quantization
+
+
+# from torch import save as saveModel
+# from torch import ones, zeros, no_grad, cat, tensor
+# from torch.nn import  CrossEntropyLoss
 
 
 # preForward hook for training weights phase.
