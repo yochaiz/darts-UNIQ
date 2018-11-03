@@ -28,29 +28,6 @@ import cnn.models as models
 from cnn.HtmlLogger import HtmlLogger
 import cnn.gradEstimators as gradEstimators
 
-# references to UNIQ baseline models
-modelsRefsUNIQ = {
-    'thin_resnet': '/home/yochaiz/DropDarts/cnn/pre_trained/thin_resnet/train/model_opt.pth.tar',
-    'thin_resnet_w:[32]_a:[32]': '/home/yochaiz/DropDarts/cnn/pre_trained/thin_resnet/train/model_opt.pth.tar',
-    'thin_resnet_w:[2]_a:[32]': '/home/yochaiz/DropDarts/cnn/uniform/thin_resnet_w:[2]_a:[32]/train/model_opt.pth.tar',
-    'thin_resnet_w:[3]_a:[3]': '/home/yochaiz/DropDarts/cnn/uniform/thin_resnet_w:[3]_a:[3]/train/model_opt.pth.tar',
-    'thin_resnet_w:[6]_a:[6]': '/home/yochaiz/DropDarts/cnn/uniform/thin_resnet_w:[6]_a:[6]/train/model_checkpoint.pth.tar',
-    'resnet': '/home/yochaiz/DropDarts/cnn/pre_trained/resnet_cifar10_trained_32_bit_deeper/model_best.pth.tar',
-    'resnet_w:[32]_a:[32]': '/home/yochaiz/DropDarts/cnn/pre_trained/resnet_cifar10_trained_32_bit_deeper/model_best.pth.tar',
-    'resnet_w:[1]_a:[1]': '/home/yochaiz/DropDarts/cnn/uniform/resnet_w:[1]_a:[1]/train/model_opt.pth.tar',
-    'resnet_w:[1]_a:[32]': '/home/yochaiz/DropDarts/cnn/uniform/resnet_w:[1]_a:[32]/train/model_opt.pth.tar',
-    'resnet_w:[2]_a:[32]': '/home/yochaiz/DropDarts/cnn/uniform/resnet_w:[2]_a:[32]/train/model_opt.pth.tar',
-    'resnet_w:[2]_a:[3]': '/home/yochaiz/DropDarts/cnn/uniform/resnet_w:[2]_a:[3]/train/model_opt.pth.tar',
-    'resnet_w:[2]_a:[4]': '/home/yochaiz/DropDarts/cnn/uniform/resnet_w:[2]_a:[4]/train/model_opt.pth.tar',
-    'resnet_w:[3]_a:[3]': '/home/yochaiz/DropDarts/cnn/uniform/resnet_w:[3]_a:[3]/train/model_opt.pth.tar',
-    'resnet_w:[3]_a:[32]': '/home/yochaiz/DropDarts/cnn/uniform/resnet_w:[3]_a:[32]/train/model_opt.pth.tar',
-    'resnet_w:[4]_a:[4]': '/home/yochaiz/DropDarts/cnn/uniform/resnet_w:[4]_a:[4]/train/model_opt.pth.tar',
-    'resnet_w:[4]_a:[32]': '/home/yochaiz/DropDarts/cnn/uniform/resnet_w:[4]_a:[32]/train/model_opt.pth.tar',
-    'resnet_w:[5]_a:[5]': '/home/yochaiz/DropDarts/cnn/uniform/resnet_w:[5]_a:[5]/train/model_opt.pth.tar',
-    'resnet_w:[6]_a:[6]': '/home/yochaiz/DropDarts/cnn/uniform/resnet_w:[6]_a:[6]/train/model_opt.pth.tar',
-    'resnet_w:[8]_a:[32]': '/home/yochaiz/DropDarts/cnn/uniform/resnet_w:[8]_a:[32]/train/model_checkpoint.pth.tar',
-}
-
 
 def loadCheckpoint(dataset, model, bitwidth, filename='model_opt.pth.tar'):
     # init project base folder
@@ -335,8 +312,8 @@ def save_state(state, is_best, path, filename):
 
 def save_checkpoint(path, model, args, epoch, best_prec1, is_best=False, filename=None):
     print('*** save_checkpoint ***')
-    # quantize model before save, quantize unstaged layers
-    model.quantizeUnstagedLayers()
+    # we want to save full-precision weights, we will quantize them after loading them
+    model.removeQuantizationFromStagedLayers()
     # set state dictionary
     state = dict(nextEpoch=epoch + 1, state_dict=model.state_dict(), epochs=args.epochs, alphas=model.save_alphas_state(), updated_statistics=False,
                  nLayersQuantCompleted=model.nLayersQuantCompleted, best_prec1=best_prec1, learning_rate=args.learning_rate)
@@ -345,8 +322,8 @@ def save_checkpoint(path, model, args, epoch, best_prec1, is_best=False, filenam
     # save state to file
     filePaths = save_state(state, is_best, path=path, filename=filename)
 
-    # removed quantization from unstaged layers
-    model.unQuantizeUnstagedLayers()
+    # restore quantization in staged layers
+    model.restoreQuantizationForStagedLayers()
     print('*** END save_checkpoint ***')
 
     return state, filePaths
@@ -549,6 +526,29 @@ def load_data(args):
     search_queue.append(dl)
 
     return train_queue, search_queue, valid_queue, statistics_queue
+
+# # references to UNIQ baseline models
+# modelsRefsUNIQ = {
+#     'thin_resnet': '/home/yochaiz/DropDarts/cnn/pre_trained/thin_resnet/train/model_opt.pth.tar',
+#     'thin_resnet_w:[32]_a:[32]': '/home/yochaiz/DropDarts/cnn/pre_trained/thin_resnet/train/model_opt.pth.tar',
+#     'thin_resnet_w:[2]_a:[32]': '/home/yochaiz/DropDarts/cnn/uniform/thin_resnet_w:[2]_a:[32]/train/model_opt.pth.tar',
+#     'thin_resnet_w:[3]_a:[3]': '/home/yochaiz/DropDarts/cnn/uniform/thin_resnet_w:[3]_a:[3]/train/model_opt.pth.tar',
+#     'thin_resnet_w:[6]_a:[6]': '/home/yochaiz/DropDarts/cnn/uniform/thin_resnet_w:[6]_a:[6]/train/model_checkpoint.pth.tar',
+#     'resnet': '/home/yochaiz/DropDarts/cnn/pre_trained/resnet_cifar10_trained_32_bit_deeper/model_best.pth.tar',
+#     'resnet_w:[32]_a:[32]': '/home/yochaiz/DropDarts/cnn/pre_trained/resnet_cifar10_trained_32_bit_deeper/model_best.pth.tar',
+#     'resnet_w:[1]_a:[1]': '/home/yochaiz/DropDarts/cnn/uniform/resnet_w:[1]_a:[1]/train/model_opt.pth.tar',
+#     'resnet_w:[1]_a:[32]': '/home/yochaiz/DropDarts/cnn/uniform/resnet_w:[1]_a:[32]/train/model_opt.pth.tar',
+#     'resnet_w:[2]_a:[32]': '/home/yochaiz/DropDarts/cnn/uniform/resnet_w:[2]_a:[32]/train/model_opt.pth.tar',
+#     'resnet_w:[2]_a:[3]': '/home/yochaiz/DropDarts/cnn/uniform/resnet_w:[2]_a:[3]/train/model_opt.pth.tar',
+#     'resnet_w:[2]_a:[4]': '/home/yochaiz/DropDarts/cnn/uniform/resnet_w:[2]_a:[4]/train/model_opt.pth.tar',
+#     'resnet_w:[3]_a:[3]': '/home/yochaiz/DropDarts/cnn/uniform/resnet_w:[3]_a:[3]/train/model_opt.pth.tar',
+#     'resnet_w:[3]_a:[32]': '/home/yochaiz/DropDarts/cnn/uniform/resnet_w:[3]_a:[32]/train/model_opt.pth.tar',
+#     'resnet_w:[4]_a:[4]': '/home/yochaiz/DropDarts/cnn/uniform/resnet_w:[4]_a:[4]/train/model_opt.pth.tar',
+#     'resnet_w:[4]_a:[32]': '/home/yochaiz/DropDarts/cnn/uniform/resnet_w:[4]_a:[32]/train/model_opt.pth.tar',
+#     'resnet_w:[5]_a:[5]': '/home/yochaiz/DropDarts/cnn/uniform/resnet_w:[5]_a:[5]/train/model_opt.pth.tar',
+#     'resnet_w:[6]_a:[6]': '/home/yochaiz/DropDarts/cnn/uniform/resnet_w:[6]_a:[6]/train/model_opt.pth.tar',
+#     'resnet_w:[8]_a:[32]': '/home/yochaiz/DropDarts/cnn/uniform/resnet_w:[8]_a:[32]/train/model_checkpoint.pth.tar',
+# }
 
 # def _data_transforms_cifar10(args):
 #     CIFAR_MEAN = [0.49139968, 0.48215827, 0.44653124]
