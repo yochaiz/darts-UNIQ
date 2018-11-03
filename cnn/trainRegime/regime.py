@@ -58,100 +58,6 @@ class TrainRegime:
         model = modelClass(args)
         model = model.cuda()
 
-        from collections import OrderedDict
-        from cnn.MixedFilter import QuantizedOp
-        from cnn.utils import loadCheckpoint
-        from torch.nn.modules import Linear, BatchNorm2d
-
-        def b(op, prefix):
-            keysList = []
-
-            for name, param in op._parameters.items():
-                if param is not None:
-                    keysList.append(prefix + name)
-            for name, buf in op._buffers.items():
-                if buf is not None:
-                    keysList.append(prefix + name)
-            for name, module in op._modules.items():
-                if module is not None:
-                    keysList.extend(b(module, prefix + name + '.'))
-
-            return keysList
-
-        def a(model, dict, prefix=''):
-            for name, module in model._modules.items():
-                key = None
-                if isinstance(module, QuantizedOp):
-                    key = module.getBitwidth()
-                elif isinstance(module, BatchNorm2d) or isinstance(module, Linear):
-                    key = (32, 32)
-
-                if key is not None:
-                    if key not in dict.keys():
-                        dict[key] = []
-
-                    dict[key].extend(b(module, prefix + name + '.'))
-
-                else:
-                    a(module, dict, prefix + name + '.')
-
-        modelDict = OrderedDict()
-        a(model, modelDict)
-
-        # transform downsamples keys
-        transformMap = [[(2, None), (2, 2)], [(3, None), (3, 3)], [(4, None), (4, 4)], [(8, None), (8, 8)]]
-        for srcBitwidth, dstBitwidth in transformMap:
-            if srcBitwidth in modelDict.keys():
-                modelDict[dstBitwidth].extend(modelDict[srcBitwidth])
-                del modelDict[srcBitwidth]
-
-        keysList = []
-        for bitwidth, bitwidthKeysList in modelDict.items():
-            keysList.extend(bitwidthKeysList)
-
-        modelStateDictKeys = set(model.state_dict().keys())
-        dictDiff = modelStateDictKeys.symmetric_difference(set(keysList))
-        assert (len(dictDiff) == 0)
-
-        stateDict = OrderedDict()
-        token1 = '.ops.'
-        token2 = '.op.'
-        for bitwidth, bitwidthKeysList in modelDict.items():
-            if bitwidth == (32, 32):
-                continue
-
-            checkpoint, _ = loadCheckpoint(args.dataset, args.model, bitwidth)
-            assert (checkpoint is not None)
-            chckpntStateDict = checkpoint['state_dict']
-            for key in bitwidthKeysList:
-                prefix = key[:key.index(token1)]
-                suffix = key[key.rindex(token2):]
-                # convert model key to checkpoint key
-                chckpntKey = prefix + token1 + '0.0' + suffix
-                # add value to dict
-                stateDict[key] = chckpntStateDict[chckpntKey]
-
-        # load keys from (32, 32) checkpoint, no need to transform keys
-        bitwidth = (32, 32)
-        checkpoint, _ = loadCheckpoint(args.dataset, args.model, bitwidth, filename='model.updated_stats.pth.tar')
-        assert (checkpoint is not None)
-        chckpntStateDict = checkpoint['state_dict']
-        map = model.buildStateDictMap(chckpntStateDict)
-        invMap = {v: k for k, v in map.items()}
-        for key in modelDict[bitwidth]:
-            prefix = key[:key.rindex('.')]
-            suffix = key[key.rindex('.'):]
-            newKey = invMap[prefix]
-
-            stateDict[key] = chckpntStateDict[newKey + suffix]
-
-        dictDiff = modelStateDictKeys.symmetric_difference(set(stateDict.keys()))
-        assert (len(dictDiff) == 0)
-
-        model.load_state_dict(stateDict)
-        args.loadedOpsWithDiffWeights = True
-        logger.addInfoTable('Pre-trained model', [['Loaded each filter with filter from the corresponding bitwidth uniform model']])
-
         # ========= save current partition by alphas to checkpoint ==========
         # model.setFiltersByAlphas()
         # args.partition = model.getCurrentFiltersPartition()
@@ -174,9 +80,8 @@ class TrainRegime:
         # ==================================================================
         # load data
         self.train_queue, self.search_queue, self.valid_queue, self.statistics_queue = load_data(args)
-        # # load pre-trained full-precision model
-        # args.loadedOpsWithDiffWeights = model.loadPreTrained(args.pre_trained, logger, args.gpu[0])
-        # args.loadedOpsWithDiffWeights = False
+        # load pre-trained full-precision model
+        args.loadedOpsWithDiffWeights = model.loadPreTrained(args.pre_trained, logger, args.gpu[0])
 
         # log parameters
         logParameters(logger, args, model)
@@ -231,7 +136,6 @@ class TrainRegime:
         self.nEpochs = nEpochs
         self.epochsSwitchStage = epochsSwitchStage
 
-        # self.model = torch.nn.DataParallel(self.model, args.gpu)
         # if we loaded ops in the same layer with the same weights, then we loaded the optimal full precision model,
         # therefore we have to train the weights for each QuantizedOp
         if (args.loadedOpsWithDiffWeights is False) and args.init_weights_train:
