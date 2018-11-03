@@ -60,6 +60,15 @@ class MixedLayer(Block):
         # init operations alphas (weights)
         self.alphas = tensor((zeros(self.numOfOps())).cuda(), requires_grad=True)
         self.alphas = self.alphas.cuda()
+
+        # =========== change alphas distribution ==================
+        # from math import log
+        # filter = self.filters[0]
+        # for i, op in enumerate(filter.getOps()):
+        #     opBitwidth = op.getBitwidth()
+        #     if opBitwidth == (3, 3) or opBitwidth == (3, None) or opBitwidth == (4, None) or opBitwidth == (4, 4):
+        #         self.alphas.data[i].fill_(log(8.5))
+
         # init filters current partition by alphas, i.e. how many filters are for each alpha, from each quantization
         self.currFiltersPartition = [0] * self.numOfOps()
 
