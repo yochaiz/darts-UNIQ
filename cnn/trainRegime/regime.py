@@ -129,8 +129,6 @@ class TrainRegime:
         # remove epoch 0 from list, we don't want to switch stage at the beginning
         epochsSwitchStage = epochsSwitchStage[1:]
 
-        logger.addInfoTable('Epochs', [['nEpochs', '{}'.format(nEpochs)], ['epochsSwitchStage', '{}'.format(epochsSwitchStage)]])
-
         # init epoch
         self.epoch = 0
         self.nEpochs = nEpochs
@@ -139,6 +137,8 @@ class TrainRegime:
         # if we loaded ops in the same layer with the same weights, then we loaded the optimal full precision model,
         # therefore we have to train the weights for each QuantizedOp
         if (args.loadedOpsWithDiffWeights is False) and args.init_weights_train:
+            logger.addInfoTable('Initial weights training epochs',
+                                [['nEpochs', '{}'.format(nEpochs)], ['epochsSwitchStage', '{}'.format(epochsSwitchStage)]])
             self.epoch = self.initialWeightsTraining(trainFolderName='init_weights_train')
         else:
             rows = [['Switching stage']]
