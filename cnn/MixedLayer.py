@@ -64,10 +64,12 @@ class MixedLayer(Block):
         # =========== change alphas distribution ==================
         # from math import log
         # filter = self.filters[0]
+        # p = 0.8
+        # logVal = p / (1 - p) * (self.numOfOps() - 1)
         # for i, op in enumerate(filter.getOps()):
         #     opBitwidth = op.getBitwidth()
-        #     if opBitwidth == (3, 3) or opBitwidth == (3, None) or opBitwidth == (4, None) or opBitwidth == (4, 4):
-        #         self.alphas.data[i].fill_(log(8.5))
+        #     if opBitwidth == (3, 3) or opBitwidth == (3, None):
+        #         self.alphas.data[i].fill_(log(logVal))
 
         # init filters current partition by alphas, i.e. how many filters are for each alpha, from each quantization
         self.currFiltersPartition = [0] * self.numOfOps()
