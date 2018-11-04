@@ -341,7 +341,8 @@ class BaseNet(Module):
                 key = None
                 if isinstance(module, QuantizedOp):
                     key = module.getBitwidth()
-                elif isinstance(module, BatchNorm2d) or isinstance(module, Linear):
+                # elif isinstance(module, BatchNorm2d) or isinstance(module, Linear):
+                elif isinstance(module, Linear):
                     key = (32, 32)
 
                 if key is not None:
@@ -390,9 +391,9 @@ class BaseNet(Module):
                 stateDict[key] = chckpntStateDict[chckpntKey]
 
         # # load keys from (32, 32) checkpoint, no need to transform keys
-        # bitwidth = (8, 8)
-        # checkpoint, _ = loadCheckpoint(args.dataset, args.model, bitwidth)  # , filename='model.updated_stats.pth.tar')
-        checkpoint = loadModel("/home/vista/Desktop/Architecture_Search/ZZ/cifar100/resnet_[2#2,4#3#4#8]/pre_trained_checkpoint.pth.tar")
+        bitwidth = (8, 8)
+        checkpoint, _ = loadCheckpoint(args.dataset, args.model, bitwidth)  # , filename='model.updated_stats.pth.tar')
+        # checkpoint = loadModel("/home/vista/Desktop/Architecture_Search/ZZ/cifar100/resnet_[2#2,4#3#4#8]/pre_trained_checkpoint.pth.tar")
         assert (checkpoint is not None)
         chckpntStateDict = checkpoint['state_dict']
         # map = self.buildStateDictMap(chckpntStateDict)
