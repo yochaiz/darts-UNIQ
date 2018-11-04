@@ -6,8 +6,8 @@ from torch.nn import Module
 from torch.nn import functional as F
 from torch import load as loadModel
 
-from cnn.MixedLayer import MixedLayer
-from cnn.MixedFilter import MixedConvWithReLU
+from cnn.MixedLayer import MixedLayerNoBN as MixedLayer
+from cnn.MixedFilter import MixedConvBNWithReLU as MixedConvWithReLU
 from cnn.uniq_loss import UniqLoss
 import cnn.statistics
 

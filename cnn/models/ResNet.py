@@ -2,8 +2,10 @@ from collections import OrderedDict
 
 from torch.nn import AvgPool2d, Linear, ModuleList
 
-from cnn.MixedFilter import MixedConv, MixedConvWithReLU, Block
-from cnn.MixedLayer import MixedLayer
+from cnn.MixedFilter import Block
+from cnn.MixedFilter import MixedConvBNWithReLU as MixedConvWithReLU
+from cnn.MixedFilter import MixedConvBN as MixedConv
+from cnn.MixedLayer import MixedLayerNoBN as MixedLayer
 from cnn.models import BaseNet
 
 
