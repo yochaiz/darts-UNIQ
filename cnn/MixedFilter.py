@@ -17,10 +17,12 @@ class QuantizedOp(UNIQNet):
 
     def derivedClassSpecific(self, op):
         self.op = op.cuda()
+
         self._conv = [m for m in self.op.modules() if isinstance(m, Conv2d)]
         assert (len(self._conv) == 1)
-        # self._bn = [m for m in self.op.modules() if isinstance(m, BatchNorm2d)]
-        # assert (len(self._bn) == 1)
+        bn = [m for m in self.op.modules() if isinstance(m, BatchNorm2d)]
+        self._bn = bn if len(bn) > 0 else [None]
+        assert (len(self._bn) == 1)
         relu = [m for m in self.op.modules() if isinstance(m, ActQuantBuffers)]
         self._relu = relu if len(relu) > 0 else [None]
         assert (len(self._relu) == 1)
@@ -36,6 +38,9 @@ class QuantizedOp(UNIQNet):
 
     def getConv(self):
         return self._conv[0]
+
+    def getBN(self):
+        return self._bn[0]
 
     def getReLU(self):
         return self._relu[0]
@@ -414,7 +419,7 @@ class MixedConvBNWithReLU(MixedFilter):
             self.outputBitwidth.extend(op.act_bitwidth)
 
     def setForwardFunc(self):
-        return self.forward
+        return self.preResidualForward
 
     def __initOps(self, bitwidths, params, buildOpFunc):
         in_planes, out_planes, kernel_size, stride = params
@@ -445,9 +450,18 @@ class MixedConvBNWithReLU(MixedFilter):
 
         return self.__initOps(bitwidths, params, buildOpFunc)
 
-    def forward(self, x):
+    def preResidualForward(self, x):
         assert (self.hookFlag is True)
         op = self.ops[self.prev_alpha_idx][self.curr_alpha_idx]
+        conv = op.getConv()
+        bn = op.getBN()
+
+        out = conv(x)
+        out = bn(out)
+        return out
+
+    def postResidualForward(self, x):
+        op = self.ops[self.prev_alpha_idx][self.curr_alpha_idx].getReLU()
         return op(x)
 
     def getCurrentOutputBitwidth(self):
