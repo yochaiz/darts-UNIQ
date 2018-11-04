@@ -238,28 +238,28 @@ class ResNet(BaseNet):
     def buildStateDictMap(self, chckpntDict):
         map = {}
         map['conv1'] = 'layers.0.ops.0.0.op.0'
-        map['bn1'] = 'layers.0.bn'
-        map['relu'] = 'layers.0.ops.0.0.op.1'
+        map['bn1'] = 'layers.0.ops.0.0.op.1'
+        map['relu'] = 'layers.0.ops.0.0.op.2'
 
         layersNumberMap = [(1, 0, 1), (1, 1, 2), (1, 2, 3), (2, 1, 5), (2, 2, 6), (3, 1, 8), (3, 2, 9)]
         for n1, n2, m in layersNumberMap:
             map['layer{}.{}.conv1'.format(n1, n2)] = 'layers.{}.block1.ops.0.0.op.0'.format(m)
-            map['layer{}.{}.bn1'.format(n1, n2)] = 'layers.{}.block1.bn'.format(m)
-            map['layer{}.{}.relu1'.format(n1, n2)] = 'layers.{}.block1.ops.0.0.op.1'.format(m)
+            map['layer{}.{}.bn1'.format(n1, n2)] = 'layers.{}.block1.ops.0.0.op.1'.format(m)
+            map['layer{}.{}.relu1'.format(n1, n2)] = 'layers.{}.block1.ops.0.0.op.2'.format(m)
             map['layer{}.{}.conv2'.format(n1, n2)] = 'layers.{}.block2.ops.0.0.op.0'.format(m)
-            map['layer{}.{}.bn2'.format(n1, n2)] = 'layers.{}.block2.bn'.format(m)
-            map['layer{}.{}.relu2'.format(n1, n2)] = 'layers.{}.block2.ops.0.0.op.1'.format(m)
+            map['layer{}.{}.bn2'.format(n1, n2)] = 'layers.{}.block2.ops.0.0.op.1'.format(m)
+            map['layer{}.{}.relu2'.format(n1, n2)] = 'layers.{}.block2.ops.0.0.op.2'.format(m)
 
         downsampleLayersMap = [(2, 0, 4), (3, 0, 7)]
         for n1, n2, m in downsampleLayersMap:
             map['layer{}.{}.conv1'.format(n1, n2)] = 'layers.{}.block1.ops.0.0.op.0'.format(m)
-            map['layer{}.{}.bn1'.format(n1, n2)] = 'layers.{}.block1.bn'.format(m)
-            map['layer{}.{}.relu1'.format(n1, n2)] = 'layers.{}.block1.ops.0.0.op.1'.format(m)
+            map['layer{}.{}.bn1'.format(n1, n2)] = 'layers.{}.block1.ops.0.0.op.1'.format(m)
+            map['layer{}.{}.relu1'.format(n1, n2)] = 'layers.{}.block1.ops.0.0.op.2'.format(m)
             map['layer{}.{}.conv2'.format(n1, n2)] = 'layers.{}.block2.ops.0.0.op.0'.format(m)
-            map['layer{}.{}.bn2'.format(n1, n2)] = 'layers.{}.block2.bn'.format(m)
-            map['layer{}.{}.relu2'.format(n1, n2)] = 'layers.{}.block2.ops.0.0.op.1'.format(m)
+            map['layer{}.{}.bn2'.format(n1, n2)] = 'layers.{}.block2.ops.0.0.op.1'.format(m)
+            map['layer{}.{}.relu2'.format(n1, n2)] = 'layers.{}.block2.ops.0.0.op.2'.format(m)
             map['layer{}.{}.downsample.0'.format(n1, n2)] = 'layers.{}.downsample.ops.0.0.op.0'.format(m)
-            map['layer{}.{}.downsample.1'.format(n1, n2)] = 'layers.{}.downsample.bn'.format(m)
+            map['layer{}.{}.downsample.1'.format(n1, n2)] = 'layers.{}.downsample.ops.0.0.op.1'.format(m)
 
         map['fc'] = 'fc'
 
@@ -304,7 +304,7 @@ class ResNet(BaseNet):
                     # create filter state dict key
                     filterKey = '{}.filters.{}'.format(newKeyOp, filterIdx) + newKey[idx:]
                     # take the specific filter values from the filters block
-                    filterValues = chckpntDict[key].narrow(0, filterIdx, 1) if len(chckpntDict[key].size()) > 1 else chckpntDict[key].view(1)
+                    filterValues = chckpntDict[key].narrow(0, filterIdx, 1) if chckpntDict[key].size()[0] > 1 else chckpntDict[key]
                     # get the specific filter from layer
                     filter = layer.filters[filterIdx]
                     # update filter ops
@@ -313,9 +313,14 @@ class ResNet(BaseNet):
                             newStateKey = filterKey.replace(token + '0.0.', token + '{}.{}.'.format(j, i))
                             newStateDict[newStateKey + suffix] = filterValues
 
-            elif newKey.endswith('.bn'):
-                # copy batch norm keys
-                newStateDict[newKey + suffix] = chckpntDict[key]
+            # elif newKey.endswith('.bn'):
+            #     # copy batch norm keys
+            #     newStateDict[newKey + suffix] = chckpntDict[key]
+
+        # make sure all keys exists
+        modelStateDictKeys = set(self.state_dict().keys())
+        dictDiff = modelStateDictKeys.symmetric_difference(set(newStateDict.keys()))
+        assert (len(dictDiff) == 0)
 
         # load model weights
         self.load_state_dict(newStateDict)
@@ -355,3 +360,33 @@ class ResNet(BaseNet):
 
         # load model weights
         self.load_state_dict(newStateDict)
+
+# def buildStateDictMap(self, chckpntDict):
+#     map = {}
+#     map['conv1'] = 'layers.0.ops.0.0.op.0'
+#     map['bn1'] = 'layers.0.bn'
+#     map['relu'] = 'layers.0.ops.0.0.op.1'
+#
+#     layersNumberMap = [(1, 0, 1), (1, 1, 2), (1, 2, 3), (2, 1, 5), (2, 2, 6), (3, 1, 8), (3, 2, 9)]
+#     for n1, n2, m in layersNumberMap:
+#         map['layer{}.{}.conv1'.format(n1, n2)] = 'layers.{}.block1.ops.0.0.op.0'.format(m)
+#         map['layer{}.{}.bn1'.format(n1, n2)] = 'layers.{}.block1.bn'.format(m)
+#         map['layer{}.{}.relu1'.format(n1, n2)] = 'layers.{}.block1.ops.0.0.op.1'.format(m)
+#         map['layer{}.{}.conv2'.format(n1, n2)] = 'layers.{}.block2.ops.0.0.op.0'.format(m)
+#         map['layer{}.{}.bn2'.format(n1, n2)] = 'layers.{}.block2.bn'.format(m)
+#         map['layer{}.{}.relu2'.format(n1, n2)] = 'layers.{}.block2.ops.0.0.op.1'.format(m)
+#
+#     downsampleLayersMap = [(2, 0, 4), (3, 0, 7)]
+#     for n1, n2, m in downsampleLayersMap:
+#         map['layer{}.{}.conv1'.format(n1, n2)] = 'layers.{}.block1.ops.0.0.op.0'.format(m)
+#         map['layer{}.{}.bn1'.format(n1, n2)] = 'layers.{}.block1.bn'.format(m)
+#         map['layer{}.{}.relu1'.format(n1, n2)] = 'layers.{}.block1.ops.0.0.op.1'.format(m)
+#         map['layer{}.{}.conv2'.format(n1, n2)] = 'layers.{}.block2.ops.0.0.op.0'.format(m)
+#         map['layer{}.{}.bn2'.format(n1, n2)] = 'layers.{}.block2.bn'.format(m)
+#         map['layer{}.{}.relu2'.format(n1, n2)] = 'layers.{}.block2.ops.0.0.op.1'.format(m)
+#         map['layer{}.{}.downsample.0'.format(n1, n2)] = 'layers.{}.downsample.ops.0.0.op.0'.format(m)
+#         map['layer{}.{}.downsample.1'.format(n1, n2)] = 'layers.{}.downsample.bn'.format(m)
+#
+#     map['fc'] = 'fc'
+#
+#     return map
