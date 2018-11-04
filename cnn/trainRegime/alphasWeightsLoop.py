@@ -169,12 +169,12 @@ class AlphasWeightsLoop(TrainRegime):
         self.architect = Architect(replicator, args)
 
     # run on validation set and add validation data to main data row
-    def __inferWithData(self, setModelPathFunc, epoch, loggersDict, dataRow):
+    def __inferWithData(self, setModelPathFunc, epoch, nEpochs, loggersDict, dataRow):
         # run on validation set
         _, _, validData = self.infer(setModelPathFunc, epoch, loggersDict)
 
         # update epoch
-        dataRow[self.epochNumKey] = epoch
+        dataRow[self.epochNumKey] = '{}/{}'.format(epoch / nEpochs)
         # merge dataRow with validData
         for k, v in validData.items():
             dataRow[k] = v
@@ -234,7 +234,8 @@ class AlphasWeightsLoop(TrainRegime):
         args = self.args
         logger = self.logger
         # init number of epochs
-        epochRange = self.__getEpochRange(100)
+        nEpochs = 100
+        epochRange = self.__getEpochRange(nEpochs)
         # init keys in jobs list
         for epoch in epochRange:
             self.jobsList[epoch] = []
@@ -266,7 +267,7 @@ class AlphasWeightsLoop(TrainRegime):
             self.jobsList[epoch] = epochJobsList
 
             # validation on fixed partition by alphas values
-            self.__inferWithData(model.setFiltersByAlphas, epoch, loggersDict, dataRow)
+            self.__inferWithData(model.setFiltersByAlphas, epoch, nEpochs, loggersDict, dataRow)
             # add data to main logger table
             logger.addDataRow(dataRow)
 
@@ -301,12 +302,12 @@ class AlphasWeightsLoop(TrainRegime):
             dataRow = self.trainWeights(optimizer, wEpoch, loggersDict)
 
             # validation on fixed partition by alphas values
-            self.__inferWithData(model.setFiltersByAlphas, epoch, loggersDict, dataRow)
+            self.__inferWithData(model.setFiltersByAlphas, epoch, nEpochs, loggersDict, dataRow)
             # add data to main logger table
             logger.addDataRow(dataRow)
 
             # add data rows for epoch JSONs
-            self.__addEpochJSONsDataRows(epochJobsList, epoch)
+            self.__addEpochJSONsDataRows(epochJobsList, epoch, nEpochs)
 
             # update temp values in data table + update bops plot
             self.__updateDataTableAndBopsPlot()
@@ -399,12 +400,13 @@ class AlphasWeightsLoop(TrainRegime):
         # self.model.module.stats.addBopsData(bopsPlotData)
         self.model.stats.addBopsData(bopsPlotData)
 
-    def __addEpochJSONsDataRows(self, epochJobsList, epoch):
+    def __addEpochJSONsDataRows(self, epochJobsList, epoch, nEpochs):
         logger = self.logger
 
         for job in epochJobsList:
             # set data row unique values for json, in order to overwrite them in the future when we will have values
-            dataRow = {self.epochNumKey: epoch, self.validBopsRatioKey: job.bopsRatio, self.bitwidthKey: job.bitwidthInfoTable}
+            dataRow = {self.epochNumKey: '{}/{}'.format(epoch, nEpochs), self.validBopsRatioKey: job.bopsRatio,
+                       self.bitwidthKey: job.bitwidthInfoTable}
             # apply formats
             self._applyFormats(dataRow)
             for key in self.rowKeysToReplace:
