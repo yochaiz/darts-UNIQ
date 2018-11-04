@@ -331,10 +331,10 @@ class MixedConv(MixedFilter):
 
         self.in_planes = in_planes
 
-        self.forwardReLU = None
+        self.postResidualForward = None
 
     def setForwardFunc(self):
-        return self.forwardConv
+        return self.preResidualForward
 
     def initOps(self, bitwidths, params):
         in_planes, out_planes, kernel_size, stride = params
@@ -353,7 +353,7 @@ class MixedConv(MixedFilter):
 
         return ops
 
-    def forwardConv(self, x):
+    def preResidualForward(self, x):
         assert (self.hookFlag is True)
         op = self.ops[self.prev_alpha_idx][self.curr_alpha_idx].getConv()
         return op(x)
@@ -369,7 +369,7 @@ class MixedConvBN(MixedFilter):
 
         self.in_planes = in_planes
 
-        self.forwardReLU = None
+        self.postResidualForward = None
 
     def setForwardFunc(self):
         return self.forward
@@ -471,7 +471,7 @@ class MixedConvWithReLU(MixedFilter):
             self.outputBitwidth.extend(op.act_bitwidth)
 
     def setForwardFunc(self):
-        return self.forwardConv
+        return self.preResidualForward
 
     def __initOps(self, bitwidths, params, buildOpFunc):
         in_planes, out_planes, kernel_size, stride = params
@@ -501,12 +501,12 @@ class MixedConvWithReLU(MixedFilter):
 
         return self.__initOps(bitwidths, params, buildOpFunc)
 
-    def forwardConv(self, x):
+    def preResidualForward(self, x):
         assert (self.hookFlag is True)
         op = self.ops[self.prev_alpha_idx][self.curr_alpha_idx].getConv()
         return op(x)
 
-    def forwardReLU(self, x):
+    def postResidualForward(self, x):
         op = self.ops[self.prev_alpha_idx][self.curr_alpha_idx].getReLU()
         return op(x)
 
