@@ -17,8 +17,14 @@ class QuantizedOp(UNIQNet):
 
     def derivedClassSpecific(self, op):
         self.op = op.cuda()
-        self._conv = [self.op[0]]
-        self._relu = [self.op[1]] if len(self.op) > 1 else [None]
+        self._conv = [m for m in self.op.modules() if isinstance(m, Conv2d)]
+        assert (len(self._conv) == 1)
+        # self._bn = [m for m in self.op.modules() if isinstance(m, BatchNorm2d)]
+        # assert (len(self._bn) == 1)
+        relu = [m for m in self.op.modules() if isinstance(m, ActQuantBuffers)]
+        self._relu = relu if len(relu) > 0 else [None]
+        assert (len(self._relu) == 1)
+
         # self.useResidual = useResidual
         # self.forward = self.residualForward if useResidual else self.standardForward
         # self.hookHandlers = []
