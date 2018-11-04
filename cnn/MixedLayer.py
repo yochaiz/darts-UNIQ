@@ -1,4 +1,5 @@
 from itertools import groupby
+from abc import abstractmethod
 
 from torch import cat, chunk, tensor, zeros, int32
 from torch.nn import ModuleList, BatchNorm2d
@@ -53,9 +54,6 @@ class MixedLayer(Block):
             self.filters.append(createMixedFilterFunc())
         # make sure mixed filters are subclasses of MixedFilter
         assert (isinstance(self.filters[0], MixedFilter))
-
-        # init batch norm
-        self.bn = BatchNorm2d(nFilters)
 
         # init operations alphas (weights)
         self.alphas = tensor((zeros(self.numOfOps())).cuda(), requires_grad=True)
@@ -189,64 +187,6 @@ class MixedLayer(Block):
         probs = F.softmax(self.alphas, dim=-1)
         self.__setFiltersPartitionFromRatio(probs)
 
-    # perform the convolution operation
-    def forwardConv(self, x):
-        out = []
-        # apply selected op in each filter
-        for f in self.filters:
-            res = f(x)
-            out.append(res)
-        # concat filters output
-        out = cat(out, 1)
-
-        return out
-
-    # perform the ReLU operation
-    def forwardReLU(self, x):
-        out = []
-        # apply selected op in each filter
-        for i, f in enumerate(self.filters):
-            res = f.forwardReLU(x[i])
-            out.append(res)
-        # concat filters output
-        out = cat(out, 1)
-
-        return out
-
-    # operations to perform before adding residual
-    def preResidualForward(self, x):
-        out = self.forwardConv(x)
-        # apply batch norm
-        out = self.bn(out)
-
-        return out
-
-    # operations to perform after adding residual
-    def postResidualForward(self, out):
-        # apply ReLU if exists
-        if self.filters[0].forwardReLU:
-            # split out1 to chunks again
-            out = chunk(out, self.nFilters(), dim=1)
-            out = self.forwardReLU(out)
-
-        return out
-
-    # standard forward
-    def forward(self, x):
-        out = self.preResidualForward(x)
-        out = self.postResidualForward(out)
-
-        return out
-
-    # forward with residual
-    def residualForward(self, x, residual):
-        out = self.preResidualForward(x)
-        # add residual
-        out += residual
-        out = self.postResidualForward(out)
-
-        return out
-
     def getCurrentFiltersPartition(self):
         return self.currFiltersPartition
 
@@ -299,37 +239,119 @@ class MixedLayer(Block):
         partition = dist.sample().type(int32)
         self.setFiltersPartition(partition)
 
-    # bitwidth list is the same for all filters, therefore we can use the 1st filter list
-    # def getOutputBitwidthList(self):
-    #     return self.filters[0].getOutputBitwidthList()
+    @abstractmethod
+    def preResidualForward(self, x):
+        raise NotImplementedError('subclasses must override preResidualForward()!')
 
-    # def evalMode(self):
-    #     pass
+    # operations to perform after adding residual
+    def postResidualForward(self, x):
+        out = x
+        # apply ReLU if exists
+        if self.filters[0].postResidualForward:
+            out = []
+            # split out1 to chunks again
+            x = chunk(x, self.nFilters(), dim=1)
+            # apply selected op in each filter
+            for i, f in enumerate(self.filters):
+                res = f.postResidualForward(x[i])
+                out.append(res)
+            # concat filters output
+            out = cat(out, 1)
 
-    # # select random alpha
-    # def chooseRandomPath(self):
-    #     pass
+        return out
 
-    # # quantize activations during training
-    # def quantActOnTraining(self, layerIdx):
-    #     assert (self.quantized is True)
-    #     assert (self.added_noise is False)
-    #
-    #     for op in self.opsList:
-    #         for m in op.modules():
-    #             if isinstance(m, ActQuant):
-    #                 m.qunatize_during_training = True
-    #
-    #     print('turned on qunatize_during_training in layer [{}]'.format(layerIdx))
-    #
-    # # stop quantize activations during training
-    # def turnOnGradients(self, layerIdx):
-    #     assert (self.quantized is False)
-    #     assert (self.added_noise is False)
-    #
-    #     for op in self.opsList:
-    #         for m in op.modules():
-    #             if isinstance(m, ActQuant):
-    #                 m.qunatize_during_training = False
-    #
-    #     print('turned off qunatize_during_training in layer [{}]'.format(layerIdx))
+    # standard forward
+    def forward(self, x):
+        out = self.preResidualForward(x)
+        out = self.postResidualForward(out)
+
+        return out
+
+    # forward with residual
+    def residualForward(self, x, residual):
+        out = self.preResidualForward(x)
+        # add residual
+        out += residual
+        out = self.postResidualForward(out)
+
+        return out
+
+
+class MixedLayerNoBN(MixedLayer):
+    def __init__(self, nFilters, createMixedFilterFunc, useResidual=False):
+        super(MixedLayerNoBN, self).__init__(nFilters, createMixedFilterFunc, useResidual)
+
+    # operations to perform before adding residual
+    def preResidualForward(self, x):
+        out = []
+        # apply selected op in each filter
+        for f in self.filters:
+            res = f(x)
+            out.append(res)
+        # concat filters output
+        out = cat(out, 1)
+
+        return out
+
+
+class MixedLayerWithBN(MixedLayer):
+    def __init__(self, nFilters, createMixedFilterFunc, useResidual=False):
+        super(MixedLayerWithBN, self).__init__(nFilters, createMixedFilterFunc, useResidual)
+
+        # init batch norm
+        self.bn = BatchNorm2d(nFilters)
+
+    # perform the convolution operation
+    def forwardConv(self, x):
+        out = []
+        # apply selected op in each filter
+        for f in self.filters:
+            res = f(x)
+            out.append(res)
+        # concat filters output
+        out = cat(out, 1)
+
+        return out
+
+    # operations to perform before adding residual
+    def preResidualForward(self, x):
+        out = self.forwardConv(x)
+        # apply batch norm
+        out = self.bn(out)
+
+        return out
+
+# bitwidth list is the same for all filters, therefore we can use the 1st filter list
+# def getOutputBitwidthList(self):
+#     return self.filters[0].getOutputBitwidthList()
+
+# def evalMode(self):
+#     pass
+
+# # select random alpha
+# def chooseRandomPath(self):
+#     pass
+
+# # quantize activations during training
+# def quantActOnTraining(self, layerIdx):
+#     assert (self.quantized is True)
+#     assert (self.added_noise is False)
+#
+#     for op in self.opsList:
+#         for m in op.modules():
+#             if isinstance(m, ActQuant):
+#                 m.qunatize_during_training = True
+#
+#     print('turned on qunatize_during_training in layer [{}]'.format(layerIdx))
+#
+# # stop quantize activations during training
+# def turnOnGradients(self, layerIdx):
+#     assert (self.quantized is False)
+#     assert (self.added_noise is False)
+#
+#     for op in self.opsList:
+#         for m in op.modules():
+#             if isinstance(m, ActQuant):
+#                 m.qunatize_during_training = False
+#
+#     print('turned off qunatize_during_training in layer [{}]'.format(layerIdx))
