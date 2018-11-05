@@ -1,6 +1,7 @@
 from abc import abstractmethod
 from pandas import DataFrame
 from os.path import exists
+from numpy import argmax
 
 from torch.nn import Module
 from torch.nn import functional as F
@@ -10,6 +11,7 @@ from cnn.MixedLayer import MixedLayerNoBN as MixedLayer
 from cnn.MixedFilter import MixedConvBNWithReLU as MixedConvWithReLU
 from cnn.uniq_loss import UniqLoss
 import cnn.statistics
+from cnn.HtmlLogger import HtmlLogger
 
 from UNIQ.quantize import check_quantization
 
@@ -115,6 +117,7 @@ class BaseNet(Module):
         # turn it on on pre-forward hook, turn it off on post-forward hook
         self.hookFlag = False
 
+        self.printToFile(saveFolder)
         # init layers permutation list
         self.layersPerm = []
         # init number of permutations counter
@@ -630,6 +633,102 @@ class BaseNet(Module):
             # save DataFrame
             self.alphas_df.to_csv(self.alphasCsvFileName)
 
+    def logDominantQuantizedOp(self, k, loggerFuncs=[]):
+        if (not loggerFuncs) or (len(loggerFuncs) == 0):
+            return
+
+        rows = [['Layer #', 'Alphas']]
+        alphaCols = ['Index', 'Ratio', 'Value', 'Bitwidth']
+
+        top = self.topOps(k=k)
+        for i, layerTop in enumerate(top):
+            layerRow = [alphaCols]
+            for idx, w, alpha, bitwidth in layerTop:
+                alphaRow = [idx, '{:.5f}'.format(w), '{:.5f}'.format(alpha), bitwidth]
+                # add alpha data row to layer data table
+                layerRow.append(alphaRow)
+            # add layer data table to model table as row
+            rows.append([i, layerRow])
+
+        # apply loggers functions
+        for f in loggerFuncs:
+            f(k, rows)
+
+    def printToFile(self, saveFolder):
+        logger = HtmlLogger(saveFolder, 'model')
+
+        layerIdxKey = 'Layer#'
+        nFiltersKey = 'Filters#'
+        bitwidthsKey = 'Bitwidths'
+        filterArchKey = 'Filter Architecture'
+        alphasKey = 'Alphas distribution'
+
+        logger.createDataTable('Model architecture', [layerIdxKey, nFiltersKey, bitwidthsKey, filterArchKey])
+        for layerIdx, layer in enumerate(self.layersList):
+            bitwidths = layer.getAllBitwidths()
+
+            dataRow = {layerIdxKey: layerIdx, nFiltersKey: layer.nFilters(), bitwidthsKey: bitwidths, filterArchKey: layer.getOps()[0]}
+            logger.addDataRow(dataRow)
+
+        # log layers alphas distribution
+        self.logDominantQuantizedOp(len(bitwidths), loggerFuncs=[lambda k, rows: logger.addInfoTable(alphasKey, rows)])
+
+    def logForwardCounters(self, loggerFuncs):
+        if (not loggerFuncs) or (len(loggerFuncs) == 0):
+            self.resetForwardCounters()
+            return
+
+        rows = [['Layer #', 'Counters']]
+        counterCols = ['Prev idx', 'bitwidth', 'Counter']
+
+        for layerIdx, layer in enumerate(self.layersList):
+            filter = layer.filters[0]
+            # sum counters of all filters by indices
+            countersByIndices = [[0] * len(filter.opsForwardCounters[0]) for _ in range(len(filter.opsForwardCounters))]
+            for filter in layer.filters:
+                for i, counterList in enumerate(filter.opsForwardCounters):
+                    for j, counter in enumerate(counterList):
+                        countersByIndices[i][j] += counter
+                # reset filter counters
+                filter.resetOpsForwardCounters()
+
+            # collect layer counters to 2 arrays:
+            # counters holds the counters values
+            # indices holds the corresponding counter value indices
+            counters, indices = [], []
+            for i in range(len(countersByIndices)):
+                for j in range(len(countersByIndices[0])):
+                    counters.append(countersByIndices[i][j])
+                    indices.append((i, j))
+
+            # get layer bitwidths
+            bitwidths = layer.getAllBitwidths()
+            # for each layer, sort counters in descending order
+            layerRows = [counterCols]
+            countersTotal = 0
+            while len(counters) > 0:
+                # find max counter and print it
+                maxIdx = argmax(counters)
+                i, j = indices[maxIdx]
+
+                # add counter as new row
+                layerRows.append([i, bitwidths[j], counters[maxIdx]])
+
+                # update countersTotal
+                countersTotal += counters[maxIdx]
+                # remove max counter from lists
+                del counters[maxIdx]
+                del indices[maxIdx]
+
+            # add counters total row
+            layerRows.append(['Total', '', countersTotal])
+            # add layer row to model table
+            rows.append([layerIdx, layerRows])
+
+        # apply loggers functions
+        for f in loggerFuncs:
+            f(rows)
+
 # def __loadStatistics(self, filename):
 #     if exists(filename):
 #         # stats is a list of dicts per layer
@@ -709,7 +808,6 @@ class BaseNet(Module):
 #             # # set pre & post quantization hooks, from now on we want to quantize these ops
 #             # op.register_forward_pre_hook(save_quant_state)
 #             # op.register_forward_hook(restore_quant_state)
-
 
 # # convert current model to discrete, i.e. keep nOpsPerLayer optimal operations per layer
 # def toDiscrete(self, nOpsPerLayer=1):
