@@ -166,7 +166,7 @@ class TrainRegime:
 
         alphaLogger = HtmlLogger(folderPath, trainLoggerName)
         # calc baselines losses
-        baselinesLoss = model.applyOnBaseline(lambda: self.inferAlphas(dict(train=alphaLogger), applyOnAlphasDistribution=True))
+        baselinesLoss = model.applyOnBaseline(lambda: self.inferAlphas(dict(train=alphaLogger)), applyOnAlphasDistribution=True)
         # log baseline losses
         for bitwidth, (loss, crossEntropyLoss, bopsLoss, bopsRatio) in baselinesLoss.items():
             dataRow = {self.epochNumKey: bitwidth, self.archLossKey: loss, self.crossEntropyKey: crossEntropyLoss, self.bopsLossKey: bopsLoss,
