@@ -1,6 +1,5 @@
 import os
 import numpy as np
-from numpy import argmax
 import torch
 from shutil import copyfile
 import logging
@@ -24,9 +23,9 @@ from torch.utils.data.sampler import SubsetRandomSampler
 from UNIQ.preprocess import get_transform
 from UNIQ.data import get_dataset
 
-import cnn.models as models
 from cnn.HtmlLogger import HtmlLogger
 import cnn.gradEstimators as gradEstimators
+import cnn.models as models
 
 
 def loadCheckpoint(dataset, model, bitwidth, filename='model_opt.pth.tar'):
@@ -171,8 +170,6 @@ def logParameters(logger, args, model):
     logger.addInfoTable('args', HtmlLogger.dictToRows(vars(args), nElementPerRow=3))
     # print args
     print(args)
-    # log model architecture to file
-    printModelToFile(model, args.save)
 
 
 def zipFolder(p, zipf):
@@ -367,117 +364,6 @@ def initTrainLogger(logger_file_name, folder_path, propagate=False):
     return logger
 
 
-def logForwardCounters(model, loggerFuncs):
-    if (not loggerFuncs) or (len(loggerFuncs) == 0):
-        model.resetForwardCounters()
-        return
-
-    rows = [['Layer #', 'Counters']]
-    counterCols = ['Prev idx', 'bitwidth', 'Counter']
-
-    for layerIdx, layer in enumerate(model.layersList):
-        filter = layer.filters[0]
-        # sum counters of all filters by indices
-        countersByIndices = [[0] * len(filter.opsForwardCounters[0]) for _ in range(len(filter.opsForwardCounters))]
-        for filter in layer.filters:
-            for i, counterList in enumerate(filter.opsForwardCounters):
-                for j, counter in enumerate(counterList):
-                    countersByIndices[i][j] += counter
-            # reset filter counters
-            filter.resetOpsForwardCounters()
-
-        # collect layer counters to 2 arrays:
-        # counters holds the counters values
-        # indices holds the corresponding counter value indices
-        counters, indices = [], []
-        for i in range(len(countersByIndices)):
-            for j in range(len(countersByIndices[0])):
-                counters.append(countersByIndices[i][j])
-                indices.append((i, j))
-
-        # get layer bitwidths
-        bitwidths = layer.getAllBitwidths()
-        # for each layer, sort counters in descending order
-        layerRows = [counterCols]
-        countersTotal = 0
-        while len(counters) > 0:
-            # find max counter and print it
-            maxIdx = argmax(counters)
-            i, j = indices[maxIdx]
-
-            # add counter as new row
-            layerRows.append([i, bitwidths[j], counters[maxIdx]])
-
-            # update countersTotal
-            countersTotal += counters[maxIdx]
-            # remove max counter from lists
-            del counters[maxIdx]
-            del indices[maxIdx]
-
-        # add counters total row
-        layerRows.append(['Total', '', countersTotal])
-        # add layer row to model table
-        rows.append([layerIdx, layerRows])
-
-    # apply loggers functions
-    for f in loggerFuncs:
-        f(rows)
-
-
-def logDominantQuantizedOp(model, k, loggerFuncs):
-    if (not loggerFuncs) or (len(loggerFuncs) == 0):
-        return
-
-    rows = [['Layer #', 'Alphas']]
-    alphaCols = ['Index', 'Ratio', 'Value', 'Bitwidth']
-
-    top = model.topOps(k=k)
-    for i, layerTop in enumerate(top):
-        layerRow = [alphaCols]
-        for idx, w, alpha, bitwidth in layerTop:
-            alphaRow = [idx, '{:.5f}'.format(w), '{:.5f}'.format(alpha), bitwidth]
-            # add alpha data row to layer data table
-            layerRow.append(alphaRow)
-        # add layer data table to model table as row
-        rows.append([i, layerRow])
-
-    # apply loggers functions
-    for f in loggerFuncs:
-        f(k, rows)
-
-
-def logDominantQuantizedOpOLD(model, k, logger):
-    if not logger:
-        return
-
-    top = model.topOps(k=k)
-    logger.info('=============================================')
-    logger.info('Top [{}] quantizations per layer:'.format(k))
-    logger.info('=============================================')
-    attributes = ['bitwidth', 'act_bitwidth']
-    for i, layerTop in enumerate(top):
-        message = 'Layer:[{}]  '.format(i)
-        for idx, w, alpha, layer in layerTop:
-            message += 'Idx:[{}]  w:[{:.5f}]  alpha:[{:.5f}]  '.format(idx, w, alpha)
-            for attr in attributes:
-                v = getattr(layer, attr, None)
-                if v:
-                    message += '{}:{}  '.format(attr, v)
-
-            message += '||  '
-
-        logger.info(message)
-
-    logger.info('=============================================')
-
-
-def printModelToFile(model, save_path, fname='model'):
-    filePath = '{}/{}.txt'.format(save_path, fname)
-    logger = setup_logging(filePath, 'modelLogger')
-    logger.info('{}'.format(model))
-    logDominantQuantizedOpOLD(model, k=2, logger=logger)
-
-
 def loadDatasets():
     return dict(cifar10=10, cifar100=100, imagenet=1000)
 
@@ -526,6 +412,36 @@ def load_data(args):
     search_queue.append(dl)
 
     return train_queue, search_queue, valid_queue, statistics_queue
+
+# def logDominantQuantizedOpOLD(model, k, logger):
+#     if not logger:
+#         return
+#
+#     top = model.topOps(k=k)
+#     logger.info('=============================================')
+#     logger.info('Top [{}] quantizations per layer:'.format(k))
+#     logger.info('=============================================')
+#     attributes = ['bitwidth', 'act_bitwidth']
+#     for i, layerTop in enumerate(top):
+#         message = 'Layer:[{}]  '.format(i)
+#         for idx, w, alpha, layer in layerTop:
+#             message += 'Idx:[{}]  w:[{:.5f}]  alpha:[{:.5f}]  '.format(idx, w, alpha)
+#             for attr in attributes:
+#                 v = getattr(layer, attr, None)
+#                 if v:
+#                     message += '{}:{}  '.format(attr, v)
+#
+#             message += '||  '
+#
+#         logger.info(message)
+#
+#     logger.info('=============================================')
+
+# def printModelToFile(model, save_path, fname='model'):
+#     filePath = '{}/{}.txt'.format(save_path, fname)
+#     logger = setup_logging(filePath, 'modelLogger')
+#     logger.info('{}'.format(model))
+#     logDominantQuantizedOpOLD(model, k=2, logger=logger)
 
 # # references to UNIQ baseline models
 # modelsRefsUNIQ = {
