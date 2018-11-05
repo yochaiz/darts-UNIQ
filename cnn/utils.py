@@ -32,7 +32,7 @@ def loadCheckpoint(dataset, model, bitwidth, filename='model_opt.pth.tar'):
     # init project base folder
     baseFolder = path.dirname(path.abspath(getfile(currentframe())))  # script directory
     # init checkpoint key
-    checkpointKey = '{}_{}'.format(model, bitwidth)
+    checkpointKey = '[{}]_[{}]'.format(bitwidth, model)
     # init checkpoint path
     checkpointPath = '{}/../pre_trained/{}/train_portion_1.0/{}/train/{}'.format(baseFolder, dataset, checkpointKey, filename)
     # load checkpoint
