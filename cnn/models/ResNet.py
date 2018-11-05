@@ -161,6 +161,10 @@ class ResNet(BaseNet):
         # self.fc = MixedLinear(bitwidths, 64, 10)
         self.fc = Linear(64, nClasses).cuda()
 
+        # # turn off gradients in Linear layer
+        # for p in self.fc.parameters():
+        #     p.requires_grad = False
+
         return layers
 
     def forward(self, x):
