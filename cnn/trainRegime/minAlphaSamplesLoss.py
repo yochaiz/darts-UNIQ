@@ -5,7 +5,7 @@ from torch.autograd.variable import Variable
 from torch.nn import functional as F
 
 from .regime import TrainRegime
-from cnn.utils import AvgrageMeter, logDominantQuantizedOp, save_checkpoint, initTrainLogger
+from cnn.utils import AvgrageMeter, save_checkpoint, initTrainLogger
 from cnn.model_replicator import ModelReplicator
 
 
@@ -163,7 +163,7 @@ class MinimalAlphaSamplesLoss(TrainRegime):
             logger.info(message)
 
         # log dominant QuantizedOp in each layer
-        logDominantQuantizedOp(model, k=2, loggerFuncs=trainLogger)
+        model.logDominantQuantizedOp(k=2, loggerFuncs=trainLogger)
 
     # calc average samples loss for each alpha on given batch
     def calcBatchAlphaAvgLoss(self, input, target):
