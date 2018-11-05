@@ -482,7 +482,6 @@ class BaseNet(Module):
     # we keep ActQaunt.qunatize_during_training == True
     def removeQuantizationFromStagedLayers(self):
         for layerIdx in range(self.nLayersQuantCompleted):
-            print('removed quantization in layer [{}]'.format(layerIdx))
             layer = self.layersList[layerIdx]
             assert (layer.quantized is True)
             # quantize layer ops
@@ -494,7 +493,6 @@ class BaseNet(Module):
     # we keep ActQaunt.qunatize_during_training == True
     def restoreQuantizationForStagedLayers(self):
         for layerIdx in range(self.nLayersQuantCompleted):
-            print('quantized layer [{}]'.format(layerIdx))
             layer = self.layersList[layerIdx]
             assert (layer.quantized is True)
             # quantize layer ops
