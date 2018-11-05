@@ -10,8 +10,8 @@ from torch.optim import SGD
 from torch.optim.lr_scheduler import CosineAnnealingLR
 
 from cnn.HtmlLogger import HtmlLogger
-from cnn.utils import accuracy, AvgrageMeter, load_data, logDominantQuantizedOp, save_checkpoint
-from cnn.utils import sendDataEmail, logForwardCounters, models, logParameters
+from cnn.utils import accuracy, AvgrageMeter, load_data, save_checkpoint
+from cnn.utils import sendDataEmail, models, logParameters
 
 
 class TrainRegime:
@@ -73,7 +73,8 @@ class TrainRegime:
             # set filters by partition
             model.setFiltersByPartition(args.partition, loggerFuncs=[lambda msg: logger.addInfoTable('Partition', [[msg]])])
 
-        # # ========================== DEBUG ============================        self.model = model
+        # # ========================== DEBUG ============================
+        # self.model = model
         # self.args = args
         # self.logger = logger
         # return
@@ -82,6 +83,7 @@ class TrainRegime:
         self.train_queue, self.search_queue, self.valid_queue, self.statistics_queue = load_data(args)
         # load pre-trained full-precision model
         args.loadedOpsWithDiffWeights = model.loadPreTrained(args.pre_trained, logger, args.gpu[0])
+        # args.loadedOpsWithDiffWeights = model.loadUniformPreTrained(args, logger)
 
         # log parameters
         logParameters(logger, args, model)
@@ -376,10 +378,10 @@ class TrainRegime:
             func = []
             if trainLogger:
                 # log dominant QuantizedOp in each layer
-                logDominantQuantizedOp(model, k=self.k, loggerFuncs=[alphasFunc])
+                model.logDominantQuantizedOp(k=self.k, loggerFuncs=[alphasFunc])
                 func = [forwardCountersFunc]
             # log forward counters. if loggerFuncs==[] then it is just resets counters
-            logForwardCounters(model, loggerFuncs=func)
+            model.logForwardCounters(loggerFuncs=func)
             # save alphas to csv
             model.save_alphas_to_csv(data=[nEpoch, step])
             # # log allocations
@@ -514,12 +516,12 @@ class TrainRegime:
 
         # log dominant QuantizedOp in each layer
         if trainLogger:
-            logDominantQuantizedOp(model, k=self.k,
-                                   loggerFuncs=[lambda k, rows: trainLogger.addInfoTable(title=self.alphasTableTitle.format(k), rows=rows)])
+            model.logDominantQuantizedOp(k=self.k,
+                                         loggerFuncs=[lambda k, rows: trainLogger.addInfoTable(title=self.alphasTableTitle.format(k), rows=rows)])
 
         # log forward counters. if loggerFuncs==[] then it is just resets counters
         func = [lambda rows: trainLogger.addInfoTable(title=self.forwardCountersKey, rows=rows)] if trainLogger else []
-        logForwardCounters(model, loggerFuncs=func)
+        model.logForwardCounters(loggerFuncs=func)
 
         return summaryData
 
@@ -604,7 +606,7 @@ class TrainRegime:
         if trainLogger:
             func = [lambda rows: forwardCountersData.append(trainLogger.createInfoTable('Show', rows))]
 
-        logForwardCounters(model, loggerFuncs=func)
+        model.logForwardCounters(loggerFuncs=func)
 
         if trainLogger:
             # create new data table for validation statistics
@@ -696,7 +698,7 @@ class TrainRegime:
         if trainLogger:
             func = [lambda rows: forwardCountersData.append(trainLogger.createInfoTable('Show', rows))]
 
-        logForwardCounters(model, loggerFuncs=func)
+        model.logForwardCounters(loggerFuncs=func)
 
         if trainLogger:
             # create new data table for validation statistics
