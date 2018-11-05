@@ -402,22 +402,22 @@ class quantize(object):
                         elif (p == 'bias' and self.bias_quantization):
                             m._parameters[p].data = self.quant_bias_wrpn_improved(m._parameters[p].data, weight_step)
 
-            elif isinstance(m, torch.nn.BatchNorm2d):
-                for p in m._parameters:
-                    if m._parameters[p] is not None:
-                        max_param = m._parameters[p].max()
-                        min_param = m._parameters[p].min()
-
-                        param_scale = (2 ** self.bn_bitwidth - 1) / (max_param - min_param)
-                        m._parameters[p].data = torch.round(m._parameters[p] * param_scale) * 1 / param_scale
-
-                for b in m._buffers:
-                    if ('running_mean' in b or 'running_var' in b) and m._buffers[b] is not None:
-                        max_param = m._buffers[b].max()
-                        min_param = m._buffers[b].min()
-
-                        buffer_scale = (2 ** self.bn_bitwidth - 1) / (max_param - min_param)
-                        m._buffers[b].data = torch.round(m._buffers[b] * buffer_scale) * 1 / buffer_scale
+            # elif isinstance(m, torch.nn.BatchNorm2d):
+            #     for p in m._parameters:
+            #         if m._parameters[p] is not None:
+            #             max_param = m._parameters[p].max()
+            #             min_param = m._parameters[p].min()
+            #
+            #             param_scale = (2 ** self.bn_bitwidth - 1) / (max_param - min_param)
+            #             m._parameters[p].data = torch.round(m._parameters[p] * param_scale) * 1 / param_scale
+            #
+            #     for b in m._buffers:
+            #         if ('running_mean' in b or 'running_var' in b) and m._buffers[b] is not None:
+            #             max_param = m._buffers[b].max()
+            #             min_param = m._buffers[b].min()
+            #
+            #             buffer_scale = (2 ** self.bn_bitwidth - 1) / (max_param - min_param)
+            #             m._buffers[b].data = torch.round(m._buffers[b] * buffer_scale) * 1 / buffer_scale
 
     ###WRPN#################### use to compare deep isp
     def wrpn_weight_scale(self):
@@ -437,8 +437,8 @@ class quantize(object):
 
 def backup_weights(modules, bk):
     for m in modules:
-        if isinstance(m, torch.nn.Conv2d) or isinstance(m, torch.nn.Linear) or isinstance(m, torch.nn.LSTM) or \
-                isinstance(m, ActQuant) or isinstance(m, torch.nn.BatchNorm2d):
+        if isinstance(m, torch.nn.Conv2d) or isinstance(m, torch.nn.Linear) or isinstance(m, torch.nn.LSTM) or isinstance(m, ActQuant):
+            # or isinstance(m, torch.nn.BatchNorm2d):
             for p in m._parameters:
                 if m._parameters[p] is not None:
                     d = str(m._parameters[p].data.device)
@@ -450,8 +450,8 @@ def backup_weights(modules, bk):
 
 def restore_weights(modules, bk):
     for m in modules:
-        if isinstance(m, torch.nn.Conv2d) or isinstance(m, torch.nn.Linear) or isinstance(m, torch.nn.LSTM) or \
-                isinstance(m, ActQuant) or isinstance(m, torch.nn.BatchNorm2d):
+        if isinstance(m, torch.nn.Conv2d) or isinstance(m, torch.nn.Linear) or isinstance(m, torch.nn.LSTM) or isinstance(m, ActQuant):
+            # or isinstance(m, torch.nn.BatchNorm2d):
             for p in m._parameters:
                 if m._parameters[p] is not None:
                     m._parameters[p].data = bk[str(m._parameters[p].data.device)][(m, p)].clone()
