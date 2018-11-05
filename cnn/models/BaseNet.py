@@ -533,7 +533,7 @@ class BaseNet(Module):
     # apply some function on baseline models
     # baseline models are per each filter bitwidth
     # this function create a map from baseline bitwidth to func() result on baseline model
-    def applyOnBaseline(self, func):
+    def applyOnBaseline(self, func, applyOnAlphasDistribution=False):
         baselineBops = {}
         # save current model filters curr_alpha_idx
         modelFiltersIdx = [[filter.curr_alpha_idx for filter in layer.filters] for layer in self.layersList]
@@ -563,6 +563,12 @@ class BaseNet(Module):
                                 filter.curr_alpha_idx = idx
                         # update bops value in dictionary
                         baselineBops[bitwidth] = func()
+
+        # apply on current alphas distribution
+        if applyOnAlphasDistribution:
+            self.setFiltersByAlphas()
+            # &#945; is greek alpha symbol in HTML
+            baselineBops['&#945;'] = func()
 
         # restore filters curr_alpha_idx
         for layer, layerFiltersIdx in zip(self.layersList, modelFiltersIdx):

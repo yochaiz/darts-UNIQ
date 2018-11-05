@@ -165,7 +165,8 @@ class TrainRegime:
         model = self.model
 
         alphaLogger = HtmlLogger(folderPath, trainLoggerName)
-        baselinesLoss = model.applyOnBaseline(lambda: self.inferAlphas(dict(train=alphaLogger)))
+        # calc baselines losses
+        baselinesLoss = model.applyOnBaseline(lambda: self.inferAlphas(dict(train=alphaLogger), applyOnAlphasDistribution=True))
         # log baseline losses
         for bitwidth, (loss, crossEntropyLoss, bopsLoss, bopsRatio) in baselinesLoss.items():
             dataRow = {self.epochNumKey: bitwidth, self.archLossKey: loss, self.crossEntropyKey: crossEntropyLoss, self.bopsLossKey: bopsLoss,
@@ -206,13 +207,9 @@ class TrainRegime:
         self.model.train()
 
         for epoch in range(1, nEpochs + 1):
-            # scheduler.step()
-            # lr = scheduler.get_lr()[0]
-
             trainLogger = HtmlLogger(folderPath, str(epoch))
             trainLogger.addInfoTable('Learning rates', [
                 ['optimizer_lr', self.formats[self.lrKey].format(optimizer.param_groups[0]['lr'])]
-                # , ['scheduler_lr', self.formats[self.lrKey].format(lr)]
             ])
 
             # set loggers dictionary
