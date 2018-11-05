@@ -7,7 +7,6 @@ from torch.autograd.variable import Variable
 from torch.nn import CrossEntropyLoss
 from torch.nn.utils.clip_grad import clip_grad_norm_
 from torch.optim import SGD
-from torch.optim.lr_scheduler import CosineAnnealingLR
 
 from cnn.HtmlLogger import HtmlLogger
 from cnn.utils import accuracy, AvgrageMeter, load_data, save_checkpoint
@@ -189,8 +188,6 @@ class TrainRegime:
 
         # init optimizer
         optimizer = SGD(model.parameters(), args.learning_rate, momentum=args.momentum, weight_decay=args.weight_decay)
-        # # init scheduler
-        # scheduler = CosineAnnealingLR(optimizer, float(nEpochs), eta_min=args.learning_rate_min)
 
         # model = self.model.module
         model = self.model
@@ -240,17 +237,6 @@ class TrainRegime:
 
                 # switch stage
                 switchStageFlag = model.switch_stage(loggerFuncs=[lambda msg: trainLogger.addInfoTable(title='Switching stage', rows=[[msg]])])
-                # update optimizer only if we changed model learnable params
-                # if switchStageFlag:
-                #     model = self.model
-                #     # update optimizer & scheduler due to update in learnable params
-                #     optimizer = SGD(model.parameters(), scheduler.get_lr()[0], momentum=args.momentum,
-                #                     weight_decay=args.weight_decay)
-                #     scheduler = CosineAnnealingLR(optimizer, float(nEpochs), eta_min=args.learning_rate_min)
-                #     scheduler.step()
-                #     # model = self.model.module
-                #     model = self.model
-                # else:
                 if switchStageFlag is False:
                     # update best precision only after switching stage is complete
                     is_best = valid_acc > best_prec1
