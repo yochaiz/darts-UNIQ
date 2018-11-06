@@ -6,6 +6,7 @@ from torch import no_grad, tensor, int32
 from torch.autograd.variable import Variable
 from torch.nn import CrossEntropyLoss
 from torch.nn.utils.clip_grad import clip_grad_norm_
+from torch.nn.parallel.data_parallel import DataParallel
 from torch.optim import SGD
 
 from cnn.HtmlLogger import HtmlLogger
@@ -56,8 +57,8 @@ class TrainRegime:
         # init model
         model = modelClass(args)
         model = model.cuda()
-
-
+        # create DataParallel model instance
+        self.modelParallel = DataParallel(model, args.gpu)
 
         # ========= save current partition by alphas to checkpoint ==========
         # model.setFiltersByAlphas()
@@ -147,7 +148,6 @@ class TrainRegime:
             # we loaded ops in the same layer with different weights, therefore we just have to switch_stage
             switchStageFlag = True
             while switchStageFlag:
-                # switchStageFlag = model.module.switch_stage([lambda msg: rows.append([msg])])
                 switchStageFlag = model.switch_stage([lambda msg: rows.append([msg])])
             # create info table
             logger.addInfoTable(self.initWeightsTrainTableTitle, rows)
@@ -161,7 +161,6 @@ class TrainRegime:
 
     # calc alpha trainset loss on baselines
     def calcAlphaTrainsetLossOnBaselines(self, folderPath, trainLoggerName, logger):
-        # model = self.model.module
         model = self.model
 
         alphaLogger = HtmlLogger(folderPath, trainLoggerName)
@@ -178,6 +177,7 @@ class TrainRegime:
 
     def initialWeightsTraining(self, trainFolderName, filename=None):
         model = self.model
+        modelParallel = self.modelParallel
         args = self.args
         nEpochs = self.nEpochs
         logger = self.logger
@@ -188,10 +188,8 @@ class TrainRegime:
             makedirs(folderPath)
 
         # init optimizer
-        optimizer = SGD(model.parameters(), args.learning_rate, momentum=args.momentum, weight_decay=args.weight_decay)
+        optimizer = SGD(modelParallel.parameters(), args.learning_rate, momentum=args.momentum, weight_decay=args.weight_decay)
 
-        # model = self.model.module
-        model = self.model
         # init validation best precision value
         best_prec1 = 0.0
         best_valid_loss = 0.0
@@ -204,13 +202,9 @@ class TrainRegime:
         # calc alpha trainset loss on baselines
         self.calcAlphaTrainsetLossOnBaselines(folderPath, self.archLossKey, logger)
 
-        self.model.train()
-
         for epoch in range(1, nEpochs + 1):
             trainLogger = HtmlLogger(folderPath, str(epoch))
-            trainLogger.addInfoTable('Learning rates', [
-                ['optimizer_lr', self.formats[self.lrKey].format(optimizer.param_groups[0]['lr'])]
-            ])
+            trainLogger.addInfoTable('Learning rates', [['optimizer_lr', self.formats[self.lrKey].format(optimizer.param_groups[0]['lr'])]])
 
             # set loggers dictionary
             loggersDict = dict(train=trainLogger)
@@ -315,7 +309,6 @@ class TrainRegime:
         crossEntropy_container = AvgrageMeter()
         bopsLoss_container = AvgrageMeter()
 
-        # model = self.model.module
         model = self.model
         modelReplicator = architect.modelReplicator
 
@@ -415,8 +408,8 @@ class TrainRegime:
         loss_container = AvgrageMeter()
         top1 = AvgrageMeter()
 
-        # model = self.model.module
         model = self.model
+        modelParallel = self.modelParallel
         crit = self.cross_entropy
         train_queue = self.train_queue
         grad_clip = self.args.grad_clip
@@ -428,9 +421,10 @@ class TrainRegime:
 
         nBatches = len(train_queue)
 
-        model = self.model
-        model.train()
+        modelParallel.train()
+        assert (model.training is True)
 
+        assert (id(model) == id(modelParallel.module))
         # remove quantization from staged layers
         model.removeQuantizationFromStagedLayers()
         # set pre & post forward hooks
@@ -445,16 +439,15 @@ class TrainRegime:
 
             # choose model partition if we haven't set partition to model
             if self.args.partition is None:
-                # model.module.choosePathByAlphas()
                 model.choosePathByAlphas()
             # optimize model weights
             optimizer.zero_grad()
-            logits = model(input)
+            logits = modelParallel(input)
             # calc loss
             loss = crit(logits, target)
             # back propagate
             loss.backward()
-            clip_grad_norm_(model.parameters(), grad_clip)
+            clip_grad_norm_(modelParallel.parameters(), grad_clip)
             # update weights
             optimizer.step()
 
@@ -465,11 +458,8 @@ class TrainRegime:
             endTime = time()
 
             if trainLogger:
-                # model = self.model.module
-                model = self.model
                 dataRow = {
-                    self.batchNumKey: '{}/{}'.format(step, nBatches),
-                    self.pathBopsRatioKey: model.calcBopsRatio(),
+                    self.batchNumKey: '{}/{}'.format(step, nBatches), self.pathBopsRatioKey: model.calcBopsRatio(),
                     # self.bitwidthKey: self.createBitwidthsTable(model, trainLogger, self.bitwidthKey),
                     self.timeKey: (endTime - startTime), self.trainLossKey: loss, self.trainAccKey: prec1
                 }
@@ -479,9 +469,6 @@ class TrainRegime:
                 self._applyFormats(dataRow)
                 # add row to data table
                 trainLogger.addDataRow(dataRow)
-
-        # model = self.model.module
-        model = self.model
 
         # quantize staged layers
         model.restoreQuantizationForStagedLayers()
@@ -512,8 +499,8 @@ class TrainRegime:
         objs = AvgrageMeter()
         top1 = AvgrageMeter()
 
-        # model = self.model.module
         model = self.model
+        modelParallel = self.modelParallel
         valid_queue = self.valid_queue
         crit = self.cross_entropy
 
@@ -534,8 +521,8 @@ class TrainRegime:
         # calculate its bops
         bopsRatio = model.calcBopsRatio()
 
-        model = self.model
-        model.eval()
+        modelParallel.eval()
+        assert (model.training is False)
 
         with no_grad():
             for step, (input, target) in enumerate(valid_queue):
@@ -544,7 +531,7 @@ class TrainRegime:
                 input = Variable(input).cuda()
                 target = Variable(target).cuda(async=True)
 
-                logits = model(input)
+                logits = modelParallel(input)
                 loss = crit(logits, target)
 
                 prec1 = accuracy(logits, target)[0]
@@ -565,9 +552,6 @@ class TrainRegime:
                     self._applyFormats(dataRow)
                     # add row to data table
                     trainLogger.addDataRow(dataRow)
-
-        # model = self.model.module
-        model = self.model
 
         model.unQuantizeUnstagedLayers()
         # log UNIQ status after restoring model state
@@ -621,15 +605,15 @@ class TrainRegime:
         if trainLogger:
             trainLogger.createDataTable('Alphas trainset Validation', self.colsAlphasValidation)
 
-        # model = self.model.module
         model = self.model
+        modelParallel = self.modelParallel
         # quantize unstaged layers
         model.quantizeUnstagedLayers()
         # calculate its bops
         bopsRatio = model.calcBopsRatio()
 
-        model = self.model
-        model.eval()
+        modelParallel.eval()
+        assert (model.training is False)
 
         with no_grad():
             for queue in search_queue:
@@ -640,7 +624,7 @@ class TrainRegime:
                     input = Variable(input).cuda()
                     target = Variable(target).cuda(async=True)
 
-                    logits = model(input)
+                    logits = modelParallel(input)
                     loss, crossEntropyLoss, bopsLoss = model.loss(logits, target)
 
                     n = input.size(0)
@@ -658,13 +642,9 @@ class TrainRegime:
                         # add row to data table
                         trainLogger.addDataRow(dataRow)
 
-        # model = self.model.module
-        model = self.model
         # remove quantization from unstaged layers
         model.unQuantizeUnstagedLayers()
 
-        # model = self.model.module
-        model = self.model
         # create summary row
         summaryRow = {self.batchNumKey: 'Summary', self.archLossKey: lossContainer.avg, self.crossEntropyKey: crossEntropyLossContainer.avg,
                       self.bopsLossKey: bopsLossContainer.avg, self.validBopsRatioKey: bopsRatio}
@@ -697,22 +677,22 @@ class TrainRegime:
 
         return lossContainer.avg, crossEntropyLossContainer.avg, bopsLossContainer.avg, bopsRatio
 
-    def logAllocations(self):
-        logger = HtmlLogger(self.args.save, 'allocations', overwrite=True)
-        allocationKey = 'Allocation'
-        nBatchesKey = 'Number of batches'
-        logger.createDataTable('Allocations', [allocationKey, nBatchesKey])
-
-        for bitwidth, nBatches in self.optModelBitwidthCounter.items():
-            logger.addDataRow({allocationKey: bitwidth, nBatchesKey: nBatches})
-
-            # bitwidthList = bitwidth[1:-1].replace('),', ');')
-            # bitwidthList = bitwidthList.split('; ')
-            # bitwidthStr = ''
-            # for layerIdx, b in enumerate(bitwidthList):
-            #     bitwidthStr += 'Layer [{}]: {}\n'.format(layerIdx, b)
-            #
-            # logger.addDataRow({allocationKey: bitwidthStr, nBatchesKey: nBatches})
+# def logAllocations(self):
+#     logger = HtmlLogger(self.args.save, 'allocations', overwrite=True)
+#     allocationKey = 'Allocation'
+#     nBatchesKey = 'Number of batches'
+#     logger.createDataTable('Allocations', [allocationKey, nBatchesKey])
+#
+#     for bitwidth, nBatches in self.optModelBitwidthCounter.items():
+#         logger.addDataRow({allocationKey: bitwidth, nBatchesKey: nBatches})
+#
+#         # bitwidthList = bitwidth[1:-1].replace('),', ');')
+#         # bitwidthList = bitwidthList.split('; ')
+#         # bitwidthStr = ''
+#         # for layerIdx, b in enumerate(bitwidthList):
+#         #     bitwidthStr += 'Layer [{}]: {}\n'.format(layerIdx, b)
+#         #
+#         # logger.addDataRow({allocationKey: bitwidthStr, nBatchesKey: nBatches})
 
 # @staticmethod
 # def __getBitwidthKey(optModel_bitwidth):
