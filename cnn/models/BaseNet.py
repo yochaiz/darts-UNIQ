@@ -3,7 +3,7 @@ from pandas import DataFrame
 from os.path import exists
 from numpy import argmax
 
-from torch.nn import Module
+from torch.nn import Module, Conv2d
 from torch.nn import functional as F
 from torch import load as loadModel
 
@@ -25,6 +25,7 @@ from UNIQ.quantize import check_quantization
 # when we train weights, we need to quantize staged layers before forward, and remove quantization after forward in order to update by gradient
 # same for noise, we need to add noise before forward, and remove noise after forward, in order to update by gradient
 def preForward(self, input):
+    print('BaseNet preForward')
     deviceID = input[0].device.index
     assert (deviceID not in self.hookDevices)
     self.hookDevices.append(deviceID)
@@ -45,6 +46,7 @@ def preForward(self, input):
 
 
 def postForward(self, input, __):
+    print('BaseNet postForward')
     deviceID = input[0].device.index
     assert (deviceID in self.hookDevices)
     self.hookDevices.remove(deviceID)
@@ -268,7 +270,7 @@ class BaseNet(Module):
     def __updateStatistics(self, loggerFuncs=[]):
         for layer in self.layersList:
             for op in layer.opsList():
-                conv = op.getConv()
+                conv = op.getModule(Conv2d)
                 # update layer_basis value based on weights bitwidth
                 conv.layer_basis = conv.initial_clamp_value / op.quantize.weight_max_int
 
@@ -474,7 +476,7 @@ class BaseNet(Module):
             assert (layer.quantized is True)
             assert (layer.added_noise is False)
             for opIdx, op in enumerate(layer.opsList()):
-                assert (check_quantization(op.getConv().weight) <= (2 ** op.bitwidth[0]))
+                assert (check_quantization(op.getModule(Conv2d).weight) <= (2 ** op.bitwidth[0]))
 
         return True
 
@@ -511,7 +513,7 @@ class BaseNet(Module):
             # quantize layer ops
             for op in layer.opsList():
                 op.quantizeFunc()
-                assert (check_quantization(op.getConv().weight) <= (2 ** op.bitwidth[0]))
+                assert (check_quantization(op.getModule(Conv2d).weight) <= (2 ** op.bitwidth[0]))
 
     def quantizeUnstagedLayers(self):
         # quantize model layers that haven't switched stage yet
