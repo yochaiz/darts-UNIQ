@@ -56,7 +56,7 @@ def G(scriptArgs):
         # init project base folder
         baseFolder = path.dirname(path.abspath(getfile(currentframe())))  # script directory
         # set pre-trained path
-        preTrainedKey = '{}_(32, 32)'.format(args.model)
+        preTrainedKey = '[(32, 32)],[{}]'.format(args.model)
         preTrainedFileName = 'model.updated_stats.pth.tar'
         args.pre_trained = '{}/../pre_trained/{}/train_portion_1.0/{}/train/{}'.format(baseFolder, args.dataset, preTrainedKey, preTrainedFileName)
         # check path exists
