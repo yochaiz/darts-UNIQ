@@ -2,7 +2,7 @@ from itertools import groupby
 from abc import abstractmethod
 
 from torch import cat, chunk, tensor, zeros, int32
-from torch.nn import ModuleList, BatchNorm2d
+from torch.nn import ModuleList, BatchNorm2d, Conv2d
 from torch.distributions.multinomial import Multinomial
 from torch.nn import functional as F
 
@@ -44,6 +44,25 @@ def postForward(self, _, output):
         self.forwardStats = None
 
 
+# standard forward
+def standardForward(self, x):
+    out = self.preResidualForward(x)
+    out = self.postResidualForward(out)
+
+    return out
+
+
+# forward with residual
+def residualForward(self, input):
+    x, residual = input
+    out = self.preResidualForward(x)
+    # add residual
+    out += residual
+    out = self.postResidualForward(out)
+
+    return out
+
+
 class MixedLayer(Block):
     def __init__(self, nFilters, createMixedFilterFunc, useResidual=False):
         super(MixedLayer, self).__init__()
@@ -78,8 +97,7 @@ class MixedLayer(Block):
         #     self.setFiltersPartition()
 
         # set forward function
-        if useResidual:
-            self.forward = self.residualForward
+        self.forwardFunc = residualForward if useResidual else standardForward
 
         # # register post forward hook
         # self.register_forward_hook(postForward)
@@ -103,7 +121,7 @@ class MixedLayer(Block):
             op.quant = True
 
             op.quantizeFunc()
-            assert (check_quantization(op.getConv().weight) <= (2 ** op.bitwidth[0]))
+            assert (check_quantization(op.getModule(Conv2d).weight) <= (2 ** op.bitwidth[0]))
             # quantize activations during training
             for m in op.modules():
                 if isinstance(m, ActQuant):
@@ -259,21 +277,8 @@ class MixedLayer(Block):
 
         return out
 
-    # standard forward
     def forward(self, x):
-        out = self.preResidualForward(x)
-        out = self.postResidualForward(out)
-
-        return out
-
-    # forward with residual
-    def residualForward(self, x, residual):
-        out = self.preResidualForward(x)
-        # add residual
-        out += residual
-        out = self.postResidualForward(out)
-
-        return out
+        return self.forwardFunc(self, x)
 
 
 class MixedLayerNoBN(MixedLayer):
