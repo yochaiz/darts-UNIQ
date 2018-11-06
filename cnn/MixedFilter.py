@@ -12,20 +12,13 @@ from abc import abstractmethod
 
 
 class QuantizedOp(UNIQNet):
-    def __init__(self, op, bitwidth=[], act_bitwidth=[]):
+    def __init__(self, op, bitwidth, act_bitwidth, modulesIdxDict):
         super(QuantizedOp, self).__init__(bitwidth=bitwidth, act_bitwidth=act_bitwidth, params=op)
+
+        self.modulesIdxDict = modulesIdxDict
 
     def derivedClassSpecific(self, op):
         self.op = op.cuda()
-
-        self._conv = [m for m in self.op.modules() if isinstance(m, Conv2d)]
-        assert (len(self._conv) == 1)
-        bn = [m for m in self.op.modules() if isinstance(m, BatchNorm2d)]
-        self._bn = bn if len(bn) > 0 else [None]
-        assert (len(self._bn) == 1)
-        relu = [m for m in self.op.modules() if isinstance(m, ActQuantBuffers)]
-        self._relu = relu if len(relu) > 0 else [None]
-        assert (len(self._relu) == 1)
 
         # self.useResidual = useResidual
         # self.forward = self.residualForward if useResidual else self.standardForward
@@ -36,14 +29,15 @@ class QuantizedOp(UNIQNet):
         act_bitwidth = self.act_bitwidth[0] if len(self.act_bitwidth) > 0 else None
         return bitwidth, act_bitwidth
 
-    def getConv(self):
-        return self._conv[0]
+    # get module by type inside filter, else return None
+    # modulesIdxDict is a dictionary, where the key is the module type, like Conv2d, ActQuant
+    def getModule(self, moduleType):
+        module = None
+        idx = self.modulesIdxDict.get(moduleType, None)
+        if idx is not None:
+            module = self.op[idx]
 
-    def getBN(self):
-        return self._bn[0]
-
-    def getReLU(self):
-        return self._relu[0]
+        return module
 
     def __getDeviceName(self):
         return str(self.op[0].weight.device)
@@ -122,6 +116,7 @@ class QuantizedOp(UNIQNet):
 #         return grads_x, grads_alpha
 
 def preForward(self, input):
+    print('MixedFilter preForward')
     deviceID = input[0].device.index
     assert (deviceID not in self.hookDevices)
     self.hookDevices.append(deviceID)
@@ -139,6 +134,7 @@ def preForward(self, input):
 
 
 def postForward(self, input, __):
+    print('MixedFilter postForward')
     deviceID = input[0].device.index
     assert (deviceID in self.hookDevices)
     self.hookDevices.remove(deviceID)
@@ -367,14 +363,14 @@ class MixedConv(MixedFilter):
                 conv.register_buffer('layer_basis', ones(1))  # Attempt to enable multi-GPU
 
                 op = Sequential(conv)
-                op = QuantizedOp(op, bitwidth=[bitwidth], act_bitwidth=[] if act_bitwidth is None else [act_bitwidth])
+                op = QuantizedOp(op, bitwidth=[bitwidth], act_bitwidth=[] if act_bitwidth is None else [act_bitwidth], modulesIdxDict={Conv2d: 0})
                 ops.append(op)
 
         return ops
 
     def preResidualForward(self, x):
-        assert (self.hookFlag is True)
-        op = self.ops[self.prev_alpha_idx][self.curr_alpha_idx].getConv()
+        assert (x.device.index in self.hookDevices)
+        op = self.ops[self.prev_alpha_idx][self.curr_alpha_idx].getModule(Conv2d)
         return op(x)
 
 
@@ -405,13 +401,14 @@ class MixedConvBN(MixedFilter):
                 conv.register_buffer('layer_basis', ones(1))  # Attempt to enable multi-GPU
 
                 op = Sequential(conv, BatchNorm2d(out_planes))
-                op = QuantizedOp(op, bitwidth=[bitwidth], act_bitwidth=[] if act_bitwidth is None else [act_bitwidth])
+                op = QuantizedOp(op, bitwidth=[bitwidth], act_bitwidth=[] if act_bitwidth is None else [act_bitwidth],
+                                 modulesIdxDict={Conv2d: 0, BatchNorm2d: 1})
                 ops.append(op)
 
         return ops
 
     def forward(self, x):
-        assert (self.hookFlag is True)
+        assert (x.device.index in self.hookDevices)
         op = self.ops[self.prev_alpha_idx][self.curr_alpha_idx]
         return op(x)
 
@@ -442,7 +439,8 @@ class MixedConvBNWithReLU(MixedFilter):
         for bitwidth, act_bitwidth in bitwidths:
             for ker_sz in kernel_size:
                 op = buildOpFunc(bitwidth, act_bitwidth, (in_planes, out_planes, ker_sz, stride))
-                op = QuantizedOp(op, bitwidth=[bitwidth], act_bitwidth=[act_bitwidth])
+                op = QuantizedOp(op, bitwidth=[bitwidth], act_bitwidth=[act_bitwidth],
+                                 modulesIdxDict={Conv2d: 0, BatchNorm2d: 1, ActQuantBuffers: 2})
                 ops.append(op)
 
         return ops
@@ -465,17 +463,17 @@ class MixedConvBNWithReLU(MixedFilter):
         return self.__initOps(bitwidths, params, buildOpFunc)
 
     def preResidualForward(self, x):
-        assert (self.hookFlag is True)
+        assert (x.device.index in self.hookDevices)
         op = self.ops[self.prev_alpha_idx][self.curr_alpha_idx]
-        conv = op.getConv()
-        bn = op.getBN()
+        conv = op.getModule(Conv2d)
+        bn = op.getModule(BatchNorm2d)
 
         out = conv(x)
         out = bn(out)
         return out
 
     def postResidualForward(self, x):
-        op = self.ops[self.prev_alpha_idx][self.curr_alpha_idx].getReLU()
+        op = self.ops[self.prev_alpha_idx][self.curr_alpha_idx].getModule(ActQuantBuffers)
         return op(x)
 
     def getCurrentOutputBitwidth(self):
@@ -508,7 +506,7 @@ class MixedConvWithReLU(MixedFilter):
         for bitwidth, act_bitwidth in bitwidths:
             for ker_sz in kernel_size:
                 op = buildOpFunc(bitwidth, act_bitwidth, (in_planes, out_planes, ker_sz, stride))
-                op = QuantizedOp(op, bitwidth=[bitwidth], act_bitwidth=[act_bitwidth])
+                op = QuantizedOp(op, bitwidth=[bitwidth], act_bitwidth=[act_bitwidth], modulesIdxDict={Conv2d: 0, ActQuantBuffers: 1})
                 ops.append(op)
 
         return ops
@@ -530,12 +528,12 @@ class MixedConvWithReLU(MixedFilter):
         return self.__initOps(bitwidths, params, buildOpFunc)
 
     def preResidualForward(self, x):
-        assert (self.hookFlag is True)
-        op = self.ops[self.prev_alpha_idx][self.curr_alpha_idx].getConv()
+        assert (x.device.index in self.hookDevices)
+        op = self.ops[self.prev_alpha_idx][self.curr_alpha_idx].getModule(Conv2d)
         return op(x)
 
     def postResidualForward(self, x):
-        op = self.ops[self.prev_alpha_idx][self.curr_alpha_idx].getReLU()
+        op = self.ops[self.prev_alpha_idx][self.curr_alpha_idx].getModule(ActQuantBuffers)
         return op(x)
 
     def getCurrentOutputBitwidth(self):
