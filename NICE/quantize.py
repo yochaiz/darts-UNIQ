@@ -435,23 +435,24 @@ class quantize(object):
                         m._parameters[p].data = self.quant_weight_wrpn(m._parameters[p].data)
 
 
-def backup_weights(modules, bk):
+def backup_weights(modules, bk, device_name):
     for m in modules:
-        if isinstance(m, torch.nn.Conv2d) or isinstance(m, torch.nn.Linear) or isinstance(m, torch.nn.LSTM) or isinstance(m, ActQuant):
-            # or isinstance(m, torch.nn.BatchNorm2d):
+        if isinstance(m, torch.nn.Conv2d) or isinstance(m, torch.nn.Linear) or isinstance(m, torch.nn.LSTM) or \
+                isinstance(m, ActQuant) or isinstance(m, torch.nn.BatchNorm2d):
             for p in m._parameters:
                 if m._parameters[p] is not None:
-                    d = str(m._parameters[p].data.device)
-                    if d not in bk:
-                        bk[d] = {}
-                    bk[d][(m, p)] = m._parameters[p].data.clone()
+                    param_device = str(m._parameters[p].data.device)
+                    assert (param_device == device_name)
+                    bk[device_name][(m, p)] = m._parameters[p].data.clone()
     return bk
 
 
-def restore_weights(modules, bk):
+def restore_weights(modules, bk, device_name):
     for m in modules:
-        if isinstance(m, torch.nn.Conv2d) or isinstance(m, torch.nn.Linear) or isinstance(m, torch.nn.LSTM) or isinstance(m, ActQuant):
-            # or isinstance(m, torch.nn.BatchNorm2d):
+        if isinstance(m, torch.nn.Conv2d) or isinstance(m, torch.nn.Linear) or isinstance(m, torch.nn.LSTM) or \
+                isinstance(m, ActQuant) or isinstance(m, torch.nn.BatchNorm2d):
             for p in m._parameters:
                 if m._parameters[p] is not None:
-                    m._parameters[p].data = bk[str(m._parameters[p].data.device)][(m, p)].clone()
+                    param_device = str(m._parameters[p].data.device)
+                    assert (param_device == device_name)
+                    m._parameters[p].data = bk[device_name][(m, p)].clone()

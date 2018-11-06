@@ -120,10 +120,7 @@ class ActQuantBuffers(ActQuant):  # This class exist to allow multi-gpu run
         # if we don't want to learn clamp_val then define it as register_buffer
         self.register_buffer('clamp_val', torch.zeros(1))
 
-        # set forward function
-        self.forward = self.standardForward
-
-    def standardForward(self, input):
+    def forward(self, input):
         assert (isinstance(self.bitwidth, int))
         if self.quant and (not self.training or (self.training and self.qunatize_during_training)):
             c_x = self.act_clamp(input, self.clamp_val)
@@ -142,12 +139,12 @@ class ActQuantBuffers(ActQuant):  # This class exist to allow multi-gpu run
         # self.print_clamp()
         return x
 
-    def statisticsForward(self, input):
-        self.running_mean.to(input.device).detach().mul_(self.momentum).add_(input.mean() * (1 - self.momentum))
-        self.running_std.to(input.device).detach().mul_(self.momentum).add_(input.std() * (1 - self.momentum))
-
-        x = F.relu(input)
-        return x
+    # def statisticsForward(self, input):
+    #     self.running_mean.to(input.device).detach().mul_(self.momentum).add_(input.mean() * (1 - self.momentum))
+    #     self.running_std.to(input.device).detach().mul_(self.momentum).add_(input.std() * (1 - self.momentum))
+    #
+    #     x = F.relu(input)
+    #     return x
 
     def print_clamp(self):
         print('Activation layer {}  has clamp value {}'.format(self.layer_num, self.clamp_val.item()))
