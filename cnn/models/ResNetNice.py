@@ -53,7 +53,7 @@ class BasicBlock(Block):
         residual = self.downsample(x) if self.downsample else x
 
         out = self.block1(x)
-        out = self.block2(out, residual)
+        out = self.block2((out, residual))
 
         return out
 
@@ -129,16 +129,16 @@ class ResNet(BaseNet):
 
     # init layers (type, in_planes, out_planes)
     def initLayersPlanes(self):
-        if self.dataset=='imagenet':
+        if self.dataset == 'imagenet':
             return [(self.createMixedLayer, 3, 64, 224),
-                (BasicBlock, 64, 64, [56]), (BasicBlock, 64, 64, [56]), (BasicBlock, 64, 128, [56, 28]),
-                (BasicBlock, 128, 128, [28]), (BasicBlock, 128, 256, [28, 14]), (BasicBlock, 256, 256, [14]),
-                (BasicBlock, 256, 512, [14, 7]), (BasicBlock, 512, 512, [7])]
+                    (BasicBlock, 64, 64, [56]), (BasicBlock, 64, 64, [56]), (BasicBlock, 64, 128, [56, 28]),
+                    (BasicBlock, 128, 128, [28]), (BasicBlock, 128, 256, [28, 14]), (BasicBlock, 256, 256, [14]),
+                    (BasicBlock, 256, 512, [14, 7]), (BasicBlock, 512, 512, [7])]
         else:
             return [(self.createMixedLayer, 3, 64, 32),
-                (BasicBlock, 64, 64, [32]), (BasicBlock, 64, 64, [32]), (BasicBlock, 64, 128, [32, 16]),
-                (BasicBlock, 128, 128, [16]), (BasicBlock, 128, 256, [16, 8]), (BasicBlock, 256, 256, [8]),
-                (BasicBlock, 256, 512, [8, 4]), (BasicBlock, 512, 512, [4])]
+                    (BasicBlock, 64, 64, [32]), (BasicBlock, 64, 64, [32]), (BasicBlock, 64, 128, [32, 16]),
+                    (BasicBlock, 128, 128, [16]), (BasicBlock, 128, 256, [16, 8]), (BasicBlock, 256, 256, [8]),
+                    (BasicBlock, 256, 512, [8, 4]), (BasicBlock, 512, 512, [4])]
 
     def initLayers(self, params):
         bitwidths, kernel_sizes, nClasses = params
@@ -180,12 +180,12 @@ class ResNet(BaseNet):
 
     def forward(self, x):
         out = self.layers[0](x)
-        #print(out.shape)
+        # print(out.shape)
         out = self.maxpool(out)
-        #print(out.shape)
+        # print(out.shape)
         for layer in self.layers[1:]:
             out = layer(out)
-            #print(out.shape)
+            # print(out.shape)
 
         out = self.avgpool(out)
         out = out.view(out.size(0), -1)

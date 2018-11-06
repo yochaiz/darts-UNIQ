@@ -50,7 +50,7 @@ class BasicBlock(Block):
         residual = self.downsample(x) if self.downsample else x
 
         out = self.block1(x)
-        out = self.block2(out, residual)
+        out = self.block2((out, residual))
 
         return out
 
