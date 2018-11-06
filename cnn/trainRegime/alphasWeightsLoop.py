@@ -231,6 +231,7 @@ class AlphasWeightsLoop(TrainRegime):
     def train(self):
         # model = self.model.module
         model = self.model
+        modelParallel = self.modelParallel
         args = self.args
         logger = self.logger
         # init number of epochs
@@ -280,7 +281,7 @@ class AlphasWeightsLoop(TrainRegime):
             # turn on weights gradients
             model.turnOnWeights()
             # init optimizer
-            optimizer = SGD(model.parameters(), args.learning_rate, momentum=args.momentum, weight_decay=args.weight_decay)
+            optimizer = SGD(modelParallel.parameters(), args.learning_rate, momentum=args.momentum, weight_decay=args.weight_decay)
             # train weights with 1 epoch per stage
             wEpoch = 1
             switchStageFlag = True
