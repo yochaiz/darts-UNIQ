@@ -82,7 +82,7 @@ class TinyNet(BaseNet):
 
     def turnOnWeights(self):
         for layer in self.layersList:
-            for op in layer.getOps():
+            for op in layer.opsList():
                 assert (op.noise is False)
                 # turn on operations noise
                 op.noise = True

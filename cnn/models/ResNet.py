@@ -54,6 +54,10 @@ class BasicBlock(Block):
 
         return out
 
+    def getLayers(self):
+        downsample = [] if self.downsample is None else [self.downsample]
+        return [self.block1] + downsample + [self.block2]
+
     def outputLayer(self):
         return self.block2
 
@@ -90,12 +94,12 @@ class BasicBlock(Block):
         self.block1.choosePathByAlphas()
         self.block2.choosePathByAlphas()
 
-    def evalMode(self):
-        if self.downsample:
-            self.downsample.evalMode()
-
-        self.block1.evalMode()
-        self.block2.evalMode()
+    # def evalMode(self):
+    #     if self.downsample:
+    #         self.downsample.evalMode()
+    #
+    #     self.block1.evalMode()
+    #     self.block2.evalMode()
 
     def numOfOps(self):
         return self.block2.numOfOps()

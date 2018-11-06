@@ -45,6 +45,18 @@ class QuantizedOp(UNIQNet):
     def getReLU(self):
         return self._relu[0]
 
+    def __getDeviceName(self):
+        return str(self.op[0].weight.device)
+
+    def quantizeFunc(self):
+        self._quantizeFunc(self.__getDeviceName())
+
+    def add_noise(self):
+        self._add_noise(self.__getDeviceName())
+
+    def restore_state(self):
+        self._restore_state(self.__getDeviceName())
+
     def reset_flops_count(self):
         pass
 
@@ -109,9 +121,11 @@ class QuantizedOp(UNIQNet):
 #         # print('grad x: ', grads_x)
 #         return grads_x, grads_alpha
 
-def preForward(self, _):
-    assert (self.hookFlag is False)
-    self.hookFlag = True
+def preForward(self, input):
+    deviceID = input[0].device.index
+    assert (deviceID not in self.hookDevices)
+    self.hookDevices.append(deviceID)
+
     # update previous layer index
     prevLayer = self.prevLayer[0]
     self.prev_alpha_idx = prevLayer.curr_alpha_idx if prevLayer else 0
@@ -124,9 +138,10 @@ def preForward(self, _):
     #     op.add_noise()
 
 
-def postForward(self, _, __):
-    assert (self.hookFlag is True)
-    self.hookFlag = False
+def postForward(self, input, __):
+    deviceID = input[0].device.index
+    assert (deviceID in self.hookDevices)
+    self.hookDevices.remove(deviceID)
 
 
 #
@@ -161,13 +176,6 @@ class MixedFilter(Block):
             for _ in range(prevLayer.numOfOps() - 1):
                 self.ops.append(self.initOps(bitwidths, params))
 
-        # init list of all operations (including copies) as single long list
-        # for cases we have to modify all ops
-        self.opsList = []
-        for ops in self.ops:
-            for op in ops:
-                self.opsList.append(op)
-
         # init ops forward counters
         self.opsForwardCounters = self.buildOpsForwardCounters()
 
@@ -177,16 +185,20 @@ class MixedFilter(Block):
         self.optLimitCounter = 0
 
         # set forward function in order to assure that hooks will take place
-        self.forward = self.setForwardFunc()
+        self.forwardFunc = self.setForwardFunc()
         # assign pre & post forward hooks
         self.register_forward_pre_hook(preForward)
         self.register_forward_hook(postForward)
-        # # set hook flag, to make sure hook happens
+        # set hook flag, to make sure hook happens
         # turn it on on pre-forward hook, turn it off on post-forward hook
-        self.hookFlag = False
+        self.hookDevices = []
 
         # list of (mults, adds, calc_mac_value, batch_size) per op
         self.bops = self.countOpsBops(countBopsParams)
+
+    def forward(self, input):
+        forwardFunc = self.setForwardFunc()
+        return forwardFunc(input)
 
     @abstractmethod
     def initOps(self, bitwidths, params):
@@ -272,8 +284,10 @@ class MixedFilter(Block):
     def nOpsCopies(self):
         return len(self.ops)
 
-    def getOps(self):
-        return self.opsList
+    def opsList(self):
+        for ops in self.ops:
+            for op in ops:
+                yield op
 
     # # select random alpha
     # def chooseRandomPath(self):

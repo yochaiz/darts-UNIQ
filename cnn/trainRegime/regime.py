@@ -57,6 +57,8 @@ class TrainRegime:
         model = modelClass(args)
         model = model.cuda()
 
+
+
         # ========= save current partition by alphas to checkpoint ==========
         # model.setFiltersByAlphas()
         # args.partition = model.getCurrentFiltersPartition()
@@ -121,7 +123,6 @@ class TrainRegime:
         for e in args.epochs:
             epochsSwitchStage.append(e + epochsSwitchStage[-1])
         # on epochs we learn only Linear layer, infer in every epoch
-        # for _ in range(args.epochs[-1]):
         for _ in range(10):
             epochsSwitchStage.append(epochsSwitchStage[-1] + 1)
 
@@ -158,8 +159,7 @@ class TrainRegime:
     def train(self):
         raise NotImplementedError('subclasses must override train()!')
 
-        # calc alpha trainset loss on baselines
-
+    # calc alpha trainset loss on baselines
     def calcAlphaTrainsetLossOnBaselines(self, folderPath, trainLoggerName, logger):
         # model = self.model.module
         model = self.model
@@ -241,8 +241,7 @@ class TrainRegime:
                         best_prec1 = valid_acc
                         best_valid_loss = valid_loss
                 # save model checkpoint
-                checkpoint, (_, optimalPath) = save_checkpoint(self.trainFolderPath, model, args, epoch, best_prec1,
-                                                               is_best, filename)
+                checkpoint, (_, optimalPath) = save_checkpoint(self.trainFolderPath, model, args, epoch, best_prec1, is_best, filename)
                 if is_best:
                     assert (optimalPath is not None)
                     self.optimalModelCheckpoint = checkpoint, optimalPath
