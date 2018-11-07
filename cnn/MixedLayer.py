@@ -44,25 +44,6 @@ def postForward(self, _, output):
         self.forwardStats = None
 
 
-# standard forward
-def standardForward(self, x):
-    out = self.preResidualForward(x)
-    out = self.postResidualForward(out)
-
-    return out
-
-
-# forward with residual
-def residualForward(self, input):
-    x, residual = input
-    out = self.preResidualForward(x)
-    # add residual
-    out += residual
-    out = self.postResidualForward(out)
-
-    return out
-
-
 class MixedLayer(Block):
     def __init__(self, nFilters, createMixedFilterFunc, useResidual=False):
         super(MixedLayer, self).__init__()
@@ -97,7 +78,7 @@ class MixedLayer(Block):
         #     self.setFiltersPartition()
 
         # set forward function
-        self.forwardFunc = residualForward if useResidual else standardForward
+        self.forwardFunc = self.residualForward if useResidual else self.standardForward
 
         # # register post forward hook
         # self.register_forward_hook(postForward)
@@ -279,6 +260,25 @@ class MixedLayer(Block):
 
     def forward(self, x):
         return self.forwardFunc(self, x)
+
+    # standard forward
+    @staticmethod
+    def standardForward(layer, x):
+        out = layer.preResidualForward(x)
+        out = layer.postResidualForward(out)
+
+        return out
+
+    # forward with residual
+    @staticmethod
+    def residualForward(layer, input):
+        x, residual = input
+        out = layer.preResidualForward(x)
+        # add residual
+        out += residual
+        out = layer.postResidualForward(out)
+
+        return out
 
 
 class MixedLayerNoBN(MixedLayer):
