@@ -58,7 +58,9 @@ class TrainRegime:
         model = modelClass(args)
         model = model.cuda()
         # create DataParallel model instance
-        self.modelParallel = DataParallel(model, args.gpu)
+        self.modelParallel = model
+        # self.modelParallel = DataParallel(model, args.gpu)
+        # assert (id(model) == id(self.modelParallel.module))
 
         # ========= save current partition by alphas to checkpoint ==========
         # model.setFiltersByAlphas()
@@ -424,7 +426,6 @@ class TrainRegime:
         modelParallel.train()
         assert (model.training is True)
 
-        assert (id(model) == id(modelParallel.module))
         # remove quantization from staged layers
         model.removeQuantizationFromStagedLayers()
         # set pre & post forward hooks
