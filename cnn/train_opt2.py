@@ -1,4 +1,5 @@
-from os import path
+from sys import argv
+from os import path, getpid
 from numpy import random
 from inspect import getfile, currentframe
 from argparse import ArgumentParser
@@ -53,6 +54,8 @@ def G(scriptArgs):
         create_exp_dir(args.save)
         # init logger
         logger = HtmlLogger(args.save, 'log')
+        # log command line
+        logger.addInfoTable(title='Command line', rows=[[' '.join(argv)], ['PID:[{}]'.format(getpid())]])
         # init project base folder
         baseFolder = path.dirname(path.abspath(getfile(currentframe())))  # script directory
         # set pre-trained path
