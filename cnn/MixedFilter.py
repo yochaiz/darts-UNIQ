@@ -17,9 +17,8 @@ class QuantizedOp(UNIQNet):
 
         self.modulesIdxDict = modulesIdxDict
 
-    def derivedClassSpecific(self, op):
+    def initModules(self, op):
         self.op = op.cuda()
-
         # self.useResidual = useResidual
         # self.forward = self.residualForward if useResidual else self.standardForward
         # self.hookHandlers = []

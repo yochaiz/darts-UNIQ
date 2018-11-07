@@ -71,7 +71,7 @@ class UNIQNet(Module):
         self.quantize = quantize(bitwidth[0], quantize_act_bitwidth, None, std_act_clamp=std_act_clamp, std_weight_clamp=std_weight_clamp,
                                  noise_mask=self.noise_mask_init)
 
-        self.derivedClassSpecific(params)
+        self.initModules(params)
 
         # set conv bitwidth & act_bitwidth
         convList = [x for x in self.modules() if isinstance(x, Conv2d)]
@@ -94,8 +94,8 @@ class UNIQNet(Module):
 
     # specific code for derived classes
     @abstractmethod
-    def derivedClassSpecific(self, params):
-        raise NotImplementedError('subclasses must override derivedClassSpecific()!')
+    def initModules(self, params):
+        raise NotImplementedError('subclasses must override initModules()!')
 
     # def build_layers_list(self):
     #     modules_list = list(self.modules())
