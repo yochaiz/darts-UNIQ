@@ -116,7 +116,6 @@ class QuantizedOp(UNIQNet):
 #         return grads_x, grads_alpha
 
 def preForward(self, input):
-    print('MixedFilter preForward')
     deviceID = input[0].device.index
     assert (deviceID not in self.hookDevices)
     self.hookDevices.append(deviceID)
@@ -134,7 +133,6 @@ def preForward(self, input):
 
 
 def postForward(self, input, __):
-    print('MixedFilter postForward')
     deviceID = input[0].device.index
     assert (deviceID in self.hookDevices)
     self.hookDevices.remove(deviceID)

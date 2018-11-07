@@ -7,7 +7,6 @@ from torch.nn import Module, Conv2d
 from torch.nn import functional as F
 from torch import load as loadModel
 
-from cnn.MixedLayer import MixedLayerNoBN as MixedLayer
 from cnn.MixedFilter import MixedConvBNWithReLU as MixedConvWithReLU
 from cnn.uniq_loss import UniqLoss
 import cnn.statistics
@@ -25,7 +24,6 @@ from UNIQ.quantize import check_quantization
 # when we train weights, we need to quantize staged layers before forward, and remove quantization after forward in order to update by gradient
 # same for noise, we need to add noise before forward, and remove noise after forward, in order to update by gradient
 def preForward(self, input):
-    print('BaseNet preForward')
     deviceID = input[0].device.index
     assert (deviceID not in self.hookDevices)
     self.hookDevices.append(deviceID)
@@ -46,7 +44,6 @@ def preForward(self, input):
 
 
 def postForward(self, input, __):
-    print('BaseNet postForward')
     deviceID = input[0].device.index
     assert (deviceID in self.hookDevices)
     self.hookDevices.remove(deviceID)
