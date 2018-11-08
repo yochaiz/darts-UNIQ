@@ -62,6 +62,15 @@ class TrainRegime:
         # self.modelParallel = DataParallel(model, args.gpu)
         # assert (id(model) == id(self.modelParallel.module))
 
+        # # ========================== DEBUG ============================
+        # self.model = model
+        # self.args = args
+        # self.logger = logger
+        # # init logger data table
+        # logger.createDataTable('Summary', self.colsMainLogger)
+        # return
+        # ==================================================================
+
         # ========= save current partition by alphas to checkpoint ==========
         # model.setFiltersByAlphas()
         # args.partition = model.getCurrentFiltersPartition()
@@ -77,12 +86,6 @@ class TrainRegime:
             # set filters by partition
             model.setFiltersByPartition(args.partition, loggerFuncs=[lambda msg: logger.addInfoTable('Partition', [[msg]])])
 
-        # # ========================== DEBUG ============================
-        # self.model = model
-        # self.args = args
-        # self.logger = logger
-        # return
-        # ==================================================================
         # load data
         self.train_queue, self.search_queue, self.valid_queue, self.statistics_queue = load_data(args)
         # load pre-trained full-precision model
