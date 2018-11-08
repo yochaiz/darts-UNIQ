@@ -49,7 +49,7 @@ class HtmlLogger:
             self.script = '<script> var coll = document.getElementsByClassName("collapsible"); var i; for (i = 0; i < coll.length; i++) { coll[i].addEventListener("click", function() { this.classList.toggle("active"); var content = this.nextElementSibling; if (content.style.maxHeight){ content.style.maxHeight = null; } else { content.style.maxHeight = content.scrollHeight + "px"; } }); } </script>'
 
         self.end = '</body></html>'
-        self.infoTables = ''
+        self.infoTables = {}
         self.dataTable = ''
         self.dataTableCols = None
         self.nColsDataTable = None
@@ -85,8 +85,12 @@ class HtmlLogger:
             self.maxTableCellLength = length
 
     def __writeToFile(self):
+        # concat info tables to single string
+        infoTablesStr = ''
+        for title, table in self.infoTables.items():
+            infoTablesStr += table
         # init elements write order to file
-        writeOrder = [self.head, self.infoTables, self.dataTable, '</table>', self.script, self.end]
+        writeOrder = [self.head, infoTablesStr, self.dataTable, '</table>', self.script, self.end]
         # write elements
         with open(self.fullPath, 'w') as f:
             for elem in writeOrder:
@@ -137,24 +141,28 @@ class HtmlLogger:
     # rows - array of rows. each row is array of values.
     def addInfoTable(self, title, rows):
         # create new table
-        self.infoTables += self.createInfoTable(title, rows)
+        self.infoTables[title] = self.createInfoTable(title, rows)
         # write to file
         self.__writeToFile()
 
     # add row to existing info table by its title
     def addRowToInfoTableByTitle(self, title, row):
-        valuesToFind = [title, '</table>']
-        idx = 0
-        # walk through the string to the desired position
-        for v in valuesToFind:
-            if idx >= 0:
-                idx = self.infoTables.find(v, idx)
+        if title in self.infoTables:
+            table = self.infoTables[title]
+            valuesToFind = ['</table>']
+            idx = 0
+            # walk through the string to the desired position
+            for v in valuesToFind:
+                if idx >= 0:
+                    idx = table.find(v, idx)
 
-        if idx >= 0:
-            # insert new row in desired position
-            self.infoTables = self.infoTables[:idx] + self.__addRow(row) + self.infoTables[idx:]
-            # write to file
-            self.__writeToFile()
+            if idx >= 0:
+                # insert new row in desired position
+                table = table[:idx] + self.__addRow(row) + table[idx:]
+                # update table in infoTables
+                self.infoTables[title] = table
+                # write to file
+                self.__writeToFile()
 
     @staticmethod
     def __addColumnsRowToTable(cols):
