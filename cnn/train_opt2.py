@@ -1,5 +1,5 @@
 from sys import argv
-from os import path, getpid
+from os import path, getpid, rename
 from numpy import random
 from inspect import getfile, currentframe
 from argparse import ArgumentParser
@@ -22,14 +22,31 @@ if not is_available():
 
 def G(scriptArgs):
     # load args from file
-    args = loadCheckpoint(scriptArgs.data, map_location=lambda storage, loc: storage.cuda())
+    args = loadCheckpoint(scriptArgs.json, map_location=lambda storage, loc: storage.cuda())
 
     # # ========================== DEBUG ===============================
-    # print(args)
-    # setattr(args, 'Validation acc', 33.4)
-    # setattr(args, 'Validation loss', 1.347)
-    # saveCheckpoint(args, scriptArgs.data)
-    # exit(0)
+    # extract args JSON folder path
+    folderName = path.dirname(scriptArgs.json)
+    # results folder is JSON filename
+    jsonFileName = path.basename(scriptArgs.json)
+    # set results folder path
+    args.save = '{}/{}'.format(folderName, jsonFileName[:-5])
+    create_exp_dir(args.save)
+
+    print(args)
+    setattr(args, 'Validation acc', 33.4)
+    setattr(args, 'Validation loss', 1.347)
+
+    saveCheckpoint(args, scriptArgs.json)
+    # move checkpoint to finished jobs folder
+    newDestination = scriptArgs.json
+    if scriptArgs.dstFolder is not None:
+        newDestination = '{}/{}'.format(scriptArgs.dstFolder, jsonFileName)
+        rename(scriptArgs.json, newDestination)
+
+    print(args)
+    print('DDone !')
+    exit(0)
     # # ================================================================
 
     # update cudnn parameters
@@ -43,11 +60,11 @@ def G(scriptArgs):
     args.train_portion = 1.0
     args.batch_size = 250
     args.gpu = scriptArgs.gpu
-    args.data = '../data'
+    args.data = scriptArgs.data
     # extract args JSON folder path
-    folderName = path.dirname(scriptArgs.data)
+    folderName = path.dirname(scriptArgs.json)
     # results folder is JSON filename
-    jsonFileName = path.basename(scriptArgs.data)
+    jsonFileName = path.basename(scriptArgs.json)
     # set results folder path
     args.save = '{}/{}'.format(folderName, jsonFileName[:-5])
     if not path.exists(args.save):
@@ -68,16 +85,24 @@ def G(scriptArgs):
             # train according to chosen regime
             alphasRegime.train()
             # best_prec1, best_valid_loss are now part of args, therefore we have to save args again, the sender will be able to read these values
-            dstFile = scriptArgs.data
-            saveCheckpoint(args, dstFile)
-            logger.addInfoToDataTable('Saved args to [{}]'.format(dstFile))
+            saveCheckpoint(args, scriptArgs.json)
+            # move checkpoint to finished jobs folder
+            newDestination = scriptArgs.json
+            if scriptArgs.dstFolder is not None:
+                newDestination = '{}/{}'.format(scriptArgs.dstFolder, jsonFileName)
+                rename(scriptArgs.json, newDestination)
+
+            print(args)
+            logger.addInfoToDataTable('Saved args to [{}]'.format(newDestination))
             logger.addInfoToDataTable('Done !')
 
 
 # ========================================================================================================================
 
 parser = ArgumentParser()
-parser.add_argument('--data', type=str, required=True, help='JSON file path')
+parser.add_argument('--json', type=str, required=True, help='JSON file path')
+parser.add_argument('--dstFolder', type=str, default=None, help='JSON file destination when training is over')
+parser.add_argument('--data', type=str, default='datasets/', help='datasets folder path')
 parser.add_argument('--gpu', type=str, default='0', help='gpu device id, e.g. 0,1,3')
 
 scriptArgs = parser.parse_args()
