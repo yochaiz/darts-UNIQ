@@ -42,9 +42,9 @@ def parseArgs(lossFuncsLambda):
     parser.add_argument('--report_freq', type=float, default=1, help='report frequency')
     parser.add_argument('--gpu', type=str, default='0', help='gpu device id, e.g. 0,1,3')
     parser.add_argument('--nCopies', type=int, default=1, help='number of model copies per GPU')
-    parser.add_argument('--epochs', type=str, default='5',
-                        help='num of training epochs per layer, as list, e.g. 5,4,3,8,6.'
-                             'If len(epochs)<len(layers) then last value is used for rest of the layers')
+    parser.add_argument('--epochs', type=str, default='5', help='num of training epochs per layer, as list, e.g. 5,4,3,8,6.'
+                                                                'If len(epochs)<len(layers) then last value is used for rest of the layers')
+    parser.add_argument('--infer_epochs', type=int, default=10, help='number of epochs for training & inference after model is quantized')
     parser.add_argument('--workers', type=int, default=1, choices=range(1, 32), help='num of workers')
     parser.add_argument('--save', type=str, default='EXP', help='experiment name')
     parser.add_argument('--seed', type=int, default=2, help='random seed')
