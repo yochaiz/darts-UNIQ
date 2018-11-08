@@ -8,6 +8,7 @@ class OptimalModel(TrainRegime):
         # update arguments relevant to optimal model training
         args.init_weights_train = True
         args.copyBaselineKeys = True
+        args.infer_epochs = 150
 
         super(OptimalModel, self).__init__(args, logger)
 
