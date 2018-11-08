@@ -13,20 +13,6 @@ from cnn.HtmlLogger import HtmlLogger
 import cnn.gradEstimators as gradEstimators
 
 
-class SimpleLogger(HtmlLogger):
-    def __init__(self, save_path, filename, overwrite=False):
-        super(SimpleLogger, self).__init__(save_path, filename, overwrite)
-
-        self.tableColumn = 'Description'
-        self.createDataTable('Activity', [self.tableColumn])
-
-    def addRow(self, values):
-        super(SimpleLogger, self).addDataRow({self.tableColumn: values})
-
-    def addSummaryRow(self, values):
-        super(SimpleLogger, self).addSummaryDataRow({self.tableColumn: values})
-
-
 def escape(txt):
     translation = str.maketrans({'[': '\[', ']': '\]', '(': '\(', ')': '\)', ',': '\,', ' ': '\ '})
     return txt.translate(translation)
@@ -135,11 +121,11 @@ class AlphasWeightsLoop(TrainRegime):
         super(AlphasWeightsLoop, self).__init__(args, logger)
 
         # set number of different partitions we want to draw from alphas multinomial distribution in order to estimate their validation accuracy
-        self.nValidPartitions = 3
+        self.nValidPartitions = 1
         # create dir on remove server
         self.remoteDirPath = '/home/yochaiz/F-BANNAS/cnn/trained_models/{}/{}/{}'.format(args.model, args.dataset, args.folderName)
-        command = 'ssh yochaiz@132.68.39.32 mkdir "{}"'.format(escape(self.remoteDirPath))
-        system(command)
+        # command = 'ssh yochaiz@132.68.39.32 mkdir "{}"'.format(escape(self.remoteDirPath))
+        # system(command)
 
         # create folder for jobs JSONs
         self.jobsPath = '{}/jobs'.format(args.save)
@@ -174,7 +160,7 @@ class AlphasWeightsLoop(TrainRegime):
         _, _, validData = self.infer(setModelPathFunc, epoch, loggersDict)
 
         # update epoch
-        dataRow[self.epochNumKey] = '{}/{}'.format(epoch / nEpochs)
+        dataRow[self.epochNumKey] = '{}/{}'.format(epoch, nEpochs)
         # merge dataRow with validData
         for k, v in validData.items():
             dataRow[k] = v
@@ -214,7 +200,7 @@ class AlphasWeightsLoop(TrainRegime):
 
         # single training on setFiltersByAlphas
         epochJobs.append(self.__createTrainingJob(model.setFiltersByAlphas, epoch, 0))
-        # nValidPartitions trainings on setFiltersByAlphas
+        # nValidPartitions trainings on choosePathByAlphas
         for id in range(1, self.nValidPartitions + 1):
             epochJobs.append(self.__createTrainingJob(model.choosePathByAlphas, epoch, id))
 

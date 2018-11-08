@@ -285,3 +285,17 @@ class HtmlLogger:
         img = '<img src="data:image/png;base64,{}">'.format(quote(img))
 
         self.addInfoTable(infoTableTitle, [[img]])
+
+
+class SimpleLogger(HtmlLogger):
+    def __init__(self, save_path, filename, overwrite=False):
+        super(SimpleLogger, self).__init__(save_path, filename, overwrite)
+
+        self.tableColumn = 'Description'
+        self.createDataTable('Activity', [self.tableColumn])
+
+    def addRow(self, values):
+        super(SimpleLogger, self).addDataRow({self.tableColumn: values})
+
+    def addSummaryRow(self, values):
+        super(SimpleLogger, self).addSummaryDataRow({self.tableColumn: values})
