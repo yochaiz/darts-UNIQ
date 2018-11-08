@@ -126,7 +126,7 @@ class TrainRegime:
         for e in args.epochs:
             epochsSwitchStage.append(e + epochsSwitchStage[-1])
         # on epochs we learn only Linear layer, infer in every epoch
-        for _ in range(10):
+        for _ in range(args.infer_epochs):
             epochsSwitchStage.append(epochsSwitchStage[-1] + 1)
 
         # total number of epochs is the last value in epochsSwitchStage
