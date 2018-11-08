@@ -120,9 +120,11 @@ def parseArgs(lossFuncsLambda):
     baseFolder = dirname(abspath(getfile(currentframe())))  # script directory
     # create folder
     # args.folderName = 'search-{}-{}'.format(args.save, strftime("%Y%m%d-%H%M%S"))
-    args.folderName = '{},[{}],[{}],[{}]'.format(args.bitwidth, args.lmbda, args.dataset, strftime("%Y%m%d-%H%M%S"))
+    args.time = strftime("%Y%m%d-%H%M%S")
+    # args.folderName = '{}-{}-{}'.format(args.lmbda, args.dataset, args.time)
+    args.folderName = '{},[{}],[{}],[{}]'.format(args.bitwidth, args.lmbda, args.dataset, args.time)
     args.save = '{}/results/{}'.format(baseFolder, args.folderName)
-    create_exp_dir(args.save)
+    args.codePath, args.codeFilename = create_exp_dir(args.save)
 
     # init emails recipients
     # args.recipients = ['evron.itay@gmail.com', 'chaimbaskin@cs.technion.ac.il', 'evgeniizh@campus.technion.ac.il', 'yochaiz.cs@gmail.com']
