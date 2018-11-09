@@ -125,6 +125,7 @@ def parseArgs(lossFuncsLambda):
     args.folderName = '{},[{}],[{}],[{}]'.format(args.bitwidth, args.lmbda, args.dataset, args.time)
     args.save = '{}/results/{}'.format(baseFolder, args.folderName)
     args.codePath, args.codeFilename = create_exp_dir(args.save)
+    args.preTrainedZipPath = '{}/../pre-trained.zip'.format(baseFolder)
 
     # init emails recipients
     # args.recipients = ['evron.itay@gmail.com', 'chaimbaskin@cs.technion.ac.il', 'evgeniizh@campus.technion.ac.il', 'yochaiz.cs@gmail.com']
