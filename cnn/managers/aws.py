@@ -49,9 +49,9 @@ class AWS_Manager:
         logger = self.logger
         logger.addRow('Waiting until we have [{}] jobs'.format(self.nGPUs))
 
-        # # wait until we have enough jobs
-        # while self.__countFilesInLocalFolder(self.jobsPathLocal) < self.nGPUs:
-        #     sleep(self.nWaitingMins * 60)
+        # wait until we have enough jobs
+        while self.__countJobsInLocalFolder(self.jobsPathLocal) < self.nGPUs:
+            sleep(self.nWaitingMins * 60)
 
         self.aws = self.__createTask()
         self.__createProjectSourceCodeFolderRemote()
@@ -80,17 +80,17 @@ class AWS_Manager:
             sleep(self.nWaitingMins * 60)
 
         self.logger.addSummaryRow('All jobs have been finished and downloaded successfully')
-        # # turn off machine
-        # task.run('sudo shutdown -h -P 1')  # shutdown the instance in 1 min
+        # turn off machine
+        self.aws.run('sudo shutdown -h -P 1')  # shutdown the instance in 1 min
 
-    def __countFilesInLocalFolder(self, localFolderPath):
+    def __countJobsInLocalFolder(self, localFolderPath):
         counter = 0
         for file in listdir(localFolderPath):
             filePath = '{}/{}'.format(localFolderPath, file)
-            if isfile(filePath):
+            if isfile(filePath) and file != self.noMoreJobsFilename:
                 counter += 1
 
-        self.logger.addRow([['Folder', localFolderPath], ['Files#', counter]])
+        self.logger.addInfoTable('Jobs', [['Folder', localFolderPath], ['Files#', counter], ['Last checked', self.logger.getTimeStr()]])
         return counter
 
     # checks if all jobs have finished on remote
@@ -232,10 +232,11 @@ class AWS_Manager:
         # create project folder
         aws.run('mkdir {}'.format(projectFolderPathRemote))
         # upload code zip file & pre-trained checkpoints zip file
-        for p in [args.codePath, args.preTrainedZipPath]:
-            aws.upload(p, projectFolderPathRemote)
+        for zipDetails in [args.codeZip, args.preTrainedZip]:
+            zipPath, zipFilename = zipDetails
+            aws.upload(zipPath, projectFolderPathRemote)
             # unzip
-            aws.run('unzip {}/{} -d {}'.format(projectFolderPathRemote, p, projectFolderPathRemote))
+            aws.run('unzip {}/{} -d {}'.format(projectFolderPathRemote, zipFilename, projectFolderPathRemote))
 
         self.logger.addRow('Creating project source code folder on remote server')
         self.logger.addRow('Uploading pre-trained model to remote server')
@@ -251,8 +252,8 @@ class AWS_Manager:
         for gpu in range(self.nGPUs):
             aws.switch_window(gpu)
             aws.run('source activate pytorch_p36')
-        # # downgrade to pytorch 0.4.0
-        # aws.run('conda install --yes pytorch=0.4.0')
+        # downgrade to pytorch 0.4.0
+        aws.run('conda install --yes pytorch=0.4.0')
 
     # create task, i.e. start a machine
     def __createTask(self):
