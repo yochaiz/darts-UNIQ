@@ -1,6 +1,7 @@
-from os import system, remove, makedirs, getpid
+import sys
+from os import makedirs, rename
 from os.path import exists
-from multiprocessing import Pool
+from multiprocessing import Process
 from time import sleep
 
 from torch.optim import SGD
@@ -10,97 +11,16 @@ from torch import load as loadCheckpoint
 from .regime import TrainRegime, save_checkpoint
 from cnn.architect import Architect
 from cnn.HtmlLogger import HtmlLogger
+from cnn.managers.aws import AWS_Manager
 import cnn.gradEstimators as gradEstimators
 
 
-def escape(txt):
-    translation = str.maketrans({'[': '\[', ']': '\]', '(': '\(', ')': '\)', ',': '\,', ' ': '\ '})
-    return txt.translate(translation)
-
-
-# def returnSuccessOrFail(retVal, msg):
-#     res = 'Success' if retVal == 0 else 'Fail'
-#     return msg.format(res)
-
-def returnSuccessOrFail(retVal):
-    return 'Success' if retVal == 0 else 'Fail'
-
-
-def __buildCommand(jobTitle, nGPUs, nCPUs, server, data):
-    # --mail-user=yochaiz@cs.technion.ac.il --mail-type=ALL
-    return 'ssh yochaiz@132.68.39.32 srun -o {}.out -I10 --gres=gpu:{} -c {} -w {} -t 01-00:00:00 -p gip,all ' \
-           '-J "{}" ' \
-           '/home/yochaiz/F-BANNAS/cnn/sbatch_opt.sh --data "{}"'.format(jobTitle, nGPUs, nCPUs, server, jobTitle, data)
-
-
-def manageJobs(epochJobs, epoch, folderPath):
-    pid = getpid()
-    # create logger for manager
-    logger = SimpleLogger(folderPath, '[{}]-manager'.format(epoch))
-    logger.addInfoTable('Details', [['Epoch', epoch], ['nJobs', len(epochJobs)], ['Folder', folderPath], ['PID', pid]])
-    logger.setMaxTableCellLength(250)
-
-    # copy jobs JSON to server
-    for job in epochJobs:
-        # perform command
-        retVal = system(job.cmdCopyToServer)
-        logger.addRow([['Action', 'Copy to server'], ['File', job.jsonFileName], ['Status', returnSuccessOrFail(retVal)]])
-
-    # init server names
-    servers = ['gaon6', 'gaon4', 'gaon2', 'gaon5']
-    # init number of maximal GPUs we can run in single sbatch
-    nMaxGPUs = 2
-    # # init number of maximal CPUs
-    nMaxCPUs = 4
-    # init number of minutes to wait
-    nMinsWaiting = 10
-    # try sending as much jobs as possible under single sbatch
-    # try sending as much sbatch commands as possible
-    while len(epochJobs) > 0:
-        logger.addRow([['Jobs Waiting', len(epochJobs)]])
-        # set number of jobs we want to run in a single SBATCH command
-        nJobs = min(nMaxGPUs, len(epochJobs))
-        # try to send sbatch command to server, stop when successful
-        retVal = -1
-        while (nJobs > 0) and (retVal != 0):
-            # concatenate JSON files for jobs
-            files = ''
-            for job in epochJobs[:nJobs]:
-                files += escape(job.dstPath) + '?'
-            # remove last comma
-            files = files[:-1]
-            # set number of CPUs
-            nCPUs = min(nMaxCPUs, 3 * nJobs)
-            # try to perform command on one of the servers
-            for serv in servers:
-                # create command
-                jobTitle = 'PID_[{}]_Epoch_[{}]_nJobs_[{}]_jobsLeft_[{}]'.format(pid, epoch, nJobs, len(epochJobs) - nJobs)
-                trainCommand = __buildCommand(jobTitle, nJobs, nCPUs, serv, files)
-                # send command to server, we added the -I flag, so if it won't be able to run immediately, it fails, no more pending
-                retVal = system(trainCommand)
-                # add data row with information
-                dataRow = [['#Trainings', nJobs], ['Server', serv], ['#Waiting', len(epochJobs)], ['retVal', retVal], ['Command', trainCommand]]
-                logger.addRow(dataRow)
-                # clear successfully sent jobs
-                if retVal == 0:
-                    epochJobs = epochJobs[nJobs:]
-                    logger.addSummaryRow([['#Trainings', nJobs], ['Server', serv], ['#Waiting', len(epochJobs)], ['Status', 'Success']])
-                    break
-
-            # check if jobs not sent, try sending less jobs, i.e. use less GPUs
-            # we don't really need to check retVal here, but anyway ...
-            if retVal != 0:
-                nJobs -= 1
-            # wait a bit ... mostly for debugging purposes
-            sleep(10)
-
-        # if didn't manage to send any job, wait 10 mins
-        if retVal != 0:
-            logger.addRow([['Send status', 'Failed'], ['Waiting time (mins)', nMinsWaiting]])
-            sleep(nMinsWaiting * 60)
-
-    logger.addSummaryRow('Sent all jobs successfully')
-    logger.addSummaryRow('Done !')
+def manageJobs(args, jobsPathLocal, jobsDownloadedPathLocal, noMoreJobsFilename):
+    # redirect stdout, stderr
+    sys.stdout = open('{}/AWS.out'.format(args.save), 'w')
+    sys.stderr = open('{}/AWS.err'.format(args.save), 'w')
+    manager = AWS_Manager(args, jobsPathLocal, jobsDownloadedPathLocal, noMoreJobsFilename)
+    manager.manage()
 
 
 class TrainingJob:
@@ -108,33 +28,34 @@ class TrainingJob:
         for k, v in dict.items():
             setattr(self, k, v)
 
-        # set dstPath
-        self.dstPath = '{}/{}'.format(self.remoteDirPath, self.jsonFileName)
-        # init copy to server command
-        self.cmdCopyToServer = 'scp {} "yochaiz@132.68.39.32:{}"'.format(escape(self.jsonPath), escape(self.dstPath))
-        # init copy from server command
-        self.cmdCopyFromServer = 'scp "yochaiz@132.68.39.32:{}" "{}"'.format(escape(self.dstPath), self.jsonPath)
+    def generateTempValue(self, key):
+        return '{}_{}'.format(self.jsonFileName, key)
 
 
 class AlphasWeightsLoop(TrainRegime):
+    jobNameKey = 'Job name'
+    jobDownloadTimeKey = 'Download time'
+    jobUpdateTimeKey = 'Update time'
+    lastCheckKey = 'Last check'
+    jobsLoggerColumns = [jobNameKey, jobDownloadTimeKey, jobUpdateTimeKey]
+
     def __init__(self, args, logger):
         super(AlphasWeightsLoop, self).__init__(args, logger)
 
         # set number of different partitions we want to draw from alphas multinomial distribution in order to estimate their validation accuracy
-        self.nValidPartitions = 1
-        # create dir on remove server
-        self.remoteDirPath = '/home/yochaiz/F-BANNAS/cnn/trained_models/{}/{}/{}'.format(args.model, args.dataset, args.folderName)
-        # command = 'ssh yochaiz@132.68.39.32 mkdir "{}"'.format(escape(self.remoteDirPath))
-        # system(command)
+        self.nValidPartitions = 3
 
         # create folder for jobs JSONs
         self.jobsPath = '{}/jobs'.format(args.save)
-        if not exists(self.jobsPath):
-            makedirs(self.jobsPath)
+        self.jobsDownloadedPath = '{}/Downloaded'.format(self.jobsPath)
+        self.jobsUpdatedPath = '{}/Updated'.format(self.jobsPath)
+        # when we are done creating jobs, create this file and upload it to remote server to let it know there are no more jobs
+        self.noMoreJobsFilename = 'DONE'
 
-        # init jobs logger
-        self.jobsLogger = SimpleLogger(self.jobsPath, 'jobsLogger')
-        self.jobsLogger.addInfoTable('Details', [['Remote folder name', self.remoteDirPath]])
+        # create path folders
+        for p in [self.jobsPath, self.jobsDownloadedPath, self.jobsUpdatedPath]:
+            if not exists(p):
+                makedirs(p)
 
         # init dictionary of list of training jobs we yet have to get their values
         # each key is epoch number
@@ -144,8 +65,16 @@ class AlphasWeightsLoop(TrainRegime):
         # init validation best precision value from all training jobs
         self.best_prec1 = 0.0
 
+        # init jobs logger
+        self.jobsLogger = HtmlLogger(args.save, 'jobsLogger')
+        self.jobsLogger.addInfoTable(self.lastCheckKey, [[self.jobsLogger.getTimeStr()]])
+        self.jobsLogger.createDataTable('Jobs', self.jobsLoggerColumns + self.rowKeysToReplace)
+
+        # create process to manage epoch jobs
+        job_process = Process(target=manageJobs, args=(args, self.jobsPath, self.jobsDownloadedPath, self.noMoreJobsFilename,))
+        job_process.start()
         # ========================== DEBUG ===============================
-        # return
+        return
         # ================================================================
 
         # init model replicator
@@ -168,14 +97,13 @@ class AlphasWeightsLoop(TrainRegime):
     # creates job of training model partition
     def __createTrainingJob(self, setModelPartitionFunc, nEpoch, id):
         args = self.args
-        # model = self.model.module
         model = self.model
         # set model partition
         setModelPartitionFunc()
         # set JSON file name
-        jsonFileName = '{}-{}-[{}].json'.format(args.folderName, nEpoch, id)
+        jsonFileName = '{}-{}-{}.json'.format(args.time, nEpoch, id)
         # create training job instance
-        trainingJob = TrainingJob(dict(bopsRatio=model.calcBopsRatio(), bops=model.countBops(), remoteDirPath=self.remoteDirPath,
+        trainingJob = TrainingJob(dict(bopsRatio=model.calcBopsRatio(), bops=model.countBops(),
                                        bitwidthInfoTable=self.createBitwidthsTable(model, self.logger, self.bitwidthKey),
                                        jsonFileName=jsonFileName, jsonPath='{}/{}'.format(self.jobsPath, jsonFileName)))
 
@@ -189,11 +117,17 @@ class AlphasWeightsLoop(TrainRegime):
         # reset args.partition
         args.partition = None
 
+        # add job to jobsLogger ##############
+        jobsLogger = self.jobsLogger
+        # create job data row
+        dataRow = {k: trainingJob.generateTempValue(k) for k in jobsLogger.dataTableCols}
+        dataRow[self.jobNameKey] = trainingJob.jsonFileName
+        jobsLogger.addDataRow(dataRow)
+
         return trainingJob
 
     # create all training jobs for a single epoch
     def __createEpochJobs(self, epoch):
-        # model = self.model.module
         model = self.model
         # train from scratch (from 32-bit pre-trained) model partitions based on alphas distribution
         epochJobs = []
@@ -204,10 +138,6 @@ class AlphasWeightsLoop(TrainRegime):
         for id in range(1, self.nValidPartitions + 1):
             epochJobs.append(self.__createTrainingJob(model.choosePathByAlphas, epoch, id))
 
-        # create process to manage epoch jobs
-        pool = Pool(processes=1)
-        pool.apply_async(manageJobs, args=(epochJobs, epoch, self.jobsPath,))
-
         return epochJobs
 
     @staticmethod
@@ -215,24 +145,32 @@ class AlphasWeightsLoop(TrainRegime):
         return range(1, nEpochs + 1)
 
     def train(self):
-        # model = self.model.module
         model = self.model
         modelParallel = self.modelParallel
         args = self.args
         logger = self.logger
         # init number of epochs
-        nEpochs = 100
+        nEpochs = 40
         epochRange = self.__getEpochRange(nEpochs)
         # init keys in jobs list
         for epoch in epochRange:
             self.jobsList[epoch] = []
 
         # # ========================== DEBUG ===============================
-        # # create epoch jobs
-        # for epoch in range(1, 4):
-        #     epochJobsList = self.__createEpochJobs(epoch)
-        #     self.jobsList[epoch] = epochJobsList
-        #     self.__updateDataTableAndBopsPlot()
+        # create epoch jobs
+        for epoch in range(1, 4):
+            epochJobsList = self.__createEpochJobs(epoch)
+            self.jobsList[epoch] = epochJobsList
+            # add data rows for epoch JSONs
+            self.__addEpochJSONsDataRows(epochJobsList, epoch, nEpochs)
+            self.__updateDataTableAndBopsPlot()
+
+        open('{}/{}'.format(self.jobsPath, self.noMoreJobsFilename), 'w+')
+        # wait until all jobs have finished
+        while self.isDictEmpty(self.jobsList) is False:
+            self.__updateDataTableAndBopsPlot()
+            # wait 10 mins
+            sleep(1 * 60)
         # # ================================================================
 
         for epoch in epochRange:
@@ -258,7 +196,7 @@ class AlphasWeightsLoop(TrainRegime):
             # add data to main logger table
             logger.addDataRow(dataRow)
 
-            ## train weights ##
+            # train weights ###########
             # create epoch train weights folder
             epochName = '{}_w'.format(epoch)
             epochFolderPath = '{}/{}'.format(self.trainFolderPath, epochName)
@@ -303,19 +241,18 @@ class AlphasWeightsLoop(TrainRegime):
             save_checkpoint(self.trainFolderPath, model, args, epoch, self.best_prec1)
 
         logger.addInfoToDataTable('Finished training, waiting for jobs to finish')
+        # create file to let remote server know we are done creating jobs
+        open('{}/{}'.format(self.jobsPath, self.noMoreJobsFilename), 'w+')
         # wait until all jobs have finished
         while self.isDictEmpty(self.jobsList) is False:
             self.__updateDataTableAndBopsPlot()
             # wait 10 mins
             sleep(10 * 60)
+
         # save checkpoint
         save_checkpoint(self.trainFolderPath, model, args, epoch, self.best_prec1)
         # send final email
         self.sendEmail('Final', 0, 0)
-
-    @staticmethod
-    def generateTempValue(jsonFileName, key):
-        return '{}_{}'.format(jsonFileName, key)
 
     @staticmethod
     def isDictEmpty(dict):
@@ -326,6 +263,9 @@ class AlphasWeightsLoop(TrainRegime):
         return True
 
     def __updateDataTableAndBopsPlot(self):
+        jobsLogger = self.jobsLogger
+        # update time in last update time
+        jobsLogger.addInfoTable(self.lastCheckKey, [[self.jobsLogger.getTimeStr()]])
         # init plot data list
         bopsPlotData = {}
         # init updated jobs dictionary, jobs we haven't got their values yet
@@ -338,53 +278,51 @@ class AlphasWeightsLoop(TrainRegime):
         # copy files back from server and check if best_prec1, best_valid_loss exists
         for epoch, epochJobsList in self.jobsList.items():
             for job in epochJobsList:
-                # copy JSON from server back here
-                retVal = system(job.cmdCopyFromServer)
-                self.jobsLogger.addRow([['Action', 'Copy from server'], ['Epoch', epoch], ['File', job.jsonFileName],
-                                        ['Status', returnSuccessOrFail(retVal)]])
+                # init job path in downloaded folder
+                jobDownloadedPath = '{}/{}'.format(self.jobsDownloadedPath, job.jsonFileName)
+                jobExists = exists(jobDownloadedPath)
                 # load checkpoint
-                if exists(job.jsonPath):
-                    checkpoint = loadCheckpoint(job.jsonPath, map_location=lambda storage, loc: storage.cuda())
+                if jobExists:
+                    # update job download time from remote in jobsLogger
+                    jobsLogger.replaceValueInDataTable(job.generateTempValue(self.jobDownloadTimeKey), jobsLogger.getTimeStr())
+                    # load checkpoint
+                    checkpoint = loadCheckpoint(jobDownloadedPath, map_location=lambda storage, loc: storage.cuda())
                     # init list of existing keys we found in checkpoint
                     existingKeys = []
                     # update keys if they exist
                     for key in self.rowKeysToReplace:
                         v = getattr(checkpoint, key, None)
-                        # log key & value
-                        dataRow = [['Key', key], ['Value', v]]
-                        addRowFunc = self.jobsLogger.addRow
-                        # if v is not None, then update value in table
+                        # if v is not None, then update value in tables
                         if v is not None:
                             # update key exists
                             existingKeys.append(key)
-                            # replace value in table
-                            self.logger.replaceValueInDataTable(self.generateTempValue(job.jsonFileName, key), self.formats[key].format(v))
-                            # add status to dataRow
-                            dataRow.append(['Status', 'Updated'])
-                            addRowFunc = self.jobsLogger.addSummaryRow
+                            # load key temp value
+                            keyTempValue = job.generateTempValue(key)
+                            # replace value in main table & jobsLogger
+                            for l in [self.logger, jobsLogger]:
+                                l.replaceValueInDataTable(keyTempValue, self.formats[key].format(v))
                             # add tuple of (bitwidth, bops, accuracy) to plotData if we have accuracy value
                             if key == self.validAccKey:
                                 bopsPlotData[epoch].append((None, job.bops, v))
                                 # update best_prec1 of all training jobs we have trained
                                 self.best_prec1 = max(self.best_prec1, v)
 
-                        # add data row
-                        addRowFunc(dataRow)
-
                     # add job to updatedJobsList if we haven't got all keys, otherwise we are done with this job
                     if len(existingKeys) < len(self.rowKeysToReplace):
                         updatedJobsList[epoch].append(job)
-                    # else:
-                    #     remove(job.jsonPath)
-
-        # add separation row to logger
-        self.jobsLogger.addSummaryRow('***')
+                    else:
+                        # if we are done with the job, move the JSON from downloaded to updated
+                        jobUpdatedDst = '{}/{}'.format(self.jobsUpdatedPath, job.jsonFileName)
+                        rename(jobDownloadedPath, jobUpdatedDst)
+                        jobsLogger.replaceValueInDataTable(job.generateTempValue(self.jobUpdateTimeKey), jobsLogger.getTimeStr())
+                else:
+                    # add job to updatedJobsList if it hasn't been downloaded yet from remote server
+                    updatedJobsList[epoch].append(job)
 
         # update self.jobsList to updatedJobsList
         self.jobsList = updatedJobsList
 
-        # send new bops plot value to plot
-        # self.model.module.stats.addBopsData(bopsPlotData)
+        # send new bops plot values to plot
         self.model.stats.addBopsData(bopsPlotData)
 
     def __addEpochJSONsDataRows(self, epochJobsList, epoch, nEpochs):
@@ -397,9 +335,120 @@ class AlphasWeightsLoop(TrainRegime):
             # apply formats
             self._applyFormats(dataRow)
             for key in self.rowKeysToReplace:
-                dataRow[key] = self.generateTempValue(job.jsonFileName, key)
+                dataRow[key] = job.generateTempValue(key)
             # add data row
             logger.addDataRow(dataRow, trType='<tr bgcolor="#2CBDD6">')
+
+# ====================  gaon server code ==================================================
+# # copy JSON from server back here
+# retVal = system(job.cmdCopyFromServer)
+# self.jobsLogger.addRow([['Action', 'Copy from server'], ['Epoch', epoch], ['File', job.jsonFileName],
+#                         ['Status', returnSuccessOrFail(retVal)]])
+
+# # create dir on remove server
+# self.remoteDirPath = '/home/yochaiz/F-BANNAS/cnn/trained_models/{}/{}/{}'.format(args.model, args.dataset, args.folderName)
+# command = 'ssh yochaiz@132.68.39.32 mkdir "{}"'.format(escape(self.remoteDirPath))
+# system(command)
+
+# def escape(txt):
+#     translation = str.maketrans({'[': '\[', ']': '\]', '(': '\(', ')': '\)', ',': '\,', ' ': '\ '})
+#     return txt.translate(translation)
+
+# def returnSuccessOrFail(retVal, msg):
+#     res = 'Success' if retVal == 0 else 'Fail'
+#     return msg.format(res)
+
+# def returnSuccessOrFail(retVal):
+#     return 'Success' if retVal == 0 else 'Fail'
+#
+# def __buildCommand(jobTitle, nGPUs, nCPUs, server, data):
+#     # --mail-user=yochaiz@cs.technion.ac.il --mail-type=ALL
+#     return 'ssh yochaiz@132.68.39.32 srun -o {}.out -I10 --gres=gpu:{} -c {} -w {} -t 01-00:00:00 -p gip,all ' \
+#            '-J "{}" ' \
+#            '/home/yochaiz/F-BANNAS/cnn/sbatch_opt.sh --data "{}"'.format(jobTitle, nGPUs, nCPUs, server, jobTitle, data)
+#
+# def manageJobs(epochJobs, epoch, folderPath):
+#     pid = getpid()
+#     # create logger for manager
+#     logger = SimpleLogger(folderPath, '[{}]-manager'.format(epoch))
+#     logger.addInfoTable('Details', [['Epoch', epoch], ['nJobs', len(epochJobs)], ['Folder', folderPath], ['PID', pid]])
+#     logger.setMaxTableCellLength(250)
+#
+#     # copy jobs JSON to server
+#     for job in epochJobs:
+#         # perform command
+#         retVal = system(job.cmdCopyToServer)
+#         logger.addRow([['Action', 'Copy to server'], ['File', job.jsonFileName], ['Status', returnSuccessOrFail(retVal)]])
+#
+#     # init server names
+#     servers = ['gaon6', 'gaon4', 'gaon2', 'gaon5']
+#     # init number of maximal GPUs we can run in single sbatch
+#     nMaxGPUs = 2
+#     # # init number of maximal CPUs
+#     nMaxCPUs = 4
+#     # init number of minutes to wait
+#     nMinsWaiting = 10
+#     # try sending as much jobs as possible under single sbatch
+#     # try sending as much sbatch commands as possible
+#     while len(epochJobs) > 0:
+#         logger.addRow([['Jobs Waiting', len(epochJobs)]])
+#         # set number of jobs we want to run in a single SBATCH command
+#         nJobs = min(nMaxGPUs, len(epochJobs))
+#         # try to send sbatch command to server, stop when successful
+#         retVal = -1
+#         while (nJobs > 0) and (retVal != 0):
+#             # concatenate JSON files for jobs
+#             files = ''
+#             for job in epochJobs[:nJobs]:
+#                 files += escape(job.dstPath) + '?'
+#             # remove last comma
+#             files = files[:-1]
+#             # set number of CPUs
+#             nCPUs = min(nMaxCPUs, 3 * nJobs)
+#             # try to perform command on one of the servers
+#             for serv in servers:
+#                 # create command
+#                 jobTitle = 'PID_[{}]_Epoch_[{}]_nJobs_[{}]_jobsLeft_[{}]'.format(pid, epoch, nJobs, len(epochJobs) - nJobs)
+#                 trainCommand = __buildCommand(jobTitle, nJobs, nCPUs, serv, files)
+#                 # send command to server, we added the -I flag, so if it won't be able to run immediately, it fails, no more pending
+#                 retVal = system(trainCommand)
+#                 # add data row with information
+#                 dataRow = [['#Trainings', nJobs], ['Server', serv], ['#Waiting', len(epochJobs)], ['retVal', retVal], ['Command', trainCommand]]
+#                 logger.addRow(dataRow)
+#                 # clear successfully sent jobs
+#                 if retVal == 0:
+#                     epochJobs = epochJobs[nJobs:]
+#                     logger.addSummaryRow([['#Trainings', nJobs], ['Server', serv], ['#Waiting', len(epochJobs)], ['Status', 'Success']])
+#                     break
+#
+#             # check if jobs not sent, try sending less jobs, i.e. use less GPUs
+#             # we don't really need to check retVal here, but anyway ...
+#             if retVal != 0:
+#                 nJobs -= 1
+#             # wait a bit ... mostly for debugging purposes
+#             sleep(10)
+#
+#         # if didn't manage to send any job, wait 10 mins
+#         if retVal != 0:
+#             logger.addRow([['Send status', 'Failed'], ['Waiting time (mins)', nMinsWaiting]])
+#             sleep(nMinsWaiting * 60)
+#
+#     logger.addSummaryRow('Sent all jobs successfully')
+#     logger.addSummaryRow('Done !')
+
+# class TrainingJob:
+#     def __init__(self, dict):
+#         for k, v in dict.items():
+#             setattr(self, k, v)
+#
+#         # set dstPath
+#         self.dstPath = '{}/{}'.format(self.remoteDirPath, self.jsonFileName)
+#         # init copy to server command
+#         self.cmdCopyToServer = 'scp {} "yochaiz@132.68.39.32:{}"'.format(escape(self.jsonPath), escape(self.dstPath))
+#         # init copy from server command
+#         self.cmdCopyFromServer = 'scp "yochaiz@132.68.39.32:{}" "{}"'.format(escape(self.dstPath), self.jsonPath)
+
+# =========================================================================================================
 
 # def train(self):
 #     # init logger data table
@@ -420,7 +469,7 @@ class AlphasWeightsLoop(TrainRegime):
 #         # update temp values in data table + update bops plot
 #         self.__updateDataTableAndBopsPlot()
 
-
+# =========================== very old code ====================================================================================
 # def manageJobs(epochJobs, epoch):
 #     # copy jobs JSON to server
 #     for job in epochJobs:
