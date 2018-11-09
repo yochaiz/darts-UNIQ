@@ -105,7 +105,7 @@ class AWS_Manager:
         with open(localFname, 'r') as f:
             values = f.read().splitlines()
             v = int(values[0])
-            self.logger.addRow([['Remote folder', remoteFolderPath], ['Files#', v]])
+            self.logger.addInfoTable(remoteFolderPath, [['Folder', remoteFolderPath], ['Files#', v], ['Last checked', self.logger.getTimeStr()]])
             return v
 
     # download JSONs from remote finished to local downloaded
