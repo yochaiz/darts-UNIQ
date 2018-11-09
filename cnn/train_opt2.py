@@ -25,28 +25,51 @@ def G(scriptArgs):
     args = loadCheckpoint(scriptArgs.json, map_location=lambda storage, loc: storage.cuda())
 
     # # ========================== DEBUG ===============================
-    # extract args JSON folder path
-    folderName = path.dirname(scriptArgs.json)
-    # results folder is JSON filename
-    jsonFileName = path.basename(scriptArgs.json)
-    # set results folder path
-    args.save = '{}/{}'.format(folderName, jsonFileName[:-5])
-    create_exp_dir(args.save)
-
-    print(args)
-    setattr(args, 'Validation acc', 33.4)
-    setattr(args, 'Validation loss', 1.347)
-
-    saveCheckpoint(args, scriptArgs.json)
-    # move checkpoint to finished jobs folder
-    newDestination = scriptArgs.json
-    if scriptArgs.dstFolder is not None:
-        newDestination = '{}/{}'.format(scriptArgs.dstFolder, jsonFileName)
-        rename(scriptArgs.json, newDestination)
-
-    print(args)
-    print('DDone !')
-    exit(0)
+    # print(args)
+    # # extract args JSON folder path
+    # folderName = path.dirname(scriptArgs.json)
+    # # results folder is JSON filename
+    # jsonFileName = path.basename(scriptArgs.json)
+    # # set results folder path
+    # args.save = '{}/{}'.format(folderName, jsonFileName[:-5])
+    # print('====')
+    # print(args.save)
+    # create_exp_dir(args.save)
+    # # init logger
+    # logger = HtmlLogger(args.save, 'log')
+    # # init project base folder
+    # baseFolder = path.dirname(path.abspath(getfile(currentframe())))  # script directory
+    # # set pre-trained path
+    # preTrainedKey = '[(32, 32)],[{}]'.format(args.model)
+    # preTrainedFileName = 'model.updated_stats.pth.tar'
+    # args.pre_trained = '{}/../pre_trained/{}/train_portion_1.0/{}/train/{}'.format(baseFolder, args.dataset, preTrainedKey, preTrainedFileName)
+    # print(args.pre_trained)
+    #
+    # # build model for uniform distribution of bits
+    # from cnn.utils import models
+    # modelClass = models.__dict__[args.model]
+    # # init model
+    # model = modelClass(args)
+    # model = model.cuda()
+    # # load pre-trained full-precision model
+    # args.loadedOpsWithDiffWeights = model.loadPreTrained(args.pre_trained, logger, args.gpu[0])
+    #
+    # print(args)
+    # setattr(args, 'Validation acc', 33.4)
+    # setattr(args, 'Validation loss', 1.347)
+    #
+    # saveCheckpoint(args, scriptArgs.json)
+    # # move checkpoint to finished jobs folder
+    # newDestination = scriptArgs.json
+    # if scriptArgs.dstFolder is not None:
+    #     newDestination = '{}/{}'.format(scriptArgs.dstFolder, jsonFileName)
+    #     rename(scriptArgs.json, newDestination)
+    #
+    # print(args)
+    # print('DDone !')
+    # from time import sleep
+    # sleep(60)
+    # exit(0)
     # # ================================================================
 
     # update cudnn parameters
