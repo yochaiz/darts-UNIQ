@@ -29,7 +29,7 @@ class AWS_Manager:
         # init general window id
         self.generalWindowID = self.nGPUs + 1
         # init number of mins to wait
-        self.nWaitingMins = 1
+        self.nWaitingMins = 10
 
         # init jobs waiting list, elements are (local path, remote path)
         self.jobsWaitingList = []
