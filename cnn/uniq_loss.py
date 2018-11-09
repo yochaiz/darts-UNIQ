@@ -13,7 +13,7 @@ class BopsLoss:
         self.minBops = minBops
 
     def calcLoss(self, modelBops):
-        v = (modelBops / self.minBops)
+        v = (modelBops / self.minBops) ** 2
         return tensor(v, dtype=float32).cuda()
 
 
