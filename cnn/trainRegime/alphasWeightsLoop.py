@@ -43,7 +43,7 @@ class AlphasWeightsLoop(TrainRegime):
         super(AlphasWeightsLoop, self).__init__(args, logger)
 
         # set number of different partitions we want to draw from alphas multinomial distribution in order to estimate their validation accuracy
-        self.nValidPartitions = 3
+        self.nValidPartitions = 1
 
         # create folder for jobs JSONs
         self.jobsPath = '{}/jobs'.format(args.save)
