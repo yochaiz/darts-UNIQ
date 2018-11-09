@@ -256,8 +256,8 @@ class TrainRegime:
         self._applyFormats(summaryRow)
         logger.addSummaryDataRow(summaryRow)
 
-        # save pre-trained checkpoint
-        save_checkpoint(self.trainFolderPath, model, args, epoch, best_prec1, is_best=False, filename='pre_trained')
+        # # save pre-trained checkpoint
+        # save_checkpoint(self.trainFolderPath, model, args, epoch, best_prec1, is_best=False, filename='pre_trained')
 
         # save optimal validation values
         setattr(args, self.validAccKey, best_prec1)
