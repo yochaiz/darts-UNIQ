@@ -74,7 +74,7 @@ class AlphasWeightsLoop(TrainRegime):
         job_process = Process(target=manageJobs, args=(args, self.jobsPath, self.jobsDownloadedPath, self.noMoreJobsFilename,))
         job_process.start()
         # ========================== DEBUG ===============================
-        return
+        # return
         # ================================================================
 
         # init model replicator
@@ -171,6 +171,7 @@ class AlphasWeightsLoop(TrainRegime):
         #     self.__updateDataTableAndBopsPlot()
         #     # wait 10 mins
         #     sleep(1 * 60)
+        # return
         # # ================================================================
 
         for epoch in epochRange:
