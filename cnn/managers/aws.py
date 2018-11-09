@@ -231,14 +231,12 @@ class AWS_Manager:
         aws.run('rm -rf {}'.format(projectFolderPathRemote))
         # create project folder
         aws.run('mkdir {}'.format(projectFolderPathRemote))
-        # upload code zip file
-        aws.upload(args.codePath, projectFolderPathRemote)
-        # unzip code to folder
-        aws.run('unzip {}/{} -d {}'.format(projectFolderPathRemote, args.codeFilename, projectFolderPathRemote))
-        # upload pre-trained models
-        # ????????????????????????
-        # unzip pre-trained models
-        # ?????????????????????????
+        # upload code zip file & pre-trained checkpoints zip file
+        for p in [args.codePath, args.preTrainedZipPath]:
+            aws.upload(p, projectFolderPathRemote)
+            # unzip
+            aws.run('unzip {}/{} -d {}'.format(projectFolderPathRemote, p, projectFolderPathRemote))
+
         self.logger.addRow('Creating project source code folder on remote server')
         self.logger.addRow('Uploading pre-trained model to remote server')
 
