@@ -157,20 +157,20 @@ class AlphasWeightsLoop(TrainRegime):
             self.jobsList[epoch] = []
 
         # # ========================== DEBUG ===============================
-        # create epoch jobs
-        for epoch in range(1, 4):
-            epochJobsList = self.__createEpochJobs(epoch)
-            self.jobsList[epoch] = epochJobsList
-            # add data rows for epoch JSONs
-            self.__addEpochJSONsDataRows(epochJobsList, epoch, nEpochs)
-            self.__updateDataTableAndBopsPlot()
-
-        open('{}/{}'.format(self.jobsPath, self.noMoreJobsFilename), 'w+')
-        # wait until all jobs have finished
-        while self.isDictEmpty(self.jobsList) is False:
-            self.__updateDataTableAndBopsPlot()
-            # wait 10 mins
-            sleep(1 * 60)
+        # # create epoch jobs
+        # for epoch in range(1, 4):
+        #     epochJobsList = self.__createEpochJobs(epoch)
+        #     self.jobsList[epoch] = epochJobsList
+        #     # add data rows for epoch JSONs
+        #     self.__addEpochJSONsDataRows(epochJobsList, epoch, nEpochs)
+        #     self.__updateDataTableAndBopsPlot()
+        #
+        # open('{}/{}'.format(self.jobsPath, self.noMoreJobsFilename), 'w+')
+        # # wait until all jobs have finished
+        # while self.isDictEmpty(self.jobsList) is False:
+        #     self.__updateDataTableAndBopsPlot()
+        #     # wait 10 mins
+        #     sleep(1 * 60)
         # # ================================================================
 
         for epoch in epochRange:
