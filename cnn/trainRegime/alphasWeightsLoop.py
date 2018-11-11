@@ -70,9 +70,9 @@ class AlphasWeightsLoop(TrainRegime):
         self.jobsLogger.addInfoTable(self.lastCheckKey, [[self.jobsLogger.getTimeStr()]])
         self.jobsLogger.createDataTable('Jobs', self.jobsLoggerColumns + self.rowKeysToReplace)
 
-        # create process to manage epoch jobs
-        job_process = Process(target=manageJobs, args=(args, self.jobsPath, self.jobsDownloadedPath, self.noMoreJobsFilename,))
-        job_process.start()
+        # # create process to manage epoch jobs
+        # job_process = Process(target=manageJobs, args=(args, self.jobsPath, self.jobsDownloadedPath, self.noMoreJobsFilename,))
+        # job_process.start()
         # ========================== DEBUG ===============================
         # return
         # ================================================================
@@ -103,7 +103,7 @@ class AlphasWeightsLoop(TrainRegime):
         # set JSON file name
         jsonFileName = '{}-{}-{}.json'.format(args.time, nEpoch, id)
         # create training job instance
-        trainingJob = TrainingJob(dict(bopsRatio=model.calcBopsRatio(), bops=model.countBops(),
+        trainingJob = TrainingJob(dict(bopsRatio=model.calcBopsRatio(), bops=model.countBops(), epochID=nEpoch, ID=id,
                                        bitwidthInfoTable=self.createBitwidthsTable(model, self.logger, self.bitwidthKey),
                                        jsonFileName=jsonFileName, jsonPath='{}/{}'.format(self.jobsPath, jsonFileName)))
 
