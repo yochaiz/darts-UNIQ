@@ -7,7 +7,8 @@ from torch.autograd.variable import Variable
 from torch.nn import CrossEntropyLoss
 from torch.nn.utils.clip_grad import clip_grad_norm_
 from torch.nn.parallel.data_parallel import DataParallel
-from torch.optim import SGD, ReduceLROnPlateau
+from torch.optim import SGD
+from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 from cnn.HtmlLogger import HtmlLogger
 from cnn.utils import accuracy, AvgrageMeter, load_data, save_checkpoint
