@@ -128,25 +128,25 @@ class TrainRegime:
         epochsSwitchStage = [0]
         for e in args.epochs:
             epochsSwitchStage.append(e + epochsSwitchStage[-1])
-        # on epochs we learn only Linear layer, infer in every epoch
-        for _ in range(args.infer_epochs):
-            epochsSwitchStage.append(epochsSwitchStage[-1] + 1)
+        # # on epochs we learn only Linear layer, infer in every epoch
+        # for _ in range(args.infer_epochs):
+        #     epochsSwitchStage.append(epochsSwitchStage[-1] + 1)
 
-        # total number of epochs is the last value in epochsSwitchStage
-        nEpochs = epochsSwitchStage[-1]
+        # # total number of epochs is the last value in epochsSwitchStage
+        # nEpochs = epochsSwitchStage[-1]
         # remove epoch 0 from list, we don't want to switch stage at the beginning
         epochsSwitchStage = epochsSwitchStage[1:]
 
         # init epoch
         self.epoch = 0
-        self.nEpochs = nEpochs
+        # self.nEpochs = nEpochs
         self.epochsSwitchStage = epochsSwitchStage
 
         # if we loaded ops in the same layer with the same weights, then we loaded the optimal full precision model,
         # therefore we have to train the weights for each QuantizedOp
         if (args.loadedOpsWithDiffWeights is False) and args.init_weights_train:
-            logger.addInfoTable('Initial weights training epochs',
-                                [['nEpochs', '{}'.format(nEpochs)], ['epochsSwitchStage', '{}'.format(epochsSwitchStage)]])
+            logger.addInfoTable('Initial weights training epochs', [['epochsSwitchStage', '{}'.format(epochsSwitchStage)]])
+            # ['nEpochs', nEpochs]
             self.epoch = self.initialWeightsTraining(trainFolderName='init_weights_train')
         else:
             rows = [['Switching stage']]
@@ -184,8 +184,8 @@ class TrainRegime:
         model = self.model
         modelParallel = self.modelParallel
         args = self.args
-        nEpochs = self.nEpochs
         logger = self.logger
+        # nEpochs = self.nEpochs
 
         # create train folder
         folderPath = '{}/{}'.format(self.trainFolderPath, trainFolderName)
@@ -199,6 +199,9 @@ class TrainRegime:
         best_prec1 = 0.0
         best_valid_loss = 0.0
         is_best = False
+        # count how many epochs current optimum hasn't changed
+        nEpochsOptimum = 0
+        logger.addInfoTable('Optimum', [['Epochs as optimum', nEpochsOptimum], ['Update time', logger.getTimeStr()]])
 
         epoch = 0
         # init table in main logger
@@ -207,7 +210,9 @@ class TrainRegime:
         # calc alpha trainset loss on baselines
         self.calcAlphaTrainsetLossOnBaselines(folderPath, self.archLossKey, logger)
 
-        for epoch in range(1, nEpochs + 1):
+        # for epoch in range(1, nEpochs + 1):
+        while nEpochsOptimum <= args.optimal_epochs:
+            epoch += 1
             trainLogger = HtmlLogger(folderPath, str(epoch))
             trainLogger.addInfoTable('Learning rates', [['optimizer_lr', self.formats[self.lrKey].format(optimizer.param_groups[0]['lr'])]])
 
@@ -223,7 +228,11 @@ class TrainRegime:
             trainData[self.lrKey] = self.formats[self.lrKey].format(optimizer.param_groups[0]['lr'])
 
             # switch stage, i.e. freeze one more layer
-            if (epoch in self.epochsSwitchStage) or (epoch == nEpochs):
+            # if (epoch in self.epochsSwitchStage) or (epoch == nEpochs):
+            if (epoch in self.epochsSwitchStage) or (epoch > self.epochsSwitchStage[-1]):
+                # switch stage
+                switchStageFlag = model.switch_stage(loggerFuncs=[lambda msg: trainLogger.addInfoTable(title='Switching stage', rows=[[msg]])])
+
                 # validation
                 valid_acc, valid_loss, validData = self.infer(model.setFiltersByAlphas, epoch, loggersDict)
 
@@ -231,14 +240,20 @@ class TrainRegime:
                 for k, v in validData.items():
                     trainData[k] = v
 
-                # switch stage
-                switchStageFlag = model.switch_stage(loggerFuncs=[lambda msg: trainLogger.addInfoTable(title='Switching stage', rows=[[msg]])])
                 if switchStageFlag is False:
                     # update best precision only after switching stage is complete
                     is_best = valid_acc > best_prec1
                     if is_best:
                         best_prec1 = valid_acc
                         best_valid_loss = valid_loss
+                        # found new optimum, reset nEpochsOptimum
+                        nEpochsOptimum = 0
+                    else:
+                        # optimum hasn't changed
+                        nEpochsOptimum += 1
+                    # update nEpochsOptimum table
+                    logger.addInfoTable('Optimum', [['Epochs as optimum', nEpochsOptimum], ['Update time', logger.getTimeStr()]])
+
                 # save model checkpoint
                 checkpoint, (_, optimalPath) = save_checkpoint(self.trainFolderPath, model, args, epoch, best_prec1, is_best, filename)
                 if is_best:
