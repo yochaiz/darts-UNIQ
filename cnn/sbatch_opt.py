@@ -16,20 +16,20 @@ def handleSIGTERM(procs):
 
 
 parser = ArgumentParser()
-parser.add_argument('--data', type=str, required=True, help='JSON file path')
+parser.add_argument('--json', type=str, required=True, help='JSON file path')
 
 args = parser.parse_args()
 
 now = datetime.now()
 outputFile = '{}.out'.format(datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
 
-# parse data to list
-jsonFilesList = args.data.split('?')
+# parse JSONs to list
+jsonFilesList = args.json.split('?')
 print(jsonFilesList)
 
 commandsList = []
 for gpuID, jsonFileName in enumerate(jsonFilesList):
-    command = [executable, './train_opt2.py', '--data', jsonFileName, '--gpu', '{}'.format(gpuID)]
+    command = [executable, './train_opt2.py', '--json', jsonFileName, '--gpu', '{}'.format(gpuID), '--data', '../data/']
     commandsList.append(command)
 
 # commands = [
