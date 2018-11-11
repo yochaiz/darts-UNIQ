@@ -234,6 +234,9 @@ class TrainRegime:
             # save model checkpoint
             save_checkpoint(self.trainFolderPath, model, args, epoch, best_prec1=0.0, is_best=False, filename=filename)
 
+            # add data to main logger table
+            logger.addDataRow(trainData)
+
         assert (model.switch_stage() is False)
 
         # init validation best precision value
@@ -250,8 +253,7 @@ class TrainRegime:
         while nEpochsOptimum <= args.optimal_epochs:
             epoch += 1
             trainLogger = HtmlLogger(folderPath, str(epoch))
-            trainLogger.addInfoTable('Learning rates', [['optimizer_lr', self.formats[self.lrKey].format(optimizer.param_groups[0]['lr'])],
-                                                        ['scheduler_lr', self.formats[self.lrKey].format(scheduler.get_lr()[0])]])
+            trainLogger.addInfoTable('Learning rates', [['optimizer_lr', self.formats[self.lrKey].format(optimizer.param_groups[0]['lr'])]])
 
             # set loggers dictionary
             loggersDict = dict(train=trainLogger)
@@ -285,7 +287,7 @@ class TrainRegime:
                 nEpochsOptimum += 1
 
             # update nEpochsOptimum table
-            logger.addInfoTable('Optimum', [['Epochs as optimum', nEpochsOptimum], ['Update time', logger.getTimeStr()]])
+            logger.addInfoTable('Optimum', [['Epoch#', epoch], ['Epochs as optimum', nEpochsOptimum], ['Update time', logger.getTimeStr()]])
 
             # save model checkpoint
             checkpoint, (_, optimalPath) = save_checkpoint(self.trainFolderPath, model, args, epoch, best_prec1, is_best, filename)
