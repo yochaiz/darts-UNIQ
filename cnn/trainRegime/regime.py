@@ -7,7 +7,7 @@ from torch.autograd.variable import Variable
 from torch.nn import CrossEntropyLoss
 from torch.nn.utils.clip_grad import clip_grad_norm_
 from torch.nn.parallel.data_parallel import DataParallel
-from torch.optim import SGD
+from torch.optim import SGD, ReduceLROnPlateau
 
 from cnn.HtmlLogger import HtmlLogger
 from cnn.utils import accuracy, AvgrageMeter, load_data, save_checkpoint
@@ -195,14 +195,6 @@ class TrainRegime:
         # init optimizer
         optimizer = SGD(modelParallel.parameters(), args.learning_rate, momentum=args.momentum, weight_decay=args.weight_decay)
 
-        # init validation best precision value
-        best_prec1 = 0.0
-        best_valid_loss = 0.0
-        is_best = False
-        # count how many epochs current optimum hasn't changed
-        nEpochsOptimum = 0
-        logger.addInfoTable('Optimum', [['Epochs as optimum', nEpochsOptimum], ['Update time', logger.getTimeStr()]])
-
         epoch = 0
         # init table in main logger
         logger.createDataTable(self.initWeightsTrainTableTitle, self.colsMainInitWeightsTrain)
@@ -211,8 +203,7 @@ class TrainRegime:
         self.calcAlphaTrainsetLossOnBaselines(folderPath, self.archLossKey, logger)
 
         # for epoch in range(1, nEpochs + 1):
-        while nEpochsOptimum <= args.optimal_epochs:
-            epoch += 1
+        for epoch in range(1, self.epochsSwitchStage[-1] + 1):
             trainLogger = HtmlLogger(folderPath, str(epoch))
             trainLogger.addInfoTable('Learning rates', [['optimizer_lr', self.formats[self.lrKey].format(optimizer.param_groups[0]['lr'])]])
 
@@ -229,39 +220,77 @@ class TrainRegime:
 
             # switch stage, i.e. freeze one more layer
             # if (epoch in self.epochsSwitchStage) or (epoch == nEpochs):
-            if (epoch in self.epochsSwitchStage) or (epoch > self.epochsSwitchStage[-1]):
+            if epoch in self.epochsSwitchStage:
                 # switch stage
-                switchStageFlag = model.switch_stage(loggerFuncs=[lambda msg: trainLogger.addInfoTable(title='Switching stage', rows=[[msg]])])
+                model.switch_stage(loggerFuncs=[lambda msg: trainLogger.addInfoTable(title='Switching stage', rows=[[msg]])])
 
                 # validation
                 valid_acc, valid_loss, validData = self.infer(model.setFiltersByAlphas, epoch, loggersDict)
-
                 # merge trainData with validData
                 for k, v in validData.items():
                     trainData[k] = v
 
-                if switchStageFlag is False:
-                    # update best precision only after switching stage is complete
-                    is_best = valid_acc > best_prec1
-                    if is_best:
-                        best_prec1 = valid_acc
-                        best_valid_loss = valid_loss
-                        # found new optimum, reset nEpochsOptimum
-                        nEpochsOptimum = 0
-                    else:
-                        # optimum hasn't changed
-                        nEpochsOptimum += 1
-                    # update nEpochsOptimum table
-                    logger.addInfoTable('Optimum', [['Epochs as optimum', nEpochsOptimum], ['Update time', logger.getTimeStr()]])
+            # save model checkpoint
+            save_checkpoint(self.trainFolderPath, model, args, epoch, best_prec1=0.0, is_best=False, filename=filename)
 
-                # save model checkpoint
-                checkpoint, (_, optimalPath) = save_checkpoint(self.trainFolderPath, model, args, epoch, best_prec1, is_best, filename)
-                if is_best:
-                    assert (optimalPath is not None)
-                    self.optimalModelCheckpoint = checkpoint, optimalPath
+        assert (model.switch_stage() is False)
+
+        # init validation best precision value
+        best_prec1 = 0.0
+        best_valid_loss = 0.0
+
+        # count how many epochs current optimum hasn't changed
+        nEpochsOptimum = 0
+        logger.addInfoTable('Optimum', [['Epochs as optimum', nEpochsOptimum], ['Update time', logger.getTimeStr()]])
+
+        # init scheduler
+        scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.95, patience=2, min_lr=1E-4)
+
+        while nEpochsOptimum <= args.optimal_epochs:
+            epoch += 1
+            trainLogger = HtmlLogger(folderPath, str(epoch))
+            trainLogger.addInfoTable('Learning rates', [['optimizer_lr', self.formats[self.lrKey].format(optimizer.param_groups[0]['lr'])],
+                                                        ['scheduler_lr', self.formats[self.lrKey].format(scheduler.get_lr()[0])]])
+
+            # set loggers dictionary
+            loggersDict = dict(train=trainLogger)
+            # training
+            print('========== Epoch:[{}] =============='.format(epoch))
+            trainData = self.trainWeights(optimizer, epoch, loggersDict)
+
+            # add epoch number
+            trainData[self.epochNumKey] = epoch
+            # add learning rate
+            trainData[self.lrKey] = self.formats[self.lrKey].format(optimizer.param_groups[0]['lr'])
+
+            # validation
+            valid_acc, valid_loss, validData = self.infer(model.setFiltersByAlphas, epoch, loggersDict)
+            # merge trainData with validData
+            for k, v in validData.items():
+                trainData[k] = v
+
+            # update scheduler
+            scheduler.step(valid_loss)
+
+            # update best precision only after switching stage is complete
+            is_best = valid_acc > best_prec1
+            if is_best:
+                best_prec1 = valid_acc
+                best_valid_loss = valid_loss
+                # found new optimum, reset nEpochsOptimum
+                nEpochsOptimum = 0
             else:
-                # save model checkpoint
-                save_checkpoint(self.trainFolderPath, model, args, epoch, best_prec1, is_best=False, filename=filename)
+                # optimum hasn't changed
+                nEpochsOptimum += 1
+
+            # update nEpochsOptimum table
+            logger.addInfoTable('Optimum', [['Epochs as optimum', nEpochsOptimum], ['Update time', logger.getTimeStr()]])
+
+            # save model checkpoint
+            checkpoint, (_, optimalPath) = save_checkpoint(self.trainFolderPath, model, args, epoch, best_prec1, is_best, filename)
+            if is_best:
+                assert (optimalPath is not None)
+                self.optimalModelCheckpoint = checkpoint, optimalPath
 
             # add data to main logger table
             logger.addDataRow(trainData)
