@@ -7,6 +7,9 @@ from cnn.HtmlLogger import SimpleLogger
 
 
 class AWS_Manager:
+    lastCheckedKey = 'Last checked'
+    localJobsKey = 'Local jobs'
+
     def __init__(self, args, jobsPathLocal, jobsDownloadedPathLocal, noMoreJobsFilename):
         self.args = args
         # set jobs local paths
@@ -90,7 +93,8 @@ class AWS_Manager:
             if isfile(filePath) and file != self.noMoreJobsFilename:
                 counter += 1
 
-        self.logger.addInfoTable('Jobs', [['Folder', localFolderPath], ['Files#', counter], ['Last checked', self.logger.getTimeStr()]])
+        self.logger.addInfoTable(self.localJobsKey, [['Folder', localFolderPath], ['Files#', counter],
+                                                     [self.lastCheckedKey, self.logger.getTimeStr()]])
         return counter
 
     # checks if all jobs have finished on remote
@@ -105,7 +109,7 @@ class AWS_Manager:
         with open(localFname, 'r') as f:
             values = f.read().splitlines()
             v = int(values[0])
-            self.logger.addInfoTable(remoteFolderPath, [['Folder', remoteFolderPath], ['Files#', v], ['Last checked', self.logger.getTimeStr()]])
+            self.logger.addInfoTable(remoteFolderPath, [['Folder', remoteFolderPath], ['Files#', v], [self.lastCheckedKey, self.logger.getTimeStr()]])
             return v
 
     # download JSONs from remote finished to local downloaded
@@ -186,8 +190,10 @@ class AWS_Manager:
                 else:
                     noMoreJobsFileExists = True
 
-        self.logger.addRow([['Folder', jobsPathLocal], ['Jobs exist', otherFilesExists],
-                            ['[{}] exists'.format(self.noMoreJobsFilename), noMoreJobsFileExists]])
+        self.logger.addInfoTable(self.localJobsKey, [['Folder', jobsPathLocal], ['Jobs exist', otherFilesExists],
+                                                     ['[{}] exists'.format(self.noMoreJobsFilename), noMoreJobsFileExists],
+                                                     [self.lastCheckedKey, self.logger.getTimeStr()]])
+
         return (otherFilesExists is False) and (noMoreJobsFileExists is True)
 
     # upload files from local and move them to uploaded folder on local
