@@ -34,10 +34,9 @@ class TrainingJob:
 
 class AlphasWeightsLoop(TrainRegime):
     jobNameKey = 'Job name'
-    jobDownloadTimeKey = 'Download time'
     jobUpdateTimeKey = 'Update time'
     lastCheckKey = 'Last check'
-    jobsLoggerColumns = [jobNameKey, jobDownloadTimeKey, jobUpdateTimeKey]
+    jobsLoggerColumns = [jobNameKey, jobUpdateTimeKey]
 
     def __init__(self, args, logger):
         super(AlphasWeightsLoop, self).__init__(args, logger)
@@ -284,8 +283,6 @@ class AlphasWeightsLoop(TrainRegime):
                 jobExists = exists(jobDownloadedPath)
                 # load checkpoint
                 if jobExists:
-                    # update job download time from remote in jobsLogger
-                    jobsLogger.replaceValueInDataTable(job.generateTempValue(self.jobDownloadTimeKey), jobsLogger.getTimeStr())
                     # load checkpoint
                     checkpoint = loadCheckpoint(jobDownloadedPath, map_location=lambda storage, loc: storage.cuda())
                     # init list of existing keys we found in checkpoint
