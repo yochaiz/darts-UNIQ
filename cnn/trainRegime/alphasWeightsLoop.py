@@ -174,6 +174,13 @@ class AlphasWeightsLoop(TrainRegime):
         # return
         # # ================================================================
 
+        epoch = 0
+        # create initial alphas distribution job
+        epochJobsList = [self.__createTrainingJob(model.setFiltersByAlphas, epoch, 0)]
+        self.jobsList[epoch] = epochJobsList
+        # add data rows for epoch JSONs
+        self.__addEpochJSONsDataRows(epochJobsList, epoch, nEpochs)
+
         for epoch in epochRange:
             print('========== Epoch:[{}] =============='.format(epoch))
             # calc alpha trainset loss on baselines
