@@ -72,7 +72,7 @@ class TrainRegime:
         # return
         # ==================================================================
 
-        # ========= save current partition by alphas to checkpoint ==========
+        # # ========= save current partition by alphas to checkpoint ==========
         # model.setFiltersByAlphas()
         # args.partition = model.getCurrentFiltersPartition()
         # from torch import save as saveCheckpoint
@@ -287,8 +287,8 @@ class TrainRegime:
                 nEpochsOptimum += 1
 
             # update nEpochsOptimum table
-            logger.addInfoTable('Optimum', [['Epoch#', epoch - nEpochsOptimum], ['Epochs as optimum', nEpochsOptimum],
-                                            ['Update time', logger.getTimeStr()]])
+            logger.addInfoTable('Optimum', [[self.validAccKey, best_prec1], ['Epoch#', epoch - nEpochsOptimum],
+                                            ['Epochs as optimum', nEpochsOptimum], ['Update time', logger.getTimeStr()]])
 
             # save model checkpoint
             checkpoint, (_, optimalPath) = save_checkpoint(self.trainFolderPath, model, args, epoch, best_prec1, is_best, filename)
