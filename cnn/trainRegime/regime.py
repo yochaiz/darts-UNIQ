@@ -287,7 +287,7 @@ class TrainRegime:
                 nEpochsOptimum += 1
 
             # update nEpochsOptimum table
-            logger.addInfoTable('Optimum', [[self.validAccKey, best_prec1], ['Epoch#', epoch - nEpochsOptimum],
+            logger.addInfoTable('Optimum', [[self.validAccKey, self.formats[self.validAccKey].format(best_prec1)], ['Epoch#', epoch - nEpochsOptimum],
                                             ['Epochs as optimum', nEpochsOptimum], ['Update time', logger.getTimeStr()]])
 
             # save model checkpoint
