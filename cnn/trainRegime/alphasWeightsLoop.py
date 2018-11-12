@@ -270,7 +270,6 @@ class AlphasWeightsLoop(TrainRegime):
         updatedJobsList = {}
         # init epochs as keys in bopsPlotData, empty list per key
         for epoch in self.jobsList.keys():
-            bopsPlotData[epoch] = []
             updatedJobsList[epoch] = []
 
         # copy files back from server and check if best_prec1, best_valid_loss exists
@@ -301,6 +300,10 @@ class AlphasWeightsLoop(TrainRegime):
                                 l.replaceValueInDataTable(keyTempValue, self.formats[key].format(v))
                             # add tuple of (bitwidth, bops, accuracy) to plotData if we have accuracy value
                             if key == self.validAccKey:
+                                # add key to bopsPlotData dictionary, if doesn't exist
+                                if epoch not in bopsPlotData:
+                                    bopsPlotData[epoch] = []
+                                # add point data
                                 bopsPlotData[epoch].append((None, job.bops, v))
                                 # update best_prec1 of all training jobs we have trained
                                 self.best_prec1 = max(self.best_prec1, v)
