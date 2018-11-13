@@ -174,7 +174,7 @@ class AlphasWeightsLoop(TrainRegime):
         # return
         # # ================================================================
 
-        epoch = 0
+        epoch = 'Init'
         # create initial alphas distribution job
         epochJobsList = [self.__createTrainingJob(model.setFiltersByAlphas, epoch, 0)]
         self.jobsList[epoch] = epochJobsList
@@ -312,7 +312,8 @@ class AlphasWeightsLoop(TrainRegime):
                                 if epoch not in bopsPlotData:
                                     bopsPlotData[epoch] = []
                                 # add point data
-                                bopsPlotData[epoch].append((None, job.bops, v))
+                                title = epoch if isinstance(epoch, str) else None
+                                bopsPlotData[epoch].append((title, job.bops, v))
                                 # update best_prec1 of all training jobs we have trained
                                 self.best_prec1 = max(self.best_prec1, v)
 
