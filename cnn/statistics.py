@@ -301,8 +301,10 @@ class Statistics:
         plots = [BopsStandardPlot('Accuracy vs. Bops', bopsData.keys()), BopsMaxAccuracyPlot('Max accuracy vs. Bops', bopsData.keys(), baselineLabel),
                  BopsMinBopsPlot('Accuracy vs. Min bops', bopsData.keys(), baselineLabel)]
 
-        for i, (label, labelBopsData) in enumerate(bopsData.items()):
-            for j, dataPoint in enumerate(labelBopsData):
+        # iterate 1st over non-integer keys
+        for label in sorted(bopsData.keys(), key=lambda x: x if isinstance(x, int) else 0):
+            labelBopsData = bopsData[label]
+            for dataPoint in labelBopsData:
                 for plot in plots:
                     plot.addDataPoint(dataPoint, label)
 
@@ -399,6 +401,9 @@ class BopsPlotWithCondition(BopsPlot):
 
         self.baselineLabel = baselineLabel
 
+        # save previous point, in order to connect last 2 points with a dashed line
+        self.previousPoint = None
+
     @abstractmethod
     def condition(self, dataPoint):
         raise NotImplementedError('subclasses must override condition()!')
@@ -418,11 +423,22 @@ class BopsPlotWithCondition(BopsPlot):
 
     def plotSpecific(self, label):
         if label != self.baselineLabel:
+            # connect last 2 points
+            if self.previousPoint is not None:
+                xPrev, yPrev = self.previousPoint
+                self.ax.plot([xPrev, self.xValues[-1]], [yPrev, self.yValues[-1]], '--', c=self.colors[self.nextColorIdx])
+            # save last point as previous point
+            self.previousPoint = (self.xValues[-1], self.yValues[-1])
+
             accuracy = self.yValues[0] if len(self.yValues) > 0 else None
             bops = self.xValues[0] if len(self.xValues) > 0 else None
 
             if (accuracy is not None) and (bops is not None):
                 txt = '{:.3f}'.format(accuracy)
+                # if label is a string, add label to annotate
+                if isinstance(label, str):
+                    txt = '{},{}'.format(label, txt)
+
                 self.ax.annotate(txt, (bops, accuracy), size=6)
 
 
