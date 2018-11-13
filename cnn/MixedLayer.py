@@ -44,16 +44,16 @@ def postForward(self, _, output):
         self.forwardStats = None
 
 
-# alphas = [[-0.77425, -0.51608, 1.99985, -1.40266], [0.45255, -0.58584, 1.79451, -2.35437], [0.31633, 0.15337, 1.02898, -2.19183],
-#           [1.05364, -0.67785, 1.11637, -2.18531], [1.0003, -1.0216, -1.07731], [-0.05548, 0.604, 0.54426, -1.78592],
-#           [0.40192, -0.2272, 1.0015, -1.86936], [0.77592, -1.54067, -0.33387], [0.62658, 0.45246, 0.14065, -1.91283]]
+# alphas = [[-0.55621, -0.33438, 0.99768, -0.80023], [0.29986, 0.06659, 0.44075, -1.50035], [-0.10046, 0.33549, 0.64312, -1.57129],
+#           [0.4849, -0.3104, 0.74277, -1.61042], [0.78503, -0.93497, -0.94867], [0.09668, 0.11817, 0.20924, -1.11723],
+#           [0.01722, 0.46502, 0.33579, -1.51118], [0.04131, -0.74829, -0.39164], [0.16032, 0.38078, 0.15881, -1.39306]]
 #
 # alphaIdx = [0]
 #
 #
 # def getAlphas():
 #     res = tensor(alphas[alphaIdx[0]]).cuda()
-#     alphaIdx[0] += 1
+#     alphaIdx[0] = (alphaIdx[0] + 1) % len(alphas)
 #     return res
 
 
@@ -73,15 +73,15 @@ class MixedLayer(Block):
         # self.alphas = tensor(getAlphas(), requires_grad=True)
         self.alphas = self.alphas.cuda()
 
-        # # =========== change alphas distribution ==================
-        # from math import log
-        # filter = self.filters[0]
-        # p = 13/16
-        # logVal = p / (1 - p) * (self.numOfOps() - 1)
-        # for i, op in enumerate(filter.opsList()):
-        #     opBitwidth = op.getBitwidth()
-        #     if opBitwidth == (3, 3) or opBitwidth == (3, None):
-        #         self.alphas.data[i].fill_(log(logVal))
+        # =========== change alphas distribution ==================
+        from math import log
+        filter = self.filters[0]
+        p = 1 / ((self.numOfOps() * 2) - 1)
+        logVal = p / (1 - p) * (self.numOfOps() - 1)
+        for i, op in enumerate(filter.opsList()):
+            opBitwidth = op.getBitwidth()
+            if opBitwidth == (8, 8) or opBitwidth == (8, None):
+                self.alphas.data[i].fill_(log(logVal))
 
         # init filters current partition by alphas, i.e. how many filters are for each alpha, from each quantization
         self.currFiltersPartition = [0] * self.numOfOps()
