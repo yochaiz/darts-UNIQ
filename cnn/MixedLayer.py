@@ -44,6 +44,19 @@ def postForward(self, _, output):
         self.forwardStats = None
 
 
+# alphas = [[-0.77425, -0.51608, 1.99985, -1.40266], [0.45255, -0.58584, 1.79451, -2.35437], [0.31633, 0.15337, 1.02898, -2.19183],
+#           [1.05364, -0.67785, 1.11637, -2.18531], [1.0003, -1.0216, -1.07731], [-0.05548, 0.604, 0.54426, -1.78592],
+#           [0.40192, -0.2272, 1.0015, -1.86936], [0.77592, -1.54067, -0.33387], [0.62658, 0.45246, 0.14065, -1.91283]]
+#
+# alphaIdx = [0]
+#
+#
+# def getAlphas():
+#     res = tensor(alphas[alphaIdx[0]]).cuda()
+#     alphaIdx[0] += 1
+#     return res
+
+
 class MixedLayer(Block):
     def __init__(self, nFilters, createMixedFilterFunc, useResidual=False):
         super(MixedLayer, self).__init__()
@@ -57,14 +70,15 @@ class MixedLayer(Block):
 
         # init operations alphas (weights)
         self.alphas = tensor((zeros(self.numOfOps())).cuda(), requires_grad=True)
+        # self.alphas = tensor(getAlphas(), requires_grad=True)
         self.alphas = self.alphas.cuda()
 
-        # =========== change alphas distribution ==================
+        # # =========== change alphas distribution ==================
         # from math import log
         # filter = self.filters[0]
-        # p = 0.8
+        # p = 13/16
         # logVal = p / (1 - p) * (self.numOfOps() - 1)
-        # for i, op in enumerate(filter.getOps()):
+        # for i, op in enumerate(filter.opsList()):
         #     opBitwidth = op.getBitwidth()
         #     if opBitwidth == (3, 3) or opBitwidth == (3, None):
         #         self.alphas.data[i].fill_(log(logVal))
