@@ -153,7 +153,7 @@ class AlphasWeightsLoop(TrainRegime):
         args = self.args
         logger = self.logger
         # init number of epochs
-        nEpochs = 100
+        nEpochs = 40
         epochRange = self.__getEpochRange(nEpochs)
 
         # # ========================== DEBUG ===============================
