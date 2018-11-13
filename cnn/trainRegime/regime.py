@@ -73,8 +73,10 @@ class TrainRegime:
         # ==================================================================
 
         # # ========= save current partition by alphas to checkpoint ==========
-        # model.setFiltersByAlphas()
+        # # model.setFiltersByAlphas()
+        # model.choosePathByAlphas()
         # args.partition = model.getCurrentFiltersPartition()
+        # args.bops = model.countBops()
         # from torch import save as saveCheckpoint
         # saveCheckpoint(args, '[{}]-{}.json'.format(args.dataset, model.layers[0].getAllBitwidths()))
 
