@@ -317,6 +317,30 @@ class BaseNet(Module):
                             modelIncludesStats = True
                             break
                     loggerRows.append(['Includes stats', '{}'.format(modelIncludesStats)])
+
+                    # # =============================== Load alphas & plots ==========================================================
+                    # self.load_alphas_state(checkpoint['alphas'])
+                    # loggerRows.append(['Loaded alphas distribution', 'True'])
+                    # p = '/home/yochaiz/F-BANNAS/cnn/results/[(2, 2), (2, 4), (3, 3), (8, 8)],[1.0],[cifar10],[20181113-212929]/plots.data'
+                    # stats = self.stats
+                    # stats.plotsData = loadModel(p)
+                    # stats.batchLabels = stats.plotsData['alphas_entropy over epochs']['x']
+                    #
+                    # stats.containers[stats.lossAvgKey][0] = stats.plotsData['loss_avg over epochs']['data'][0]['y']
+                    # stats.containers[stats.crossEntropyLossAvgKey][0] = stats.plotsData['cross_entropy_loss_avg over epochs']['data'][0]['y']
+                    # stats.containers[stats.bopsLossAvgKey][0] = stats.plotsData['bops_loss_avg over epochs']['data'][0]['y']
+                    # stats.containers[stats.lossVarianceKey][0] = stats.plotsData['loss_variance over epochs']['data'][0]['y']
+                    #
+                    # for i in range(len(stats.containers[stats.entropyKey])):
+                    #     stats.containers[stats.entropyKey][i] = stats.plotsData['alphas_entropy over epochs']['data'][i]['y']
+                    #
+                    # for i in range(len(stats.containers[stats.alphaDistributionKey])):
+                    #     key = 'alphas_distribution --layer:[{}]-- over epochs'.format(i)
+                    #     for j in range(len(stats.containers[stats.alphaDistributionKey][i])):
+                    #         stats.containers[stats.alphaDistributionKey][i][j] = stats.plotsData[key]['data'][j]['y']
+                    #
+                    # loggerRows.append(['Loaded plots data', p])
+                    # # =============================================================================================================
                 else:
                     loggerRows.append(['Path', 'Failed to load pre-trained from [{}], state_dict does not fit'.format(path)])
             else:
