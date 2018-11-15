@@ -325,10 +325,10 @@ class ResNet(BaseNet):
             #     # copy batch norm keys
             #     newStateDict[newKey + suffix] = chckpntDict[key]
 
-        # make sure all keys exists
-        modelStateDictKeys = set(self.state_dict().keys())
-        dictDiff = modelStateDictKeys.symmetric_difference(set(newStateDict.keys()))
-        assert (len(dictDiff) == 0)
+        # # make sure all keys exists
+        # modelStateDictKeys = set(self.state_dict().keys())
+        # dictDiff = modelStateDictKeys.symmetric_difference(set(newStateDict.keys()))
+        # assert (len(dictDiff) == 0)
 
         # load model weights
         self.load_state_dict(newStateDict)
@@ -360,11 +360,11 @@ class ResNet(BaseNet):
                     newKey = prefix.replace(newKeyOp + token + '0.0.', newKeyOp + token + '{}.{}.'.format(j, i))
                     newStateDict[newKey + suffix] = chckpntDict[key]
 
-        # check that model & newStateDict have same keys
-        newStateKeys = set(newStateDict.keys())
-        dictDiff = newStateKeys.symmetric_difference(set(self.state_dict().keys()))
-        if len(dictDiff) > 0:
-            return False
+        # # check that model & newStateDict have same keys
+        # newStateKeys = set(newStateDict.keys())
+        # dictDiff = newStateKeys.symmetric_difference(set(self.state_dict().keys()))
+        # if len(dictDiff) > 0:
+        #     return False
 
         # load model weights
         self.load_state_dict(newStateDict)
