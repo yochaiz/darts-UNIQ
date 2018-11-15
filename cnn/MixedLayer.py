@@ -74,14 +74,15 @@ class MixedLayer(Block):
         self.alphas = self.alphas.cuda()
 
         # =========== change alphas distribution ==================
-        from math import log
-        filter = self.filters[0]
-        p = 1 / ((self.numOfOps() * 2) - 1)
-        logVal = p / (1 - p) * (self.numOfOps() - 1)
-        for i, op in enumerate(filter.opsList()):
-            opBitwidth = op.getBitwidth()
-            if opBitwidth == (8, 8) or opBitwidth == (8, None):
-                self.alphas.data[i].fill_(log(logVal))
+        if self.numOfOps() > 1:
+            from math import log
+            filter = self.filters[0]
+            p = 1 / ((self.numOfOps() * 2) - 1)
+            logVal = p / (1 - p) * (self.numOfOps() - 1)
+            for i, op in enumerate(filter.opsList()):
+                opBitwidth = op.getBitwidth()
+                if opBitwidth == (8, 8) or opBitwidth == (8, None):
+                    self.alphas.data[i].fill_(log(logVal))
 
         # init filters current partition by alphas, i.e. how many filters are for each alpha, from each quantization
         self.currFiltersPartition = [0] * self.numOfOps()
