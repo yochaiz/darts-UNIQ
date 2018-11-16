@@ -73,8 +73,8 @@ class TrainRegime:
         # ==================================================================
 
         # # ========= save current partition by alphas to checkpoint ==========
-        # # model.setFiltersByAlphas()
-        # model.choosePathByAlphas()
+        # model.setFiltersByAlphas()
+        # # model.choosePathByAlphas()
         # args.partition = model.getCurrentFiltersPartition()
         # args.bops = model.countBops()
         # from torch import save as saveCheckpoint
