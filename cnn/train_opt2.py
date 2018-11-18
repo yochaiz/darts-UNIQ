@@ -1,9 +1,10 @@
 from sys import argv
-from os import path, getpid, rename
+from os import path, getpid, rename, environ
 from numpy import random
 from inspect import getfile, currentframe
 from argparse import ArgumentParser
 from datetime import datetime
+from socket import gethostname
 
 from cnn.trainRegime.optimalModel import OptimalModel
 from cnn.HtmlLogger import HtmlLogger
@@ -97,7 +98,8 @@ def G(scriptArgs):
         # init logger
         logger = HtmlLogger(args.save, 'log')
         # log command line
-        logger.addInfoTable(title='Command line', rows=[[' '.join(argv)], ['PID:[{}]'.format(getpid())]])
+        logger.addInfoTable(title='Command line', rows=[[' '.join(argv)], ['PID:[{}]'.format(getpid())], ['Hostname', gethostname()],
+                                                        ['CUDA_VISIBLE_DEVICES', environ.get('CUDA_VISIBLE_DEVICES')]])
         # init project base folder
         baseFolder = path.dirname(path.abspath(getfile(currentframe())))  # script directory
         # set pre-trained path
