@@ -5,9 +5,10 @@ from datetime import datetime
 import numpy as np
 import argparse
 from traceback import format_exc
-from os import getpid
+from os import getpid, environ
 from os.path import dirname, abspath
 from inspect import getfile, currentframe, isclass
+from socket import gethostname
 
 import torch.backends.cudnn as cudnn
 from torch.cuda import is_available, set_device
@@ -172,7 +173,8 @@ if __name__ == '__main__':
 
     try:
         # log command line
-        logger.addInfoTable(title='Command line', rows=[[' '.join(argv)], ['PID:[{}]'.format(getpid())]])
+        logger.addInfoTable(title='Command line', rows=[[' '.join(argv)], ['PID:[{}]'.format(getpid())], ['Hostname', gethostname()],
+                                                        ['CUDA_VISIBLE_DEVICES', environ.get('CUDA_VISIBLE_DEVICES')]])
         # build regime for alphas optimization
         alphasRegimeClass = trainRegimes.__dict__[args.alphas_regime]
         alphasRegime = alphasRegimeClass(args, logger)
