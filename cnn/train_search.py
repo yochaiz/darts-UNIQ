@@ -1,6 +1,7 @@
 from torch.multiprocessing import set_start_method
 from sys import exit, argv
-from time import strftime, time
+from time import strftime
+from datetime import datetime
 import numpy as np
 import argparse
 from traceback import format_exc
@@ -156,7 +157,7 @@ if __name__ == '__main__':
         print('no gpu device available')
         exit(1)
 
-    args.seed = time()
+    args.seed = datetime.now().microsecond
     np.random.seed(args.seed)
     set_device(args.gpu[0])
     cudnn.benchmark = True
