@@ -36,7 +36,7 @@ def plotFromFolder(folderPath, plotsDataPath, epoch=None):
                     existingKeys.append(key)
 
             if len(existingKeys) == len(rowKeysToReplace):
-                epoch = epoch or checkpoint[epochKey]
+                epoch = getattr(checkpoint, epochKey, epoch)
                 # add key to bopsPlotData dictionary, if doesn't exist
                 if epoch not in bopsPlotData:
                     bopsPlotData[epoch] = []
@@ -55,4 +55,4 @@ plotPath = '/home/vista/Desktop/Architecture_Search/FF/plots.data'
 # plotFromFile(plotPath)
 
 folderPath = '/home/vista/Desktop/Architecture_Search/FF'
-plotFromFolder(folderPath, plotPath, epoch=32)
+plotFromFolder(folderPath, plotPath)
