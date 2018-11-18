@@ -75,6 +75,8 @@ class TrainRegime:
         # # ========= save current partition by alphas to checkpoint ==========
         # model.setFiltersByAlphas()
         # # model.choosePathByAlphas()
+        # from datetime import datetime
+        # args.seed = datetime.now().microsecond
         # args.partition = model.getCurrentFiltersPartition()
         # args.bops = model.countBops()
         # from torch import save as saveCheckpoint
@@ -88,6 +90,8 @@ class TrainRegime:
                 args.partition[i] = tensor(p, dtype=int32).cuda()
             # set filters by partition
             model.setFiltersByPartition(args.partition, loggerFuncs=[lambda msg: logger.addInfoTable('Partition', [[msg]])])
+            # set args.bops
+            args.bops = model.countBops()
 
         # load data
         self.train_queue, self.search_queue, self.valid_queue, self.statistics_queue = load_data(args)
@@ -730,6 +734,63 @@ class TrainRegime:
             trainLogger.addDataRow(dataRow)
 
         return lossContainer.avg, crossEntropyLossContainer.avg, bopsLossContainer.avg, bopsRatio
+
+# # # ========================== save 1st layer permutations ==============================
+# for layer in model.layersList:
+#     bitwidths = layer.getAllBitwidths()
+#     idx = -1
+#     for i, b in enumerate(bitwidths):
+#         if b == (3, 3) or b == (3, None):
+#             idx = i
+#             break
+#     assert (idx >= 0)
+#     for filter in layer.filters:
+#         filter.curr_alpha_idx = idx
+#         layer.currFiltersPartition[idx] += 1
+# # change 1st layer
+# layer = model.layersList[0]
+#
+# def dd(a):
+#     res = []
+#     for v in range(0, layer.nFilters() + 1, 2):
+#         res.append(a + [v])
+#     return res
+#
+# perms = dd([])
+# for _ in range(layer.numOfOps() - 1):
+#     vv = []
+#     for i in range(len(perms)):
+#         perms[i] = dd(perms[i])
+#         for p in perms[i]:
+#             vv.append(p)
+#     perms = vv
+#
+# finalPerms = [p for p in perms if sum(p) == layer.nFilters()]
+# del perms
+# # count bops
+# permsWithBopsRestriction = []
+# args.partition = model.getCurrentFiltersPartition()
+#
+# from torch import save as saveCheckpoint
+# from datetime import datetime
+# for partition in finalPerms:
+#     args.seed = datetime.now().microsecond
+#     args.partition[0] = partition
+#     saveCheckpoint(args, '[{}]-[{}]-{}.json'.format(args.dataset, args.model, partition))
+#
+# # # convert partition to tensors
+# # for i, p in enumerate(args.partition):
+# #     args.partition[i] = tensor(p, dtype=int32).cuda()
+# # for partition in finalPerms:
+# #     args.partition[0] = tensor(partition, dtype=int32).cuda()
+# #     # set filters by partition
+# #     model.setFiltersByPartition(args.partition)
+# #     bopsRatio = model.calcBopsRatio()
+# #     permsWithBopsRestriction.append((partition, bopsRatio))
+# #     # if bopsRatio <= 1.0:
+# #     #     permsWithBopsRestriction.append(partition)
+# # permsWithBopsRestriction.sort(key=lambda tup: tup[1])
+# # ==================================================================
 
 # def logAllocations(self):
 #     logger = HtmlLogger(self.args.save, 'allocations', overwrite=True)
