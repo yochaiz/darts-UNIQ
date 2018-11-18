@@ -3,6 +3,7 @@ from os import path, getpid, rename
 from numpy import random
 from inspect import getfile, currentframe
 from argparse import ArgumentParser
+from datetime import datetime
 
 from cnn.trainRegime.optimalModel import OptimalModel
 from cnn.HtmlLogger import HtmlLogger
@@ -72,6 +73,7 @@ def G(scriptArgs):
     # exit(0)
     # # ================================================================
 
+    args.seed = datetime.now().microsecond
     # update cudnn parameters
     random.seed(args.seed)
     set_device(scriptArgs.gpu[0])
