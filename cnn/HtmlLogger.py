@@ -3,6 +3,7 @@ from datetime import datetime
 from io import BytesIO
 from base64 import b64encode
 from urllib.parse import quote
+from time import sleep
 
 import matplotlib
 
@@ -95,7 +96,14 @@ class HtmlLogger:
         with open(self.fullPath, 'w') as f:
             for elem in writeOrder:
                 if elem is not '':
-                    f.write(elem)
+                    writeSuccess = False
+                    while writeSuccess is False:
+                        try:
+                            f.write(elem)
+                            writeSuccess = True
+                        except Exception as e:
+                            print('HtmlLogger write failed, error:[{}]'.format(e))
+                            sleep(10 * 60)
 
     def __addRow(self, row):
         res = '<tr>'
