@@ -16,8 +16,8 @@ def plotFromFolder(folderPath, plotsDataPath, epoch=None):
     epochKey = 'epoch'
     bopsKey = 'bops'
     rowKeysToReplace = [TrainRegime.validAccKey, bopsKey]
-    if epoch is None:
-        rowKeysToReplace.append(epochKey)
+    # if epoch is None: # TODO: original
+    #     rowKeysToReplace.append(epochKey)
 
     plotsData = load(plotsDataPath)
     bopsPlotData = plotsData[bopsKey]
@@ -36,7 +36,8 @@ def plotFromFolder(folderPath, plotsDataPath, epoch=None):
                     existingKeys.append(key)
 
             if len(existingKeys) == len(rowKeysToReplace):
-                epoch = getattr(checkpoint, epochKey, epoch)
+                # epoch = getattr(checkpoint, epochKey, epoch) #TODO: original
+                epoch = str(checkpoint.partition[0].tolist())
                 # add key to bopsPlotData dictionary, if doesn't exist
                 if epoch not in bopsPlotData:
                     bopsPlotData[epoch] = []
