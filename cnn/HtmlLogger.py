@@ -99,9 +99,11 @@ class HtmlLogger:
                     writeSuccess = False
                     while writeSuccess is False:
                         try:
+                            # try to write to file
                             f.write(elem)
                             writeSuccess = True
                         except Exception as e:
+                            # if couldn't write for some reason, like no space left on device, wait some time until we will free some space
                             print('HtmlLogger write failed, error:[{}]'.format(e))
                             sleep(10 * 60)
 
