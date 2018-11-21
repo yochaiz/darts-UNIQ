@@ -1,8 +1,8 @@
 #!/bin/bash
-#SBATCH -c 4 # number of cores
+#SBATCH -c 3 # number of cores
 #SBATCH --gres=gpu:1 # number of gpu requested
-#SBATCH -J "Homogeneous-[2,2]"
-# -t 04-00:00:00
+#-J "20181114-104311-32-1"
+#SBATCH -t 03-00:00:00
 # -p gip,all
 # -w gaon2
 #SBATCH --mail-user=yochaiz@cs.technion.ac.il
