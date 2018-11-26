@@ -19,9 +19,14 @@ def plotFromFolder(folderPath, plotsDataPath, epoch=None):
     # if epoch is None: # TODO: original
     #     rowKeysToReplace.append(epochKey)
 
+    # ===== remove ======================
+    counterDict = {}
+    counter = 0
+    # ===================================
+
     plotsData = load(plotsDataPath)
     bopsPlotData = plotsData[bopsKey]
-    for folderName in listdir(folderPath):
+    for folderName in sorted(listdir(folderPath)):
         fPath = '{}/{}'.format(folderPath, folderName)
         if isfile(fPath):
             checkpoint = load(fPath)
@@ -39,12 +44,19 @@ def plotFromFolder(folderPath, plotsDataPath, epoch=None):
                 # epoch = getattr(checkpoint, epochKey, epoch) #TODO: original
                 epoch = str(checkpoint.partition[0].tolist())
                 # add key to bopsPlotData dictionary, if doesn't exist
-                if epoch not in bopsPlotData:
-                    bopsPlotData[epoch] = []
+                if epoch not in counterDict:
+                    # ===== remove ======================
+                    counterDict[epoch] = counter
+                    counter += 1
+                    epochKey = '{}-[{}]'.format(epoch, counterDict[epoch])
+                    bopsPlotData[epochKey] = []
+                    # ===================================
 
                 # add point data
-                title = epoch if isinstance(epoch, str) else None
-                bopsPlotData[epoch].append((title, getattr(checkpoint, bopsKey), getattr(checkpoint, TrainRegime.validAccKey)))
+                # title = epoch if isinstance(epoch, str) else None #TODO: original
+                title = '[{}]'.format(counterDict[epoch]) if isinstance(epoch, str) else None
+                epochKey = '{}-[{}]'.format(epoch, counterDict[epoch])
+                bopsPlotData[epochKey].append((title, getattr(checkpoint, bopsKey), getattr(checkpoint, TrainRegime.validAccKey)))
 
     # save updated plots data
     save(plotsData, plotsDataPath)
@@ -57,3 +69,61 @@ plotPath = '/home/vista/Desktop/Architecture_Search/FF/plots.data'
 
 folderPath = '/home/vista/Desktop/Architecture_Search/FF'
 plotFromFolder(folderPath, plotPath)
+
+# # ====== average key values =============
+# from torch import load, save
+# from cnn.statistics import Statistics
+#
+# bopsKey = 'bops'
+# folderPath = '/home/vista/Desktop/Architecture_Search/FF'
+# plotsDataPath = '/home/vista/Desktop/Architecture_Search/FF/plots.data.avg'
+# plotsData = load(plotsDataPath)
+# bopsPlotData = plotsData[bopsKey]
+#
+# for k in bopsPlotData.keys():
+#     results = bopsPlotData[k]
+#     avg = 0.0
+#     for title, bops, r in results:
+#         avg += r
+#     avg /= len(results)
+#     bopsPlotData[k] = [(title, bops, avg)]
+#
+# Statistics.plotBops(plotsData, bopsKey, 'Baseline', folderPath)
+# # save updated plots data
+# save(plotsData, plotsDataPath)
+
+# # ======= L1 distance =================
+# from torch import load, save
+# from ast import literal_eval
+# from cnn.statistics import Statistics
+#
+# bopsKey = 'bops'
+# folderPath = '/home/vista/Desktop/Architecture_Search/FF'
+# plotsDataPath = '/home/vista/Desktop/Architecture_Search/FF/plots.data.avg'
+# plotsData = load(plotsDataPath)
+# bopsPlotData = plotsData[bopsKey]
+#
+# pivot = [8, 2, 6, 0]
+#
+# for k, results in bopsPlotData.items():
+#     # extract 1st layer partition
+#     if isinstance(k, str):
+#         partition = literal_eval(k[:k.find('-')])
+#     else:
+#         if k == (3, 3):
+#             partition = [0, 16, 0, 0]
+#         elif k == (4, 4):
+#             partition = [0, 0, 16, 0]
+#         else:
+#             continue
+#
+#     # calc L1 partition distance from pivot
+#     partitionDist = sum([abs(x - y) for x, y in zip(partition, pivot)])
+#
+#     newResults = []
+#     for title, bops, r in results:
+#         newResults.append((title, partitionDist, r))
+#
+#     bopsPlotData[k] = newResults
+#
+# Statistics.plotBops(plotsData, bopsKey, 'Baseline', folderPath)
