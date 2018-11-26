@@ -106,6 +106,7 @@ def G(scriptArgs):
         preTrainedKey = '[(32, 32)],[{}]'.format(args.model)
         preTrainedFileName = 'model.updated_stats.pth.tar'
         args.pre_trained = '{}/../pre_trained/{}/train_portion_1.0/{}/train/{}'.format(baseFolder, args.dataset, preTrainedKey, preTrainedFileName)
+        # args.pre_trained = scriptArgs.pp
         # check path exists
         if path.exists(args.pre_trained):
             alphasRegime = OptimalModel(args, logger)
@@ -131,6 +132,7 @@ parser.add_argument('--json', type=str, required=True, help='JSON file path')
 parser.add_argument('--dstFolder', type=str, default=None, help='JSON file destination when training is over')
 parser.add_argument('--data', type=str, default='datasets/', help='datasets folder path')
 parser.add_argument('--gpu', type=str, default='0', help='gpu device id, e.g. 0,1,3')
+# parser.add_argument('--pp', type=str, required=True, help='pp')
 
 scriptArgs = parser.parse_args()
 # update GPUs list
