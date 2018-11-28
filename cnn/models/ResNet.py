@@ -75,17 +75,6 @@ class BasicBlock(Block):
     def getCurrentOutputBitwidth(self):
         return self.block2.getCurrentOutputBitwidth()
 
-    # def getOutputBitwidthList(self):
-    #     return self.block2.getOutputBitwidthList()
-
-    # # select random alpha
-    # def chooseRandomPath(self):
-    #     if self.downsample:
-    #         self.downsample.chooseRandomPath()
-    #
-    #     self.block1.chooseRandomPath()
-    #     self.block2.chooseRandomPath()
-
     # select alpha based on alphas distribution
     def choosePathByAlphas(self):
         if self.downsample:
@@ -93,13 +82,6 @@ class BasicBlock(Block):
 
         self.block1.choosePathByAlphas()
         self.block2.choosePathByAlphas()
-
-    # def evalMode(self):
-    #     if self.downsample:
-    #         self.downsample.evalMode()
-    #
-    #     self.block1.evalMode()
-    #     self.block2.evalMode()
 
     def numOfOps(self):
         return self.block2.numOfOps()
@@ -122,10 +104,6 @@ class ResNet(BaseNet):
         f = createMixedConvWithReLU(bitwidths, in_planes, kernel_sizes, stride, input_size, prevLayer)
         layer = MixedLayer(out_planes, f)
 
-        # if layer.numOfOps() > 1:
-        #     layer.setAlphas([0., 0., 0., 0.25, 0.75])
-        #     layer.setFiltersPartition()
-
         return layer
 
     # init layers (type, in_planes, out_planes)
@@ -146,20 +124,12 @@ class ResNet(BaseNet):
 
         # create list of layers from layersPlanes
         # supports bitwidth as list of ints, i.e. same bitwidths to all layers
-        # supports bitwidth as list of lists, i.e. specific bitwidths to each layer
         layers = ModuleList()
         for i, (layerType, in_planes, out_planes, input_size) in enumerate(layersPlanes):
             # build layer
             l = layerType(bitwidths, in_planes, out_planes, kernel_sizes, 1, input_size, prevLayer)
             # add layer to layers list
             layers.append(l)
-            # remove layer specific bitwidths, in case of different bitwidths to layers
-            # if isinstance(bitwidths[0], list):
-            #     nMixedOpLayers = 1 if isinstance(l, MixedFilter) \
-            #         else sum(1 for _, m in l._modules.items() if isinstance(m, MixedFilter))
-            #     del bitwidths[:nMixedOpLayers]
-            # # update previous layer
-            # prevLayer = l.outputLayer()
 
         self.avgpool = AvgPool2d(8)
         # self.fc = MixedLinear(bitwidths, 64, 10)
