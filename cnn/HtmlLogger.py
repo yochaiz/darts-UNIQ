@@ -112,7 +112,7 @@ class HtmlLogger:
         for v in row:
             isTable = False
             # check maybe we have a sub-table
-            if (type(v) is list) and (len(v) > 0) and (type(v[0]) is list):
+            if (type(v) is list) and (len(v) > 0) and isinstance(v[0], list):
                 v = self.__createTableFromRows(v)
                 isTable = True
             # add element or sub-table to current table
