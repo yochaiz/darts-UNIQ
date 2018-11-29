@@ -1,7 +1,7 @@
 #!/bin/bash
-#SBATCH -c 3 # number of cores
-#SBATCH -t 03-00:00:00
-#SBATCH --gres=gpu:1 # number of gpu requested
+#SBATCH -c 4 # number of cores
+#SBATCH -t 04-00:00:00
+# --gres=gpu:1 # number of gpu requested
 # -J "[0,0,0,16]"
 #SBATCH -p all
 # -w gaon2
