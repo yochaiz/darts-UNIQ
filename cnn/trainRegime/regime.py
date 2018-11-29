@@ -63,25 +63,6 @@ class TrainRegime:
         # self.modelParallel = DataParallel(model, args.gpu)
         # assert (id(model) == id(self.modelParallel.module))
 
-        # # ========================== DEBUG ============================
-        # self.model = model
-        # self.args = args
-        # self.logger = logger
-        # # init logger data table
-        # logger.createDataTable('Summary', self.colsMainLogger)
-        # return
-        # ==================================================================
-
-        # # ========= save current partition by alphas to checkpoint ==========
-        # model.setFiltersByAlphas()
-        # # model.choosePathByAlphas()
-        # from datetime import datetime
-        # args.seed = datetime.now().microsecond
-        # args.partition = model.getCurrentFiltersPartition()
-        # args.bops = model.countBops()
-        # from torch import save as saveCheckpoint
-        # saveCheckpoint(args, '[{}]-{}.json'.format(args.dataset, model.layers[0].getAllBitwidths()))
-
         # load partition if exists
         if args.partition is not None:
             assert (isinstance(args.partition, list))
@@ -735,6 +716,25 @@ class TrainRegime:
 
         return lossContainer.avg, crossEntropyLossContainer.avg, bopsLossContainer.avg, bopsRatio
 
+# # ========================== DEBUG ============================
+# self.model = model
+# self.args = args
+# self.logger = logger
+# # init logger data table
+# logger.createDataTable('Summary', self.colsMainLogger)
+# return
+# ==================================================================
+
+# # ========= save current partition by alphas to checkpoint ==========
+# model.setFiltersByAlphas()
+# # model.choosePathByAlphas()
+# from datetime import datetime
+# args.seed = datetime.now().microsecond
+# args.partition = model.getCurrentFiltersPartition()
+# args.bops = model.countBops()
+# from torch import save as saveCheckpoint
+# saveCheckpoint(args, '[{}]-{}.json'.format(args.dataset, model.layers[0].getAllBitwidths()))
+
 # # # ========================== save 1st layer permutations ==============================
 # for layer in model.layersList:
 #     bitwidths = layer.getAllBitwidths()
@@ -768,7 +768,6 @@ class TrainRegime:
 # finalPerms = [p for p in perms if sum(p) == layer.nFilters()]
 # del perms
 # # count bops
-# permsWithBopsRestriction = []
 # args.partition = model.getCurrentFiltersPartition()
 #
 # from torch import save as saveCheckpoint
@@ -779,6 +778,7 @@ class TrainRegime:
 #     saveCheckpoint(args, '[{}]-[{}]-{}.json'.format(args.dataset, args.model, partition))
 #
 # # # convert partition to tensors
+# # permsWithBopsRestriction = []
 # # for i, p in enumerate(args.partition):
 # #     args.partition[i] = tensor(p, dtype=int32).cuda()
 # # for partition in finalPerms:
