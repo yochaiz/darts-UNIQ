@@ -178,90 +178,6 @@ class BaseNet(Module):
     def arch_parameters(self):
         return self.learnable_alphas
 
-    # def calcStatistics(self, statistics_queue):
-    #     # prepare for collecting statistics, reset register_buffers values
-    #     for layer in self.layersList:
-    #         for op in layer.opsList:
-    #             conv = op.getConv()
-    #             # reset conv register_buffer values
-    #             conv.layer_b = ones(1).cuda()
-    #             conv.layer_basis = ones(1).cuda()
-    #             conv.initial_clamp_value = ones(1).cuda()
-    #             # get actquant
-    #             actQuant = op.getReLU()
-    #             if actQuant:
-    #                 # reset actquant register_buffer values
-    #                 actQuant.running_mean = zeros(1).cuda()
-    #                 actQuant.running_std = zeros(1).cuda()
-    #                 actQuant.clamp_val.data = zeros(1).cuda()
-    #                 # set actquant to statistics forward
-    #                 actQuant.forward = actQuant.statisticsForward
-    #
-    #     # train for statistics
-    #     criterion = CrossEntropyLoss().cuda()
-    #     nBatches = 80
-    #     self.eval()
-    #     with no_grad():
-    #         for step, (input, target) in enumerate(statistics_queue):
-    #             if step >= nBatches:
-    #                 break
-    #
-    #             output = self(input.cuda())
-    #             criterion(output, target.cuda())
-    #
-    #     # apply quantize class statistics functions
-    #     for layerIdx, layer in enumerate(self.layersList):
-    #         # concat layer feature maps together, in order to get initial_clamp_value identical to NICE
-    #         # because initial_clamp_value is calculated based on feature maps weights values
-    #         x = tensor([]).cuda()
-    #         for op in layer.opsList:
-    #             x = cat((x, op.getConv().weight), dim=0)
-    #
-    #         for op in layer.opsList:
-    #             clamp_value = op.quantize.basic_clamp(x)
-    #             conv = op.getConv()
-    #             conv.initial_clamp_value = clamp_value
-    #             # restore actquant forward function
-    #             actQuant = op.getReLU()
-    #             # set actquant to standard forward
-    #             if actQuant:
-    #                 op.quantize.get_act_max_value_from_pre_calc_stats([actQuant])
-    #                 actQuant.forward = actQuant.standardForward
-    #
-    #         print('Layer [{}] - initial_clamp_value:[{}]'.format(layerIdx, conv.initial_clamp_value.item()))
-    #
-    #     # for op in layer.opsList:
-    #     #     opModulesList = list(op.modules())
-    #     #     op.quantize.get_act_max_value_from_pre_calc_stats(opModulesList)
-    #     #     op.quantize.set_weight_basis(opModulesList, None)
-    #     #
-    #     #     conv = op.getConv()
-    #     #     print(conv.initial_clamp_value)
-    #     #
-    #
-    # # updates statistics in checkpoint, in order to avoid calculating statistics when loading model from checkpoint
-    # def updateCheckpointStatistics(self, checkpoint, path, statistics_queue):
-    #     needToUpdate = ('updated_statistics' not in checkpoint) or (checkpoint['updated_statistics'] is not True)
-    #     if needToUpdate:
-    #         # quantize model
-    #         self.quantizeUnstagedLayers()
-    #         # change self.nLayersQuantCompleted so calcStatistics() won't quantize again
-    #         nLayersQuantCompletedOrg = self.nLayersQuantCompleted
-    #         self.nLayersQuantCompleted = self.nLayers()
-    #         # load checkpoint weights
-    #         self.load_state_dict(checkpoint['state_dict'])
-    #         # calc weights statistics
-    #         self.calcStatistics(statistics_queue)
-    #         # update checkpoint
-    #         checkpoint['state_dict'] = self.state_dict()
-    #         checkpoint['updated_statistics'] = True
-    #         # save updated checkpoint
-    #         saveModel(checkpoint, path)
-    #         # restore nLayersQuantCompleted
-    #         self.nLayersQuantCompleted = nLayersQuantCompletedOrg
-    #
-    #     return needToUpdate
-
     # layer_basis is a function of filter quantization,
     # therefore we have to update its value bases on weight_max_int, which is a function of weights bitwidth
     def __updateStatistics(self, loggerFuncs=[]):
@@ -770,6 +686,90 @@ class BaseNet(Module):
         # apply loggers functions
         for f in loggerFuncs:
             f(rows)
+
+# def calcStatistics(self, statistics_queue):
+#     # prepare for collecting statistics, reset register_buffers values
+#     for layer in self.layersList:
+#         for op in layer.opsList:
+#             conv = op.getConv()
+#             # reset conv register_buffer values
+#             conv.layer_b = ones(1).cuda()
+#             conv.layer_basis = ones(1).cuda()
+#             conv.initial_clamp_value = ones(1).cuda()
+#             # get actquant
+#             actQuant = op.getReLU()
+#             if actQuant:
+#                 # reset actquant register_buffer values
+#                 actQuant.running_mean = zeros(1).cuda()
+#                 actQuant.running_std = zeros(1).cuda()
+#                 actQuant.clamp_val.data = zeros(1).cuda()
+#                 # set actquant to statistics forward
+#                 actQuant.forward = actQuant.statisticsForward
+#
+#     # train for statistics
+#     criterion = CrossEntropyLoss().cuda()
+#     nBatches = 80
+#     self.eval()
+#     with no_grad():
+#         for step, (input, target) in enumerate(statistics_queue):
+#             if step >= nBatches:
+#                 break
+#
+#             output = self(input.cuda())
+#             criterion(output, target.cuda())
+#
+#     # apply quantize class statistics functions
+#     for layerIdx, layer in enumerate(self.layersList):
+#         # concat layer feature maps together, in order to get initial_clamp_value identical to NICE
+#         # because initial_clamp_value is calculated based on feature maps weights values
+#         x = tensor([]).cuda()
+#         for op in layer.opsList:
+#             x = cat((x, op.getConv().weight), dim=0)
+#
+#         for op in layer.opsList:
+#             clamp_value = op.quantize.basic_clamp(x)
+#             conv = op.getConv()
+#             conv.initial_clamp_value = clamp_value
+#             # restore actquant forward function
+#             actQuant = op.getReLU()
+#             # set actquant to standard forward
+#             if actQuant:
+#                 op.quantize.get_act_max_value_from_pre_calc_stats([actQuant])
+#                 actQuant.forward = actQuant.standardForward
+#
+#         print('Layer [{}] - initial_clamp_value:[{}]'.format(layerIdx, conv.initial_clamp_value.item()))
+#
+#     # for op in layer.opsList:
+#     #     opModulesList = list(op.modules())
+#     #     op.quantize.get_act_max_value_from_pre_calc_stats(opModulesList)
+#     #     op.quantize.set_weight_basis(opModulesList, None)
+#     #
+#     #     conv = op.getConv()
+#     #     print(conv.initial_clamp_value)
+#     #
+#
+# # updates statistics in checkpoint, in order to avoid calculating statistics when loading model from checkpoint
+# def updateCheckpointStatistics(self, checkpoint, path, statistics_queue):
+#     needToUpdate = ('updated_statistics' not in checkpoint) or (checkpoint['updated_statistics'] is not True)
+#     if needToUpdate:
+#         # quantize model
+#         self.quantizeUnstagedLayers()
+#         # change self.nLayersQuantCompleted so calcStatistics() won't quantize again
+#         nLayersQuantCompletedOrg = self.nLayersQuantCompleted
+#         self.nLayersQuantCompleted = self.nLayers()
+#         # load checkpoint weights
+#         self.load_state_dict(checkpoint['state_dict'])
+#         # calc weights statistics
+#         self.calcStatistics(statistics_queue)
+#         # update checkpoint
+#         checkpoint['state_dict'] = self.state_dict()
+#         checkpoint['updated_statistics'] = True
+#         # save updated checkpoint
+#         saveModel(checkpoint, path)
+#         # restore nLayersQuantCompleted
+#         self.nLayersQuantCompleted = nLayersQuantCompletedOrg
+#
+#     return needToUpdate
 
 # def __loadStatistics(self, filename):
 #     if exists(filename):
