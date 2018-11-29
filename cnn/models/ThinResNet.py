@@ -27,6 +27,20 @@ class BasicBlockFullPrecision(Module):
             BatchNorm2d(out_planes)
         ) if in_planes != out_planes else None
 
+        # self.out_planes = out_planes
+        # self.bitwidth = 8
+        # # build Conv2d blocks bops dummies for bops calculation
+        # bopsBlock1 = Conv2d(in_planes, 1, kernel_size, stride=stride1, padding=1, bias=False)
+        # bopsBlock2 = Conv2d(out_planes, 1, kernel_size, stride=stride, padding=1, bias=False)
+        # bopsDownsample = Conv2d(in_planes, 1, kernel_size=1, stride=stride1, bias=False) if in_planes != out_planes else None
+        # # count bops
+        # self.bops = {
+        #     self.block1: count_flops(bopsBlock1, input_size[0], in_planes),
+        #     self.block2: count_flops(bopsBlock2, input_size[-1], out_planes),
+        # }
+        # if bopsDownsample:
+        #     self.bops[self.downsample] = count_flops(bopsDownsample, input_size[0], in_planes)
+
     def forward(self, x):
         residual = self.downsample(x) if self.downsample else x
 
@@ -36,6 +50,44 @@ class BasicBlockFullPrecision(Module):
         out = self.relu(out)
 
         return out
+
+    # # input_bitwidth is a list of bitwidth per feature map
+    # def getBops(self, input_bitwidth):
+    #     bops = self.countOpsBops(self.bops[self.block1], input_bitwidth)
+    #     if self.downsample:
+    #         bops += self.countOpsBops(self.bops[self.downsample], input_bitwidth)
+    #
+    #     input_bitwidth = [self.bitwidth] * self.out_planes
+    #     bops += self.countOpsBops(self.bops[self.block2], input_bitwidth)
+    #
+    #     output_bitwidth = [self.bitwidth] * self.out_planes
+    #     # we calculated bops for a single filter, need to multiply by number of filters
+    #     bops *= self.out_planes
+    #
+    #     return bops, output_bitwidth
+    #
+    # def countOpsBops(self, opBopsData, input_bitwidth):
+    #     # set block filter's bitwidth
+    #     bitwidth = self.bitwidth
+    #     # get bops values
+    #     mults, adds, calcMacObj, batch_size = opBopsData
+    #     # calc max_mac_value
+    #     max_mac_value = 0
+    #     for act_bitwidth in input_bitwidth:
+    #         max_mac_value += calcMacObj.calc(bitwidth, act_bitwidth)
+    #     # init log2_max_mac_value
+    #     log2_max_mac_value = ceil(log2(max_mac_value))
+    #     # calc bops
+    #     bops = 0.0
+    #     # calc bops mults
+    #     for act_bitwidth in input_bitwidth:
+    #         bops += mults * (bitwidth - 1) * act_bitwidth
+    #     # add bops adds
+    #     bops += adds * log2_max_mac_value
+    #     # divide by batch size
+    #     bops /= batch_size
+    #
+    #     return bops
 
 
 class ThinResNet(ResNet):
@@ -107,44 +159,44 @@ class ThinResNet(ResNet):
 #
 #     return map
 
-    # def buildStateDictMap(self, chckpntDict):
-    #     def iterateKey(chckpntDict, map, key1, key2, dstKey):
-    #         keyIdx = 0
-    #         key = '{}.{}.{}'.format(key1, key2, keyIdx)
-    #         while '{}.weight'.format(key) in chckpntDict:
-    #             map[key] = dstKey.format(key2, keyIdx)
-    #             keyIdx += 1
-    #             key = '{}.{}.{}'.format(key1, key2, keyIdx)
-    #
-    #     def getNextblock(obj, key, blockNum):
-    #         block = getattr(obj, key, None)
-    #         return block, (blockNum + 1)
-    #
-    #     # =============================================================================
-    #     map = {
-    #         'block1.0': 'layers.0.ops.0.0.op.0.0',
-    #         'block1.1': 'layers.0.ops.0.0.op.0.1',
-    #         'fc': 'fc'
-    #     }
-    #
-    #     for i, layer in enumerate(self.layers[1:]):
-    #         dstPrefix = 'layers.{}.'.format(i + 1)
-    #         key1 = 'block{}'.format(i + 2)
-    #         innerBlockNum = 1
-    #         key2 = 'block{}'.format(innerBlockNum)
-    #         c, innerBlockNum = getNextblock(layer, key2, innerBlockNum)
-    #         while c:
-    #             iterateKey(chckpntDict, map, key1, key2, dstPrefix + '{}.ops.0.0.op.0.{}')
-    #             key2 = 'block{}'.format(innerBlockNum)
-    #             c, innerBlockNum = getNextblock(layer, key2, innerBlockNum)
-    #
-    #         # copy downsample
-    #         key2 = 'downsample'
-    #         c, innerBlockNum = getNextblock(layer, key2, innerBlockNum)
-    #         if c:
-    #             iterateKey(chckpntDict, map, key1, key2, dstPrefix + '{}.ops.0.0.op.{}')
-    #
-    #     return map
+# def buildStateDictMap(self, chckpntDict):
+#     def iterateKey(chckpntDict, map, key1, key2, dstKey):
+#         keyIdx = 0
+#         key = '{}.{}.{}'.format(key1, key2, keyIdx)
+#         while '{}.weight'.format(key) in chckpntDict:
+#             map[key] = dstKey.format(key2, keyIdx)
+#             keyIdx += 1
+#             key = '{}.{}.{}'.format(key1, key2, keyIdx)
+#
+#     def getNextblock(obj, key, blockNum):
+#         block = getattr(obj, key, None)
+#         return block, (blockNum + 1)
+#
+#     # =============================================================================
+#     map = {
+#         'block1.0': 'layers.0.ops.0.0.op.0.0',
+#         'block1.1': 'layers.0.ops.0.0.op.0.1',
+#         'fc': 'fc'
+#     }
+#
+#     for i, layer in enumerate(self.layers[1:]):
+#         dstPrefix = 'layers.{}.'.format(i + 1)
+#         key1 = 'block{}'.format(i + 2)
+#         innerBlockNum = 1
+#         key2 = 'block{}'.format(innerBlockNum)
+#         c, innerBlockNum = getNextblock(layer, key2, innerBlockNum)
+#         while c:
+#             iterateKey(chckpntDict, map, key1, key2, dstPrefix + '{}.ops.0.0.op.0.{}')
+#             key2 = 'block{}'.format(innerBlockNum)
+#             c, innerBlockNum = getNextblock(layer, key2, innerBlockNum)
+#
+#         # copy downsample
+#         key2 = 'downsample'
+#         c, innerBlockNum = getNextblock(layer, key2, innerBlockNum)
+#         if c:
+#             iterateKey(chckpntDict, map, key1, key2, dstPrefix + '{}.ops.0.0.op.{}')
+#
+#     return map
 
 # # ====================================================
 # # for training pre_trained, i.e. full precision
