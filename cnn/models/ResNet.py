@@ -106,7 +106,7 @@ class ResNet(BaseNet):
 
         return layer
 
-    # init layers (type, in_planes, out_planes)
+    # init layers (type, in_planes, out_planes, input_size)
     def initLayersPlanes(self):
         return [(self.createMixedLayer, 3, 16, 32),
                 (BasicBlock, 16, 16, [32]), (BasicBlock, 16, 16, [32]), (BasicBlock, 16, 16, [32]),
@@ -290,6 +290,9 @@ class ResNet(BaseNet):
                         for i in range(filter.numOfOps()):
                             newStateKey = filterKey.replace(token + '0.0.', token + '{}.{}.'.format(j, i))
                             newStateDict[newStateKey + suffix] = filterValues
+
+            elif newKey.startswith('layers.1.layers.'):
+                newStateDict[newKey + suffix] = chckpntDict[key]
 
             # elif newKey.endswith('.bn'):
             #     # copy batch norm keys
