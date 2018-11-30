@@ -1,20 +1,23 @@
 from torch import load, save
 from os.path import dirname, isfile
-from os import listdir
+from os import listdir, remove
+from ast import literal_eval
 
 from cnn.statistics import Statistics
 from cnn.trainRegime.regime import TrainRegime
+
+bopsKey = 'bops'
+baselineKey = 'Baseline'
 
 
 def plotFromFile(plotPath):
     baseFolder = dirname(plotPath)  # script directory
     plotsData = load(plotPath)
-    Statistics.plotBops(plotsData, 'bops', 'Baseline', baseFolder)
+    Statistics.plotBops(plotsData, bopsKey, baselineKey, baseFolder)
 
 
 def plotEpochsFromFolder(folderPath, plotsDataPath, epoch=None):
     epochKey = 'epoch'
-    bopsKey = 'bops'
     rowKeysToReplace = [TrainRegime.validAccKey, bopsKey]
     if epoch is None:
         rowKeysToReplace.append(epochKey)
@@ -48,11 +51,10 @@ def plotEpochsFromFolder(folderPath, plotsDataPath, epoch=None):
     # save updated plots data
     save(plotsData, plotsDataPath)
     # plot
-    Statistics.plotBops(plotsData, bopsKey, 'Baseline', folderPath)
+    Statistics.plotBops(plotsData, bopsKey, baselineKey, folderPath)
 
 
 def plotPartitionsFromFolder(folderPath, plotsDataPath):
-    bopsKey = 'bops'
     rowKeysToReplace = [TrainRegime.validAccKey, bopsKey]
 
     counterDict = {}
@@ -91,14 +93,56 @@ def plotPartitionsFromFolder(folderPath, plotsDataPath):
     # save updated plots data
     save(plotsData, plotsDataPath)
     # plot
-    Statistics.plotBops(plotsData, bopsKey, 'Baseline', folderPath)
+    Statistics.plotBops(plotsData, bopsKey, baselineKey, folderPath)
+
+
+def generateCSV(folderPath):
+    data = {}
+    partitionKeys = []
+    resultsKey = 'results'
+    for file in sorted(listdir(folderPath)):
+        fPath = '{}/{}'.format(folderPath, file)
+        if isfile(fPath):
+            checkpoint = load(fPath)
+            try:
+                partition = getattr(checkpoint, 'partition')
+                if not isinstance(partition[0], list):
+                    partition = partition[0].tolist()
+                bops = getattr(checkpoint, bopsKey)
+                repeatNum = int(file[file.rfind('-') + 1:file.rfind('.')])
+                validAcc = getattr(checkpoint, TrainRegime.validAccKey)
+            except Exception as e:
+                remove(fPath)
+                continue
+
+            partitionStr = str(partition)
+            if partitionStr not in data:
+                data[partitionStr] = {bopsKey: bops, resultsKey: [None] * 5}
+                partitionKeys.append(partition)
+
+            results = data[partitionStr][resultsKey]
+            results[repeatNum - 1] = validAcc
+
+    for partition in reversed(sorted(partitionKeys)):
+        partitionStr = str(partition)
+        partitionData = data[partitionStr]
+
+        bops = partitionData[bopsKey]
+        results = partitionData[resultsKey]
+        resultsStr = ''
+        for r in results:
+            resultsStr += ',{:.3f}'.format(r) if r else ','
+        print('"{}",{}{}'.format(partition, bops, resultsStr))
+
+    print('Partition,Bops,1,2,3,4,5')
 
 
 plotPath = '/home/vista/Desktop/Architecture_Search/FF/plots.data'
 # plotFromFile(plotPath)
 
-folderPath = '/home/vista/Desktop/Architecture_Search/FF'
-plotPartitionsFromFolder(folderPath, plotPath)
+folderPath = '/home/vista/Desktop/Architecture_Search/FF-2'
+# plotPartitionsFromFolder(folderPath, plotPath)
+generateCSV(folderPath)
 
 # # ====== average key values =============
 # from torch import load, save
