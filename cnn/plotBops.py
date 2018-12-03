@@ -112,7 +112,8 @@ def generateCSV(folderPath):
                 repeatNum = int(file[file.rfind('-') + 1:file.rfind('.')])
                 validAcc = getattr(checkpoint, TrainRegime.validAccKey)
             except Exception as e:
-                remove(fPath)
+                print(file)
+                # remove(fPath)
                 continue
 
             partitionStr = str(partition)
@@ -137,34 +138,36 @@ def generateCSV(folderPath):
     print('Partition,Bops,1,2,3,4,5')
 
 
-plotPath = '/home/vista/Desktop/Architecture_Search/FF/plots.data'
+def plotAverages(folderPath):
+    plotsDataPath = '{}/plots.data.avg'.format(folderPath)
+    plotsData = load(plotsDataPath)
+    bopsPlotData = plotsData[bopsKey]
+
+    import scipy.stats as st
+
+    for k in bopsPlotData.keys():
+        results = bopsPlotData[k]
+        avg = 0.0
+        values = []
+        for title, bops, r in results:
+            avg += r
+            values.append(r)
+        avg /= len(results)
+        bopsPlotData[k] = [(title, bops, avg)]
+
+    Statistics.plotBops(plotsData, bopsKey, 'Baseline', folderPath)
+    # save updated plots data
+    save(plotsData, plotsDataPath)
+
+
+folderName = 'FF-3'
+plotPath = '/home/vista/Desktop/Architecture_Search/{}/plots.data'.format(folderName)
 # plotFromFile(plotPath)
 
-folderPath = '/home/vista/Desktop/Architecture_Search/FF-2'
-# plotPartitionsFromFolder(folderPath, plotPath)
-generateCSV(folderPath)
-
-# # ====== average key values =============
-# from torch import load, save
-# from cnn.statistics import Statistics
-#
-# bopsKey = 'bops'
-# folderPath = '/home/vista/Desktop/Architecture_Search/FF'
-# plotsDataPath = '/home/vista/Desktop/Architecture_Search/FF/plots.data.avg'
-# plotsData = load(plotsDataPath)
-# bopsPlotData = plotsData[bopsKey]
-#
-# for k in bopsPlotData.keys():
-#     results = bopsPlotData[k]
-#     avg = 0.0
-#     for title, bops, r in results:
-#         avg += r
-#     avg /= len(results)
-#     bopsPlotData[k] = [(title, bops, avg)]
-#
-# Statistics.plotBops(plotsData, bopsKey, 'Baseline', folderPath)
-# # save updated plots data
-# save(plotsData, plotsDataPath)
+folderPath = '/home/vista/Desktop/Architecture_Search/{}'.format(folderName)
+plotPartitionsFromFolder(folderPath, plotPath)
+# generateCSV(folderPath)
+# plotAverages(folderPath)
 
 # # ======= L1 distance =================
 # from torch import load, save
