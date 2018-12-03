@@ -4,8 +4,9 @@ from math import ceil
 from io import BytesIO
 from base64 import b64encode
 from urllib.parse import quote
-from numpy import linspace
+from numpy import linspace, mean
 from abc import abstractmethod
+import scipy.stats as st
 
 import torch.nn.functional as F
 from torch import save as saveFile
@@ -164,7 +165,8 @@ class Statistics:
         ax.set_ylabel(yLabel)
         ax.set_ylim(top=yMax, bottom=yMin)
         ax.set_title(title)
-        ax.legend(loc='upper center', bbox_to_anchor=(0.5, 1.005), ncol=5, fancybox=True, shadow=True)
+        # put legend in bottom right corner, transparent (framealpha), small font
+        ax.legend(loc='lower right', ncol=10, fancybox=True, shadow=True, framealpha=0.1, prop={'size': 6})
 
     @staticmethod
     def __setFigProperties(fig, figSize=(15, 10)):
@@ -298,8 +300,8 @@ class Statistics:
         # bopsData['1'] = [(None, 0.86, 59.8), (None, 1.21, 61.3)]
         # bopsData['0'] = [(None, 0.88, 62.6), (None, 1.1, 61.6)]
         # create plots
-        plots = [BopsStandardPlot('Accuracy vs. Bops', bopsData.keys()), BopsMaxAccuracyPlot('Max accuracy vs. Bops', bopsData.keys(), baselineLabel),
-                 BopsMinBopsPlot('Accuracy vs. Min bops', bopsData.keys(), baselineLabel)]
+        plots = [BopsStandardPlot(bopsData.keys()), BopsAveragePlot(bopsData.keys()),
+                 BopsMaxAccuracyPlot(bopsData.keys(), baselineLabel), BopsMinBopsPlot(bopsData.keys(), baselineLabel)]
 
         # iterate 1st over non-integer keys
         for label in sorted(bopsData.keys(), key=lambda x: x if isinstance(x, int) else 0):
@@ -320,6 +322,8 @@ class Statistics:
 
 
 class BopsPlot:
+    accuracyFormat = '{:.2f}'
+
     def __init__(self, title, nKeys):
         self.title = title
         # create standard bops plot
@@ -342,10 +346,25 @@ class BopsPlot:
         self.xValues = []
         self.yValues = []
 
+        # save previous point, in order to connect last 2 points with a dashed line
+        self.previousPoint = None
+
     def setPlotProperties(self):
         paddingPercentage = 0.02
-        yMax = self.yMax * (1.0 + paddingPercentage)
-        yMin = self.yMin * (1.0 - paddingPercentage)
+        paddingSize = (self.yMax - self.yMin) * paddingPercentage
+        yMax = self.yMax + paddingSize
+        yMin = self.yMin - paddingSize
+
+        # self.ax.set_xlim(right=0.832, left=0.758)
+        # Statistics.setPlotProperties(self.fig, self.ax, xLabel='Bops / 1E9', yLabel='Accuracy', title=self.title, yMin=yMin, yMax=89.6)
+
+        self.ax.locator_params(nbins=20, axis='y')
+        from matplotlib.ticker import MultipleLocator
+        spacing = 0.05
+        minorLocator = MultipleLocator(spacing)
+        self.ax.yaxis.set_minor_locator(minorLocator)
+        # Set grid to use minor tick locations.
+        self.ax.grid(which='minor')
 
         Statistics.setPlotProperties(self.fig, self.ax, xLabel='Bops / 1E9', yLabel='Accuracy', title=self.title, yMin=yMin, yMax=yMax)
 
@@ -358,17 +377,21 @@ class BopsPlot:
 
         self.xValues.append(bops)
         self.yValues.append(accuracy)
+
         # update yMax, yMin
         self.yMax = max(self.yMax, accuracy)
         self.yMin = min(self.yMin, accuracy)
         # bitwidth might be None
-        txt = '{:.3f}'.format(accuracy)
-        if bitwidth:
-            txt = '{},{}'.format(bitwidth, txt)
-        # annotate
-        self.ax.annotate(txt, (bops, accuracy), size=6)
+        # txt = self.accuracyFormat.format(accuracy)
+        # if bitwidth:
+        #     txt = '{},{}'.format(bitwidth, txt)
+        # # annotate
+        # self.ax.annotate(txt, (bops, accuracy), size=6)
 
-    def __resetPlot(self):
+        if bitwidth:
+            self.ax.annotate('{}'.format(bitwidth), (bops, accuracy), size=6)
+
+    def resetPlot(self):
         self.xValues.clear()
         self.yValues.clear()
 
@@ -377,16 +400,68 @@ class BopsPlot:
         self.ax.plot(self.xValues, self.yValues, 'o', label=label, c=self.colors[self.nextColorIdx])
         self.plotSpecific(label)
         self.nextColorIdx += 1
-        self.__resetPlot()
+        self.resetPlot()
 
     @abstractmethod
     def plotSpecific(self, label):
         raise NotImplementedError('subclasses must override plotSpecific()!')
 
 
+class BopsAveragePlot(BopsPlot):
+    def __init__(self, nKeys):
+        # init confidence interval of 1 std
+        self.confidence = 0.6827
+
+        title = 'Average accuracy vs. Bops | Confidence:[{}]'.format(self.confidence)
+        super(BopsAveragePlot, self).__init__(title, nKeys)
+
+    def addDataPoint(self, dataPoint, label):
+        bitwidth, bops, accuracy = dataPoint
+
+        if len(self.xValues) == 0:
+            self.xValues.append(bops)
+        assert (self.xValues[0] == bops)
+
+        self.yValues.append(accuracy)
+
+    # plot label values
+    def plot(self, label):
+        # average accuracy
+        yMean = mean(self.yValues)
+        self.ax.plot(self.xValues, [yMean], 'o', label=label, c=self.colors[self.nextColorIdx])
+
+        # update yMax, yMin
+        self.yMax = max(self.yMax, yMean)
+        self.yMin = min(self.yMin, yMean)
+
+        # annotate label
+        self.ax.annotate('{}'.format(label[label.find('-') + 1:]), (self.xValues[0], yMean), size=6)
+
+        if isinstance(label, str) and ((' 16]' in label) or ('16,' in label)):
+            if self.previousPoint is not None:
+                xPrev, yPrev = self.previousPoint
+                self.ax.plot([xPrev, self.xValues[-1]], [yPrev, yMean], '--', c=self.colors[self.nextColorIdx])
+            # save last point as previous point
+            self.previousPoint = (self.xValues[-1], yMean)
+
+        # add error bar if there is more than single value
+        if len(self.yValues) > 1:
+            # calc standard error of the mean
+            sem = st.sem(self.yValues)
+            # calc confidence interval
+            intervalMin, intervalMax = st.t.interval(self.confidence, len(self.yValues) - 1, loc=yMean, scale=sem)
+            confidenceInterval = intervalMax - intervalMin
+            self.ax.errorbar(self.xValues, [yMean], yerr=(confidenceInterval / 2),
+                             ms=5, marker='X', capsize=4, markeredgewidth=1, elinewidth=2, c=self.colors[self.nextColorIdx])
+
+        # update variables for next plot
+        self.nextColorIdx += 1
+        self.resetPlot()
+
+
 class BopsStandardPlot(BopsPlot):
-    def __init__(self, title, nKeys):
-        super(BopsStandardPlot, self).__init__(title, nKeys)
+    def __init__(self, nKeys):
+        super(BopsStandardPlot, self).__init__('Accuracy vs. Bops', nKeys)
 
     def addDataPoint(self, dataPoint, label):
         self.addStandardDataPoint(dataPoint)
@@ -417,6 +492,7 @@ class BopsPlotWithCondition(BopsPlot):
         elif self.condition(dataPoint):
             self.xValues = [bops]
             self.yValues = [accuracy]
+
             # update yMax, yMin
             self.yMax = max(self.yMax, accuracy)
             self.yMin = min(self.yMin, accuracy)
@@ -424,17 +500,18 @@ class BopsPlotWithCondition(BopsPlot):
     def plotSpecific(self, label):
         if label != self.baselineLabel:
             # connect last 2 points
-            if self.previousPoint is not None:
-                xPrev, yPrev = self.previousPoint
-                self.ax.plot([xPrev, self.xValues[-1]], [yPrev, self.yValues[-1]], '--', c=self.colors[self.nextColorIdx])
-            # save last point as previous point
-            self.previousPoint = (self.xValues[-1], self.yValues[-1])
+            if isinstance(label, tuple):
+                if self.previousPoint is not None:
+                    xPrev, yPrev = self.previousPoint
+                    self.ax.plot([xPrev, self.xValues[-1]], [yPrev, self.yValues[-1]], '--', c=self.colors[self.nextColorIdx])
+                # save last point as previous point
+                self.previousPoint = (self.xValues[-1], self.yValues[-1])
 
             accuracy = self.yValues[0] if len(self.yValues) > 0 else None
             bops = self.xValues[0] if len(self.xValues) > 0 else None
 
             if (accuracy is not None) and (bops is not None):
-                txt = '{:.3f}'.format(accuracy)
+                txt = self.accuracyFormat.format(accuracy)
                 # if label is a string, add label to annotate
                 if isinstance(label, str):
                     txt = '{},{}'.format(label, txt)
@@ -443,8 +520,8 @@ class BopsPlotWithCondition(BopsPlot):
 
 
 class BopsMaxAccuracyPlot(BopsPlotWithCondition):
-    def __init__(self, title, nKeys, baselineLabel):
-        super(BopsMaxAccuracyPlot, self).__init__(title, nKeys, baselineLabel)
+    def __init__(self, nKeys, baselineLabel):
+        super(BopsMaxAccuracyPlot, self).__init__('Max accuracy vs. Bops', nKeys, baselineLabel)
 
     def condition(self, dataPoint):
         _, _, accuracy = dataPoint
@@ -452,8 +529,8 @@ class BopsMaxAccuracyPlot(BopsPlotWithCondition):
 
 
 class BopsMinBopsPlot(BopsPlotWithCondition):
-    def __init__(self, title, nKeys, baselineLabel):
-        super(BopsMinBopsPlot, self).__init__(title, nKeys, baselineLabel)
+    def __init__(self, nKeys, baselineLabel):
+        super(BopsMinBopsPlot, self).__init__('Accuracy vs. Min bops', nKeys, baselineLabel)
 
     def condition(self, dataPoint):
         _, bops, _ = dataPoint
