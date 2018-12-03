@@ -143,8 +143,6 @@ def plotAverages(folderPath):
     plotsData = load(plotsDataPath)
     bopsPlotData = plotsData[bopsKey]
 
-    import scipy.stats as st
-
     for k in bopsPlotData.keys():
         results = bopsPlotData[k]
         avg = 0.0
@@ -160,7 +158,7 @@ def plotAverages(folderPath):
     save(plotsData, plotsDataPath)
 
 
-folderName = 'FF-3'
+folderName = 'FF-2'
 plotPath = '/home/vista/Desktop/Architecture_Search/{}/plots.data'.format(folderName)
 # plotFromFile(plotPath)
 
