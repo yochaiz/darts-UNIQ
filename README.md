@@ -26,7 +26,17 @@ To carry out quantized search, use the following command:
 ```
 PYTHONPATH=../ CUDA_VISIBLE_DEVICES=0 python3 ./train_search.py --data ../data/ --dataset cifar10 --batch_size 250 --arch_learning_rate 0.1 --learning_rate 0.01 --lmbda 1 --bitwidth 2#2,4#3#8 --baselineBits 3 --epochs 1 --model thin_resnet --nCopies 1 --grad_estimator layer_same_path --alphas_regime alphas_weights_loop --nSamples 3 --workers 2 --train_portion 0.5  --gpu 0 --alphas_data_parts 4 --pre_trained "../pre_trained/cifar10/train_portion_1.0/[(32, 32)],[thin_resnet]/model.updated_stats.pth.tar"
 ```
-Make sure the current directory is the cnn directory.
+Make sure the current directory is the **cnn** directory.
+
+### Checkpoint evaluation
+During the search, we sample configurations from the current distribution.
+Use the following command in order to train the sampled configurations and evaluate their quality.
+```
+PYTHONPATH=../ CUDA_VISIBLE_DEVICES=0 python3 ./train_opt2.py --data ../data/ --json results/checkpoints/20190501-121257-1-4.json
+```
+Make sure the current directory is the **cnn** directory.
+
+The argument --json holds the path to the checkpoint we would like to train.
 
 ## Acknowledgments  
 The research was funded by ERC StG RAPID.  
