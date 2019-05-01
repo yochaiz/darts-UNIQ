@@ -60,12 +60,16 @@ def plotPartitionsFromFolder(folderPath, plotsDataPath):
     counterDict = {}
     counter = 0
 
-    plotsData = load(plotsDataPath)
-    bopsPlotData = plotsData[bopsKey]
+    # plotsData = load(plotsDataPath)
+    # bopsPlotData = plotsData[bopsKey]
+
+    bopsPlotData = {}
+    plotsData = {'bops': bopsPlotData}
+
     for folderName in sorted(listdir(folderPath)):
         fPath = '{}/{}'.format(folderPath, folderName)
         if isfile(fPath):
-            checkpoint = load(fPath)
+            checkpoint = load(fPath, map_location=lambda storage, loc: storage.cuda())
             # init list of existing keys we found in checkpoint
             existingKeys = []
             # update keys if they exist
@@ -158,12 +162,35 @@ def plotAverages(folderPath):
     save(plotsData, plotsDataPath)
 
 
-folderName = 'FF-2'
-plotPath = '/home/vista/Desktop/Architecture_Search/{}/plots.data'.format(folderName)
-# plotFromFile(plotPath)
+def addBops(folderPath, checkpointPrefix):
+    plotsData = load('{}/plots.data'.format(folderPath))
+    plotsData = plotsData['bops']
 
-folderPath = '/home/vista/Desktop/Architecture_Search/{}'.format(folderName)
+    for epoch, checkpointsList in plotsData.items():
+        for id, (_,bopsValue,_) in enumerate(checkpointsList):
+            checkpointPath = '{}/{}-{}-{}.json'.format(folderPath, checkpointPrefix, epoch, id)
+            if isfile(checkpointPath):
+                checkpoint =  load(checkpointPath, map_location=lambda storage, loc: storage.cuda())
+                baselineFlops = {'Partition': bopsValue}
+                setattr(checkpoint, 'baselineFlops', baselineFlops)
+                setattr(checkpoint, bopsKey, bopsValue)
+                setattr(checkpoint, 'epoch', epoch)
+                setattr(checkpoint, 'id', id)
+                v = getattr(checkpoint, TrainRegime.validAccKey)
+                accDict = {'Partition': v}
+                setattr(checkpoint, TrainRegime.validAccKey, accDict)
+                save(checkpoint, checkpointPath)
+
+
+folderName = 'FF-4'
+plotPath = '/home/vista/Desktop/F-BANNAS_depracated/6.12/{}/plots.data'.format(folderName)
+folderPath = '/home/vista/Desktop/F-BANNAS_depracated/6.12/{}'.format(folderName)
+# plotFromFile(plotPath)
 plotPartitionsFromFolder(folderPath, plotPath)
+# addBops(folderPath, '20181113-212540')
+
+# folderPath = '/home/vista/Desktop/Architecture_Search/{}'.format(folderName)
+# plotPartitionsFromFolder(folderPath, plotPath)
 # generateCSV(folderPath)
 # plotAverages(folderPath)
 
