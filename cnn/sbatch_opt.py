@@ -32,6 +32,10 @@ for gpuID, jsonFileName in enumerate(jsonFilesList):
     command = [executable, './train_opt2.py', '--json', jsonFileName, '--gpu', '{}'.format(gpuID), '--data', '../data/']
     commandsList.append(command)
 
+# for jsonFileName in jsonFilesList:
+#     command = [executable, './train_opt2.py', '--json', jsonFileName, '--data', '../data/']
+#     commandsList.append(command)
+
 # commands = [
 #     [executable, './train_opt2.py',
 #      '--data', args.data,
