@@ -1,52 +1,59 @@
-# Differentiable Architecture Search
-Code accompanying the paper
-> [DARTS: Differentiable Architecture Search](https://arxiv.org/abs/1806.09055)\
-> Hanxiao Liu, Karen Simonyan, Yiming Yang.\
-> _arXiv:1806.09055_.
+# Towards Learning of Filter-Level Heterogeneous Compression of Convolutional Neural Networks
 
-<p align="center">
-  <img src="img/darts.png" alt="darts" width="48%">
-</p>
-The algorithm is based on continuous relaxation and gradient descent in the architecture space. It is able to efficiently design high-performance convolutional architectures for image classification (on CIFAR-10 and ImageNet) and recurrent architectures for language modeling (on Penn Treebank and WikiText-2). Only a single GPU is required.
+Code repository for Quantized NAS (Chapter 3): https://arxiv.org/abs/1904.09872
 
-## Requirements
+Please use F-BANNAS branch.
+
+## Installation
+We recommend using TensorFlow with pip virtual environment.
+Installing instructions can be found in the following link: https://www.tensorflow.org/install/pip
+
+After the virtual environment activation, we have to install the required packages:
 ```
-Python >= 3.5.5, PyTorch == 0.3.1, torchvision == 0.2.0
+pip install -r requirements.txt
 ```
-NOTE: PyTorch 0.4 is not supported at this moment and would lead to OOM.
+Make sure the current directory is the repository main directory.
 
 ## Datasets
-Instructions for acquiring PTB and WT2 can be found [here](https://github.com/salesforce/awd-lstm-lm). While CIFAR-10 can be automatically downloaded by torchvision, ImageNet needs to be manually downloaded (preferably to a SSD) following the instructions [here](https://github.com/pytorch/examples/tree/master/imagenet).
+We worked with CIFAR-10 and CIFAR-100.
 
-## Architecture Search
-To carry out architecture search (using 2nd order approximation), run
-```
-cd cnn && python train_search.py --unrolled     # for conv cells on CIFAR-10
-cd rnn && python train_search.py --unrolled     # for recurrent cells on PTB
-```
-Snapshots of the most likely convolutional & recurrent cells over time:
-<p align="center">
-<img src="img/progress_convolutional.gif" alt="progress_convolutional" width="38%">
-<img src="img/progress_recurrent.gif" alt="progress_recurrent" width="48%">
-</p>
+Both can be automatically downloaded by torchvision.
 
-## Architecture Evaluation
-To reproduce our results using the best cells, run
-```
-cd cnn && python train.py --auxiliary --cutout            # CIFAR-10
-cd rnn && python train.py                                 # PTB
-cd rnn && python train.py --data ../data/wikitext-2 \     # WT2
-            --dropouth 0.15 --emsize 700 --nhidlast 700 --nhid 700 --wdecay 5e-7
-cd cnn && python train_imagenet.py --auxiliary            # ImageNet
-```
-Customized architectures are supported through the `--arch` flag once specified in `genotypes.py`.
+## Usage
 
-## Citation
+### Search
+To carry out quantized search, use the following command:
 ```
-@article{liu2018darts,
-  title={DARTS: Differentiable Architecture Search},
-  author={Liu, Hanxiao and Simonyan, Karen and Yang, Yiming},
-  journal={arXiv preprint arXiv:1806.09055},
-  year={2018}
+PYTHONPATH=../ CUDA_VISIBLE_DEVICES=0 python3 ./train_search.py --data ../data/ --dataset cifar10 --batch_size 250 --arch_learning_rate 0.1 --learning_rate 0.01 --lmbda 1 --bitwidth 2#2,4#3#8 --baselineBits 3 --epochs 1 --model thin_resnet --nCopies 1 --grad_estimator layer_same_path --alphas_regime alphas_weights_loop --nSamples 3 --workers 2 --train_portion 0.5  --gpu 0 --alphas_data_parts 4 --pre_trained "../pre_trained/cifar10/train_portion_1.0/[(32, 32)],[thin_resnet]/model.updated_stats.pth.tar"
+```
+Make sure the current directory is the cnn directory.
+
+## Acknowledgments  
+The research was funded by ERC StG RAPID.  
+  
+## Citation  
+If our work helped you in your research, please consider cite us.  
+```
+@ARTICLE{2019arXiv190409872Z,
+       author = {{Zur}, Yochai and {Baskin}, Chaim and {Zheltonozhskii}, Evgenii and
+         {Chmiel}, Brian and {Evron}, Itay and {Bronstein}, Alex M. and
+         {Mendelson}, Avi},
+        title = "{Towards Learning of Filter-Level Heterogeneous Compression of Convolutional Neural Networks}",
+      journal = {arXiv e-prints},
+     keywords = {Computer Science - Computer Vision and Pattern Recognition, Computer Science - Machine Learning, Computer Science - Neural and Evolutionary Computing},
+         year = "2019",
+        month = "Apr",
+          eid = {arXiv:1904.09872},
+        pages = {arXiv:1904.09872},
+archivePrefix = {arXiv},
+       eprint = {1904.09872},
+ primaryClass = {cs.CV},
+       adsurl = {https://ui.adsabs.harvard.edu/abs/2019arXiv190409872Z},
+      adsnote = {Provided by the SAO/NASA Astrophysics Data System}
 }
 ```
+    
+This work is licensed under the Creative Commons Attribution-NonCommercial  
+4.0 International License. To view a copy of this license, visit  
+[http://creativecommons.org/licenses/by-nc/4.0/](http://creativecommons.org/licenses/by-nc/4.0/) or send a letter to  
+Creative Commons, PO Box 1866, Mountain View, CA 94042, USA.
