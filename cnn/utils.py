@@ -210,41 +210,41 @@ def attachFiletoEmail(msg, fileFullPath):
         msg.attach(part)
 
 
-def sendEmail(toAddr, subject, content, attachments=None):
-    # init email addresses
-    fromAddr = "yochaiz@campus.technion.ac.il"
-    # init connection
-    server = SMTP('smtp.office365.com', 587)
-    server.ehlo()
-    server.starttls()
-    server.ehlo()
-    passwd = b'WXo4Nzk1NzE='
-    server.login(fromAddr, b64decode(passwd).decode('utf-8'))
-    # init message
-    msg = MIMEMultipart()
-    msg['From'] = fromAddr
-    msg['Subject'] = subject
-    msg.attach(MIMEText(content, 'plain'))
-
-    if attachments:
-        for att in attachments:
-            if path.exists(att):
-                if path.isdir(att):
-                    for filename in listdir(att):
-                        attachFiletoEmail(msg, '{}/{}'.format(att, filename))
-                else:
-                    attachFiletoEmail(msg, att)
-
-    # send message
-    for dst in toAddr:
-        msg['To'] = dst
-        text = msg.as_string()
-        try:
-            server.sendmail(fromAddr, dst, text)
-        except Exception as e:
-            print('Sending email failed, error:[{}]'.format(e))
-
-    server.close()
+# def sendEmail(toAddr, subject, content, attachments=None):
+#     # init email addresses
+#     fromAddr = "yochaiz@campus.technion.ac.il"
+#     # init connection
+#     server = SMTP('smtp.office365.com', 587)
+#     server.ehlo()
+#     server.starttls()
+#     server.ehlo()
+#     passwd = b'WXo4Nzk1NzE='
+#     server.login(fromAddr, b64decode(passwd).decode('utf-8'))
+#     # init message
+#     msg = MIMEMultipart()
+#     msg['From'] = fromAddr
+#     msg['Subject'] = subject
+#     msg.attach(MIMEText(content, 'plain'))
+#
+#     if attachments:
+#         for att in attachments:
+#             if path.exists(att):
+#                 if path.isdir(att):
+#                     for filename in listdir(att):
+#                         attachFiletoEmail(msg, '{}/{}'.format(att, filename))
+#                 else:
+#                     attachFiletoEmail(msg, att)
+#
+#     # send message
+#     for dst in toAddr:
+#         msg['To'] = dst
+#         text = msg.as_string()
+#         try:
+#             server.sendmail(fromAddr, dst, text)
+#         except Exception as e:
+#             print('Sending email failed, error:[{}]'.format(e))
+#
+#     server.close()
 
 
 def sendDataEmail(model, args, logger, content):
@@ -254,7 +254,7 @@ def sendDataEmail(model, args, logger, content):
     subject = 'Results [{}] - Model:[{}] Bitwidth:{} dataset:[{}] lambda:[{}]' \
         .format(args.folderName, args.model, args.bitwidth, args.dataset, args.lmbda)
     # send email
-    sendEmail(args.recipients, subject, content, attachments)
+    # sendEmail(args.recipients, subject, content, attachments)
 
 
 def create_exp_dir(resultFolderPath):

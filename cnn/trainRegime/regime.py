@@ -411,7 +411,7 @@ class TrainRegime:
             # send email
             diffTime = endTime - self.lastMailTime
             if (diffTime > self.secondsBetweenMails) or ((step + 1) % int(nBatches / 2) == 0):
-                self.sendEmail(nEpoch, step, nBatches)
+                # self.sendEmail(nEpoch, step, nBatches)
                 # update last email time
                 self.lastMailTime = time()
                 # from now on we send every 5 hours

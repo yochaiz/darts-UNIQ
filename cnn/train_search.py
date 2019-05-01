@@ -17,7 +17,7 @@ from torch import manual_seed as torch_manual_seed
 
 import cnn.trainRegime as trainRegimes
 from cnn.HtmlLogger import HtmlLogger
-from cnn.utils import create_exp_dir, saveArgsToJSON, loadGradEstimatorsNames, loadModelNames, models, sendEmail, loadDatasets
+from cnn.utils import create_exp_dir, saveArgsToJSON, loadGradEstimatorsNames, loadModelNames, models, loadDatasets
 
 
 # collect possible alphas optimization
@@ -136,7 +136,7 @@ def parseArgs(lossFuncsLambda):
 
     # init emails recipients
     # args.recipients = ['evron.itay@gmail.com', 'chaimbaskin@cs.technion.ac.il', 'evgeniizh@campus.technion.ac.il', 'yochaiz.cs@gmail.com']
-    args.recipients = ['yochaiz.cs@gmail.com']
+    args.recipients = []
 
     # copyBaselineKeys is a parameter whether to copy keys like epochs, learning rate from baseline to current model training regime
     # used mostly in OptimalModel subclass
@@ -194,7 +194,7 @@ if __name__ == '__main__':
         logger.addInfoToDataTable(messageContent, color='lightsalmon')
         # send e-mail with error details
         subject = '[{}] stopped'.format(args.folderName)
-        sendEmail(['yochaiz.cs@gmail.com'], subject, messageContent)
+        # sendEmail([], subject, messageContent)
 
         # forward exception
         raise e

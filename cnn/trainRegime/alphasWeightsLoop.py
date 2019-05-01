@@ -266,7 +266,7 @@ class AlphasWeightsLoop(TrainRegime):
         # save checkpoint
         save_checkpoint(self.trainFolderPath, model, args, epoch, self.best_prec1)
         # send final email
-        self.sendEmail('Final', 0, 0)
+        # self.sendEmail('Final', 0, 0)
 
     @staticmethod
     def isDictEmpty(dict):
