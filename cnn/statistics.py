@@ -78,7 +78,7 @@ class Statistics:
             for j, p in enumerate(probs):
                 self.containers[self.alphaDistributionKey][i][j].append(p.item())
             # calc entropy
-            self.containers[self.entropyKey][i].append(entropy(probs))
+            self.containers[self.entropyKey][i].append(entropy(probs.cpu()))
 
         # plot data
         self.plotData()
@@ -161,15 +161,18 @@ class Statistics:
     def __setAxesProperties(ax, xLabel, yLabel, yMax, title, yMin=0.0):
         # ax.set_xticks(xValues)
         # ax.set_xticklabels(self.batchLabels)
-        ax.set_xlabel(xLabel)
-        ax.set_ylabel(yLabel)
+        ax.set_xlabel(xLabel, fontsize=20)
+        ax.set_ylabel(yLabel, fontsize=20)
+        ax.tick_params(axis='both', which='major', labelsize=16)
         ax.set_ylim(top=yMax, bottom=yMin)
         ax.set_title(title)
         # put legend in bottom right corner, transparent (framealpha), small font
-        ax.legend(loc='lower right', ncol=10, fancybox=True, shadow=True, framealpha=0.1, prop={'size': 6})
+        # ax.legend(loc='lower right', ncol=5, fancybox=True, shadow=True, framealpha=0.1, prop={'size': 8})
+        ax.legend(loc='upper center', bbox_to_anchor=(0.5, 1.005), ncol=5, fancybox=True, shadow=True)
 
     @staticmethod
     def __setFigProperties(fig, figSize=(15, 10)):
+    # def __setFigProperties(fig, figSize=(7, 7)):
         fig.set_size_inches(figSize)
         fig.tight_layout()
         # close plot
@@ -420,7 +423,11 @@ class BopsAveragePlot(BopsPlot):
 
         if len(self.xValues) == 0:
             self.xValues.append(bops)
-        assert (self.xValues[0] == bops)
+        # assert (self.xValues[0] == bops)
+        else:
+            if self.xValues[0] != bops:
+                print(self.xValues[0], bops)
+            self.xValues[0] = min(self.xValues[0], bops)
 
         self.yValues.append(accuracy)
 
@@ -428,31 +435,49 @@ class BopsAveragePlot(BopsPlot):
     def plot(self, label):
         # average accuracy
         yMean = mean(self.yValues)
-        self.ax.plot(self.xValues, [yMean], 'o', label=label, c=self.colors[self.nextColorIdx])
+        color = plt.cm.Greens(0.9) if isinstance(label, str) and ((' 16]' in label) or ('16,' in label)) else self.colors[self.nextColorIdx]
+        confidenceIntervalColor = plt.cm.Greens(0.5)
+        color = plt.cm.cool(0.45) if isinstance(label, str) and ((' 16]' in label) or ('16,' in label)) else self.colors[self.nextColorIdx]
+        confidenceIntervalColor = plt.cm.cool(0.15)
+
+        if isinstance(label, str) and ((' 16]' in label) or ('16,' in label)):
+            self.ax.plot(self.xValues, [yMean], 'o', label=label, c=color,zorder=900)
+        else:
+            self.ax.plot(self.xValues, [yMean], 'o', label=label, c=color)
 
         # update yMax, yMin
         self.yMax = max(self.yMax, yMean)
         self.yMin = min(self.yMin, yMean)
 
-        # annotate label
-        self.ax.annotate('{}'.format(label[label.find('-') + 1:]), (self.xValues[0], yMean), size=6)
+        # # annotate label
+        # self.ax.annotate('{}'.format(label[label.find('-') + 1:]), (self.xValues[0], yMean), size=6)
 
-        if isinstance(label, str) and ((' 16]' in label) or ('16,' in label)):
-            if self.previousPoint is not None:
-                xPrev, yPrev = self.previousPoint
-                self.ax.plot([xPrev, self.xValues[-1]], [yPrev, yMean], '--', c=self.colors[self.nextColorIdx])
-            # save last point as previous point
-            self.previousPoint = (self.xValues[-1], yMean)
-
+        confidenceHalfInterval = None
         # add error bar if there is more than single value
         if len(self.yValues) > 1:
             # calc standard error of the mean
             sem = st.sem(self.yValues)
             # calc confidence interval
             intervalMin, intervalMax = st.t.interval(self.confidence, len(self.yValues) - 1, loc=yMean, scale=sem)
-            confidenceInterval = intervalMax - intervalMin
-            self.ax.errorbar(self.xValues, [yMean], yerr=(confidenceInterval / 2),
-                             ms=5, marker='X', capsize=4, markeredgewidth=1, elinewidth=2, c=self.colors[self.nextColorIdx])
+            confidenceHalfInterval = (intervalMax - intervalMin) / 2
+            self.ax.errorbar(self.xValues, [yMean], yerr=confidenceHalfInterval,
+                             ms=5, marker='X', capsize=4, markeredgewidth=1, elinewidth=2, c=color)
+
+            if isinstance(label, str) and ((' 16]' in label) or ('16,' in label)):
+                self.ax.errorbar(self.xValues, [yMean], yerr=confidenceHalfInterval,
+                                 ms=5, marker='X', capsize=4, markeredgewidth=1, elinewidth=2, c=color,zorder=900)
+
+        if isinstance(label, str) and ((' 16]' in label) or ('16,' in label)):
+            if self.previousPoint is not None:
+                xPrev, yPrev, confidenceHalfIntervalPrev = self.previousPoint
+                self.ax.plot([xPrev, self.xValues[-1]], [yPrev, yMean], '--', c=color,zorder=900)
+                if confidenceHalfInterval and confidenceHalfIntervalPrev:
+                    self.ax.plot([xPrev, self.xValues[-1]], [yPrev - confidenceHalfIntervalPrev, yMean - confidenceHalfInterval], '--',
+                                 c=confidenceIntervalColor,zorder=900)
+                    self.ax.plot([xPrev, self.xValues[-1]], [yPrev + confidenceHalfIntervalPrev, yMean + confidenceHalfInterval], '--',
+                                 c=confidenceIntervalColor,zorder=900)
+            # save last point as previous point
+            self.previousPoint = (self.xValues[-1], yMean, confidenceHalfInterval)
 
         # update variables for next plot
         self.nextColorIdx += 1
@@ -503,7 +528,7 @@ class BopsPlotWithCondition(BopsPlot):
             if isinstance(label, tuple):
                 if self.previousPoint is not None:
                     xPrev, yPrev = self.previousPoint
-                    self.ax.plot([xPrev, self.xValues[-1]], [yPrev, self.yValues[-1]], '--', c=self.colors[self.nextColorIdx])
+                    self.ax.plot([xPrev, self.xValues[-1]], [yPrev, self.yValues[-1]], '--', c=self.colors[self.nextColorIdx],zorder=900)
                 # save last point as previous point
                 self.previousPoint = (self.xValues[-1], self.yValues[-1])
 
