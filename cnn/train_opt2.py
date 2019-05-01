@@ -105,7 +105,7 @@ def G(scriptArgs):
         # set pre-trained path
         preTrainedKey = '[(32, 32)],[{}]'.format(args.model)
         preTrainedFileName = 'model.updated_stats.pth.tar'
-        args.pre_trained = '{}/../pre_trained/{}/train_portion_1.0/{}/train/{}'.format(baseFolder, args.dataset, preTrainedKey, preTrainedFileName)
+        args.pre_trained = '{}/../pre_trained/{}/train_portion_1.0/{}/{}'.format(baseFolder, args.dataset, preTrainedKey, preTrainedFileName)
         # args.pre_trained = scriptArgs.pp
         # check path exists
         if path.exists(args.pre_trained):
