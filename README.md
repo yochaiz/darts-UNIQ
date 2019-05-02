@@ -2,10 +2,8 @@
 
 Code repository for Quantized NAS (Chapter 3): https://arxiv.org/abs/1904.09872
 
-Please use F-BANNAS branch.
-
 ## Installation
-We recommend using TensorFlow with pip virtual environment.
+We recommend using virtual environment.
 Installing instructions can be found in the following link: https://www.tensorflow.org/install/pip
 
 After the virtual environment activation, we have to install the required packages:
